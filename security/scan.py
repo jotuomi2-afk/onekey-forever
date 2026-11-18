@@ -85,8 +85,11 @@ def scan(addon_dir):
     qd = os.path.join(addon_dir, "QuestData.lua")
     if os.path.exists(qd):
         head = open(qd, encoding="utf-8").read(2000)
-        if "pfQuest" not in head or "MIT" not in head:
-            findings.append(("QuestData.lua", 1, "R6", "pfQuest MIT notice missing"))
+        if "pfQuest" not in head or "MIT" not in head or "extract_pfquest.py" not in head:
+            findings.append(("QuestData.lua", 1, "R6", "pfQuest MIT notice or generator line missing"))
+        for other in ("Questie", "Polestar", "wago.tools", "wowhead"):
+            if other.lower() in head.lower():
+                findings.append(("QuestData.lua", 1, "R6", "data from another source: " + other))
     return findings
 
 

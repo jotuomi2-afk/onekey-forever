@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.25.0
+
+- Quest hints now come from pfQuest's own database only (MIT), built by
+  `tools/extract_pfquest.py`. Positions are corrected for mobs that span two
+  zones (for example Redridge and Swamp of Sorrows mobs).
+- Forever's new zones and quests are not in pfQuest, so they get no hints.
+
 ## 0.24.3
 
 First packaged version.

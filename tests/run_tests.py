@@ -324,6 +324,15 @@ def main():
                     pass  # items without a known source exist in the data
         if n < 1000:
             p.append("only %d quests" % n)
+        # positions checked in the game (WoW: Forever): Chef Breanna in Lakeshire
+        # stood 36 yards from a player at 17.9, 46.3 on the Redridge map
+        cb = str(npcs[343] or "")
+        m = re.match(r"Chef Breanna\|1433\|([\d.]+),([\d.]+)", cb)
+        if not m or abs(float(m.group(1)) - 17.9) > 2 or abs(float(m.group(2)) - 46.3) > 3:
+            p.append("Chef Breanna not where the game shows her: " + cb)
+        head = read(os.path.join(ADDON, "QuestData.lua"))[:1500]
+        if "extract_pfquest.py" not in head or "revision" not in head:
+            p.append("QuestData.lua does not name its generator and pfQuest revision")
         if missing_start > n * 0.02:
             p.append("%d of %d quests have a giver with no location" % (missing_start, n))
         return p

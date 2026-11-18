@@ -2,13 +2,9 @@
 
 ## Before the first public release (blockers)
 
-1. **Quest data licence.** `QuestData.lua` was extracted from Polestar's
-   pack, which mixes pfQuest (MIT) with QuestieDB facts (maintainers ask for
-   all rights reserved), web quest XP and Blizzard client tables. Choose one:
-   - rebuild it straight from pfQuest's repository (MIT only) — change
-     `tools/extract_questdb.py` to read pfQuest's `db/` tables; or
-   - ship without quest hints (drop QuestData.lua and QuestHelp.lua from the
-     toc; the addon already runs without them).
+1. ~~Quest data licence~~ — done in 0.25.0: QuestData.lua is now built
+   from pfQuest's own repository (MIT only) by `tools/extract_pfquest.py`;
+   `security/scan.py` (R6) fails if another source appears in it.
 2. **Name.** "OneKey" may clash with other addons on CurseForge/Wago; search
    before announcing. The folder stays `OneKeyDruid` either way.
 3. **Repository settings** (once, by the owner):
@@ -54,7 +50,7 @@ client's interface number changes, after the in-game check.
 OneKeyDruid/          the addon (what goes into the zip)
 tests/                run_tests.py, wowstub.lua, mutation_check.py, requirements.txt
 security/scan.py      policy scan
-tools/                build.py, extract_questdb.py, analyze_log.py
+tools/                build.py, extract_pfquest.py, analyze_log.py
 docs/                 ARCHITECTURE.md, RELEASE.md
 .claude/agents/       test-runner, security-reviewer, release-manager, log-analyst
 .claude/skills/       run-tests, security-audit, release, analyze-session-log

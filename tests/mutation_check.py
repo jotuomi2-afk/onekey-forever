@@ -22,6 +22,8 @@ MUTANTS = [
     ("macro over 255 characters", "Logic.lua", "\tlocal fight = fit(L)\n",
      '\tfight = fight .. ("\\n/say x"):rep(60)\n', "macro"),
     ("pfQuest licence notice removed", "QuestData.lua", None, None, "security"),
+    ("data from another quest database", "QuestData.lua", "local _, ns = ...\n",
+     "-- merged from QuestieDB\n", "security"),
 ]
 
 

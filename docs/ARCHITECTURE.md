@@ -31,7 +31,7 @@ Reads the addon's files with comments and strings removed (macro text such as
 | R3 | no `loadstring`, `RunScript`, `getfenv`/`setfenv` | no hidden or downloaded code |
 | R4 | no comparison or arithmetic on `UnitHealth`, `UnitPower`, … | WoW: Forever keeps them secret; it would error in game |
 | R5 | no tokens, keys or e-mail addresses | secrets and personal data |
-| R6 | the quest data keeps its pfQuest MIT notice | licence |
+| R6 | the quest data is pfQuest-only (MIT notice and generator named, no other quest database) | licence |
 | R7 | only `.lua .toc .xml .md LICENSE` in the package | no stray scripts or data |
 
 It also runs on the staged release folder in `tools/build.py`, so the zip
@@ -106,5 +106,5 @@ addon, anything that waits on a timer to act.
 | malicious contribution hides code | R3, R7, mandatory review, CI on every PR |
 | compromised CI action or dependency | actions pinned to SHAs, `lupa` pinned with hashes, read-only permissions |
 | tampered release zip | built in CI from the tag, SHA-256 published, draft reviewed before publishing |
-| licence problem with bundled data | R6; open question on the quest data source (docs/RELEASE.md) |
+| licence problem with bundled data | R6: QuestData.lua generated from pfQuest (MIT) only |
 | SavedVariables rename loses player settings | toc test |

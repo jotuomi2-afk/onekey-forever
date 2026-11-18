@@ -30,7 +30,7 @@ package (R7).
    `tests/mutation_check.py` with the base; a removed rule or mutant needs
    a stated reason.
 8. Data and licences: new data or code from elsewhere carries its licence in
-   THIRD_PARTY_NOTICES.md; check the open question on QuestData.lua in
-   docs/RELEASE.md.
+   THIRD_PARTY_NOTICES.md; QuestData.lua must come from pfQuest only
+   (`tools/extract_pfquest.py`).
 9. Report findings as `rule | file:line | risk | fix`, most severe first, or
    say plainly that there are none.

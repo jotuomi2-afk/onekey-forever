@@ -16,7 +16,7 @@ local Logic = ns.Logic
 local _, CLASS = UnitClass("player")
 if CLASS ~= "DRUID" then return end
 
-local VERSION = "0.24.3"
+local VERSION = "0.25.0"
 local BUTTON = "OneKeyDruidButton"
 -- The buttons of the modifier keys.
 local NAMES = { heal = "OneKeyDruidHeal", cc = "OneKeyDruidStop", behind = "OneKeyDruidBehind",
@@ -2068,7 +2068,7 @@ SlashCmdList.ONEKEYDRUID = function(msg)
 			say("your XP by zone (log): total XP, of it quests")
 			for name, p in pairs(per) do say(("  %s: %d XP (%d from quests)"):format(name, p.xp, p.q)) end
 		end
-		say("Questing with kills on the way beats grinding; Polestar shows the quest route.")
+		say("Questing with kills on the way beats grinding; /okd quests shows the next steps.")
 	elseif cmd == "report" then
 		sessionSummary()
 		for _, l in ipairs(Logic.Report(db.mobs, lg.buckets, lg.roarFights, lg.fights)) do print("  " .. l) end
