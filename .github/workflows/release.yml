@@ -1,0 +1,47 @@
+name: release
+
+# A tag v1.2.3 whose number matches "## Version" in the toc builds the zip,
+# runs every check again and publishes a GitHub release with the zip and its
+# SHA-256. Nothing else in the repository can publish.
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: release        # protect it in Settings → Environments (required reviewer)
+    permissions:
+      contents: write           # only to create the release
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: "3.12"
+      - run: pip install --require-hashes -r tests/requirements.txt
+      - name: Tag matches the toc version
+        run: |
+          v=$(sed -n 's/^## Version: *//p' OneKeyDruid/OneKeyDruid.toc | tr -d '\r')
+          test "v$v" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME but toc says $v"; exit 1; }
+      - run: python3 -I tests/run_tests.py
+      - run: python3 -I tests/mutation_check.py
+      - run: python3 -I security/scan.py
+      - run: python3 -I tools/build.py --no-test
+      - name: Release notes from CHANGELOG.md
+        run: |
+          v=${GITHUB_REF_NAME#v}
+          awk -v v="$v" '$0 ~ "^## "v {f=1; next} /^## / && f {exit} f' CHANGELOG.md > notes.md
+          test -s notes.md || echo "OneKey $v" > notes.md
+      - uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda # v2.2.1
+        with:
+          body_path: notes.md
+          files: |
+            dist/OneKey-*.zip
+            dist/OneKey-*.zip.sha256
+          draft: true             # a person checks the draft and publishes it

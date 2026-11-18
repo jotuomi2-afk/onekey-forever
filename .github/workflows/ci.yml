@@ -1,0 +1,39 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: "3.12"
+      - name: Install lupa (Lua 5.1 for the tests)
+        run: pip install --require-hashes -r tests/requirements.txt
+      - name: Tests (addon in Lua 5.1 against a fake client)
+        run: python3 -I tests/run_tests.py --json test-results.json
+      - name: Tests for the tests (planted faults must be caught)
+        run: python3 -I tests/mutation_check.py
+      - name: Security scan
+        run: python3 -I security/scan.py
+      - name: Build the zip (proves it packages)
+        run: python3 -I tools/build.py --no-test
+      - uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        if: always()
+        with:
+          name: ci-output
+          path: |
+            test-results.json
+            dist/
+          retention-days: 14

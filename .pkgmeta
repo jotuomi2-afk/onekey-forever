@@ -1,0 +1,18 @@
+# For the BigWigsMods packager (CurseForge / Wago), if the addon is published
+# there later. GitHub releases use tools/build.py instead.
+package-as: OneKeyDruid
+
+ignore:
+  - tests
+  - security
+  - tools
+  - docs
+  - .claude
+  - .github
+  - CLAUDE.md
+  - SECURITY.md
+  - .gitignore
+  - .pkgmeta
+
+move-folders:
+  OneKeyDruid/OneKeyDruid: OneKeyDruid
