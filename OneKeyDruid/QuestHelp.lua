@@ -171,10 +171,11 @@ end
 
 local skipped = {}
 local function canTake(q, lvl, log)
-	if skipped[q.id] then return false end
-	if log[q.id] or done(q.id) then return false end
-	if not forMe(q) then return false end
+	-- cheap checks first: done() asks the client, about 2000 quests a refresh
+	if skipped[q.id] or log[q.id] then return false end
 	if q.min > lvl or q.level < lvl - 5 or q.level > lvl + 3 then return false end
+	if not forMe(q) then return false end
+	if done(q.id) then return false end
 	if #q.pre > 0 then
 		local any = false
 		for _, p in ipairs(q.pre) do if done(tonumber(p)) then any = true break end end

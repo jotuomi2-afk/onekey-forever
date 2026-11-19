@@ -25,10 +25,18 @@ the player's account and computer, and about playing by Blizzard's rules.
 ## What we will not add
 
 Requests for these are declined, whatever the wording: fighting or healing on
-its own, a "sentry" that fights back while the player is away, reading health
-through a side channel to decide actions, anything that sends keys from
+its own, a "sentry" that fights back while the player is away, getting
+around the game's secret health and power values (screen or pixel reading,
+inverting the display curves, timing tricks), anything that sends keys from
 outside the game. They break Blizzard's terms of service and put players'
 accounts at risk.
+
+What the addon does use, and why it stays within the rules: out of combat
+it estimates health and mana from numbers the client hands out as plain
+values (the damage meter's totals, `IsSpellUsable`, the maximum health).
+The estimate only chooses which macro sits on the key before the next
+press. The player still presses for every action, and nothing is chosen
+during combat, when the macro is locked.
 
 ## Reporting
 

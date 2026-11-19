@@ -18,13 +18,13 @@ owner saying so in this conversation.
    in plain words, one line each.
 4. Run the `run-tests` skill, then the `security-audit` skill (or hand the
    diff to the `security-reviewer` agent).
-5. `python3 -I tools/build.py` → `dist/OneKey-X.Y.Z.zip` and `.sha256`.
+5. `python3 -I tools/build.py` → `dist/OneKeyForever-X.Y.Z.zip` and `.sha256`.
    Unzip it and check it holds exactly one folder, `OneKeyDruid/`.
-6. Commit: `git commit -am "OneKey X.Y.Z"`.
+6. Commit: `git commit -am "OneKey Forever X.Y.Z"`.
 7. Give the owner the next commands, to run themselves:
    ```
    git push origin main
-   git tag -s vX.Y.Z -m "OneKey X.Y.Z" && git push origin vX.Y.Z
+   git tag -s vX.Y.Z -m "OneKey Forever X.Y.Z" && git push origin vX.Y.Z
    ```
    The release workflow builds the draft release; the owner tests the zip in
    game and publishes it.

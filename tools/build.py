@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the release zip: dist/OneKey-<version>.zip with one folder,
+"""Build the release zip: dist/OneKeyForever-<version>.zip with one folder,
 OneKeyDruid/, ready to unpack into Interface/AddOns.
 
     python3 tools/build.py            # tests + scan + zip
@@ -40,7 +40,7 @@ def main():
     r = subprocess.run([sys.executable, "-I", os.path.join(ROOT, "security", "scan.py"), stage])
     if r.returncode:
         sys.exit("build stopped: the staged package fails the scan")
-    out = os.path.join(dist, "OneKey-%s.zip" % v)
+    out = os.path.join(dist, "OneKeyForever-%s.zip" % v)
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         for f in sorted(os.listdir(stage)):
             # fixed timestamps: the same source gives the same zip

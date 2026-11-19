@@ -16,7 +16,7 @@ local Logic = ns.Logic
 local _, CLASS = UnitClass("player")
 if CLASS ~= "DRUID" then return end
 
-local VERSION = "0.26.0"
+local VERSION = "0.27.0"
 local BUTTON = "OneKeyDruidButton"
 -- The buttons of the modifier keys.
 local NAMES = { heal = "OneKeyDruidHeal", cc = "OneKeyDruidStop", behind = "OneKeyDruidBehind",
@@ -725,17 +725,22 @@ end
 local adds = { n = 0, at = 0, warned = false }
 
 -- name#level, and #level for any mob of that level
+-- the best XP rate of any level, worked out again only after a new sample
+-- (this runs several times a second in a fight)
+local bestRate, bestDirty = nil, true
 local function mobStats(name, lvl)
 	local mobs = db.mobs
 	if not mobs then return nil end
-	local best
-	for key, m in pairs(mobs) do
-		if key:sub(1, 1) == "#" and m.n >= 2 and m.time > 0 then
-			local rate = m.xp / m.time
-			if not best or rate > best then best = rate end
+	if bestDirty then
+		bestRate, bestDirty = nil, false
+		for key, m in pairs(mobs) do
+			if key:sub(1, 1) == "#" and m.n >= 2 and m.time > 0 then
+				local rate = m.xp / m.time
+				if not bestRate or rate > bestRate then bestRate = rate end
+			end
 		end
 	end
-	return mobs[tostring(name) .. "#" .. tostring(lvl)] or mobs["#" .. tostring(lvl)], best
+	return mobs[tostring(name) .. "#" .. tostring(lvl)] or mobs["#" .. tostring(lvl)], bestRate
 end
 
 -- The real health and mana percent from the game itself. The value is secret:
@@ -766,8 +771,11 @@ local function setVitals()
 		local ok = pcall(function()
 			if mul == 1 then
 				fs:SetFormattedText("|cffff6060HP %.0f%%|r", hpv)
-			else
+			elseif not secret(hpv) then
+				-- no scale curve: only a plain number may be scaled, never a secret
 				fs:SetFormattedText("|cffff6060HP %.0f%%|r", hpv * 100)
+			else
+				error("no scale curve for a secret value")
 			end
 		end)
 		shown = ok
@@ -778,7 +786,9 @@ local function setVitals()
 		pcall(function()
 			local cur = fs:GetText() or ""
 			if scale then fs:SetFormattedText("|cffff6060HP %.0f%%|r |cff60a0ffMP %.0f%%|r" .. tail, hpv, mpv)
-			else fs:SetFormattedText("|cffff6060HP %.0f%%|r |cff60a0ffMP %.0f%%|r" .. tail, hpv * 100, mpv * 100) end
+			elseif not (secret(hpv) or secret(mpv)) then
+				fs:SetFormattedText("|cffff6060HP %.0f%%|r |cff60a0ffMP %.0f%%|r" .. tail, hpv * 100, mpv * 100)
+			end
 		end)
 	end
 end
@@ -1059,6 +1069,9 @@ local function update()
 				label = tr(hasBuff(N.prowl) and "catOpen" or "catProwl", key)
 			end
 		else
+			-- no enemy: the press only picks one; the next update checks
+			-- its level and class before the key will attack it
+			action = "find"
 			label = tr("target", key)
 		end
 	elseif action == "wait" then
@@ -1091,7 +1104,8 @@ local function lastPress()
 end
 local function alarmTick()
 	if not alarm.on then return end
-	if not locked() or lastPress() > alarm.since or alarm.n >= 15 then alarm.on = false return end
+	-- the first tick runs on the combat event, just before the lock
+	if (alarm.n > 0 and not locked()) or lastPress() > alarm.since or alarm.n >= 15 then alarm.on = false return end
 	alarm.n = alarm.n + 1
 	if PlaySound then pcall(PlaySound, 8959, "Master") end
 	if FlashClientIcon then pcall(FlashClientIcon) end
@@ -1149,6 +1163,9 @@ local function logClick(self, mouse, down)
 	end
 end
 
+-- A /reload in combat runs PLAYER_LOGIN under the lock: the attributes
+-- then wait for the fight to end (see PLAYER_REGEN_ENABLED).
+local secureLater = {}
 local function secureButton(name)
 	local b = CreateFrame("Button", name, UIParent, "SecureActionButtonTemplate")
 	b:SetSize(1, 1)
@@ -1156,8 +1173,12 @@ local function secureButton(name)
 	-- Both edges reach the button; the client's key-down setting picks the
 	-- one that acts, so a press acts once.
 	b:RegisterForClicks("AnyUp", "AnyDown")
-	b:SetAttribute("type", "macro")
-	b:SetAttribute("macrotext", "")
+	if locked() then
+		secureLater[#secureLater + 1] = b
+	else
+		b:SetAttribute("type", "macro")
+		b:SetAttribute("macrotext", "")
+	end
 	b:HookScript("PreClick", logClick)
 	return b
 end
@@ -1647,6 +1668,16 @@ local function addSample(name, lvl, xp, secs)
 		m.n, m.xp, m.time = m.n + 1, m.xp + xp, m.time + secs
 		db.mobs[key] = m
 	end
+	bestDirty = true
+	-- keep the table bounded: past 1500 mobs, forget the ones seen once
+	db.mobCount = (db.mobCount or 0) + 1
+	if db.mobCount > 1500 then
+		local n = 0
+		for k, v in pairs(db.mobs) do
+			if v.n < 2 and k:sub(1, 1) ~= "#" then db.mobs[k] = nil else n = n + 1 end
+		end
+		db.mobCount = n
+	end
 end
 
 -- Once: learn from the fights already in the log.
@@ -1677,6 +1708,9 @@ local function targetInfo()
 	if targetKind() ~= "hostile" then return nil end
 	local name, lvl = UnitName("target"), UnitLevel("target")
 	local class = UnitClassification and UnitClassification("target")
+	-- other players' names stay out of the log (it may be shared for analysis)
+	local isPlayer = UnitIsPlayer and UnitIsPlayer("target")
+	if isPlayer and not secret(isPlayer) then name = "player" end
 	return plain(name), plain(lvl), plain(class)
 end
 
@@ -1960,7 +1994,10 @@ SlashCmdList.ONEKEYDRUID = function(msg)
 	local on = rest:lower() == "on"
 	if cmd == "bind" and rest ~= "" then
 		if locked() then say("Not in combat.") return end
-		db.key = rest:upper()
+		local k, why = Logic.KeyName(rest)
+		if not k then say(why) return end
+		if k == db.sos then say(k .. " is the emergency key. Choose another key, or move it with /okd sos <key>.") return end
+		db.key = k
 		bindKey()
 		buildWarnings()
 		say("bound to " .. db.key .. " (Shift+" .. db.key .. " heals, Alt+" .. db.key .. " stops the mob or eats and drinks, Ctrl+" .. db.key .. " leaves the form).")
@@ -1978,6 +2015,11 @@ SlashCmdList.ONEKEYDRUID = function(msg)
 		buildWarnings()
 		say(cmd .. " below " .. db[cmd] .. "%.")
 	elseif cmd == "buffs" or cmd == "pull" or cmd == "hud" or cmd == "shiftpower" or cmd == "roar" or cmd == "escape" or cmd == "enrage" or cmd == "prehot" or cmd == "light" or cmd == "sound" or cmd == "dps" or cmd == "nuke" or cmd == "manasafe" or cmd == "prowl" then
+		if rest == "" then
+			-- no on/off: tell, do not change (a bare /okd hud used to hide the HUD)
+			say(("%s is %s. /okd %s on|off"):format(cmd, db[cmd] == false and "off" or (db[cmd] and "on" or "default"), cmd))
+			return
+		end
 		db[cmd] = on
 		dirty = true
 		if cmd == "hud" and hud then if on then hud:Show() else hud:Hide() end end
@@ -2038,6 +2080,10 @@ SlashCmdList.ONEKEYDRUID = function(msg)
 		say(db.brave and "the key pulls anything." or "the key will not pull mobs 3+ levels over you, elites or skulls.")
 	elseif cmd == "alarm" then
 		db.alarm = rest:lower() ~= "off"
+		if not db.alarm and db.bgSoundWas and SetCVar then
+			pcall(SetCVar, "Sound_EnableSoundWhenGameIsInBG", db.bgSoundWas)
+			db.bgSoundWas = nil
+		end
 		say("AFK alarm " .. (db.alarm and "on." or "off."))
 	elseif cmd == "herbs" then
 		db.herbs = rest:lower() ~= "off"
@@ -2092,7 +2138,14 @@ SlashCmdList.ONEKEYDRUID = function(msg)
 		end
 	elseif cmd == "sos" and rest ~= "" then
 		if locked() then say("Not in combat.") return end
-		db.sos = rest:lower() ~= "off" and rest:upper() or false
+		if rest:lower() == "off" then
+			db.sos = false
+		else
+			local k, why = Logic.KeyName(rest)
+			if not k then say(why) return end
+			if k == db.key then say(k .. " is the fight key. Choose another key.") return end
+			db.sos = k
+		end
 		bindKey()
 		buildWarnings()
 		say(db.sos and ("emergency key: " .. db.sos .. ".") or "emergency key off.")
@@ -2146,7 +2199,15 @@ driver:SetScript("OnEvent", function(_, event, arg1)
 		ready = true
 		if C_Timer and C_Timer.After then C_Timer.After(3, trackHerbs) else trackHerbs() end
 		-- the AFK alarm needs sound with the game in the background
-		if db.alarm ~= false and SetCVar then pcall(SetCVar, "Sound_EnableSoundWhenGameIsInBG", "1") end
+		-- the alarm must be heard with the game in the background; the old
+		-- setting is kept and comes back with /okd alarm off
+		if db.alarm ~= false and SetCVar and GetCVar then
+			local was = GetCVar("Sound_EnableSoundWhenGameIsInBG")
+			if was ~= "1" then
+				db.bgSoundWas = was or "0"
+				pcall(SetCVar, "Sound_EnableSoundWhenGameIsInBG", "1")
+			end
+		end
 		if not db.key and not GetBindingKey("CLICK " .. BUTTON .. ":LeftButton") then
 			say("loaded. Pick the key: /okd bind F   (help: /okd)")
 		end
@@ -2168,6 +2229,11 @@ driver:SetScript("OnEvent", function(_, event, arg1)
 	elseif event == "PLAYER_REGEN_ENABLED" then
 		current.text = nil
 		adds.n, adds.warned = 0, false
+		if #secureLater > 0 then
+			for _, b in ipairs(secureLater) do b:SetAttribute("type", "macro") end
+			secureLater = {}
+			rebuild()
+		end
 		bindKey()
 		update()
 	elseif event == "MODIFIER_STATE_CHANGED" then

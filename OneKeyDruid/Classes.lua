@@ -166,9 +166,10 @@ C.PALADIN = {
 	buffs = { { "devotion" }, { "might" } },
 	pull = {},
 	fight = {
-		{ "cast", "seal", "[nocombat]" },
-		{ "cast", "judge", H },
-		{ "cast", "seal", "" },
+		-- Seal, then Judgement when it is ready, then the seal again: the
+		-- sequence waits on Judgement's cooldown instead of resealing on
+		-- every press. Without Judgement the seal goes on once per target.
+		{ "seq", { "seal", "judge" }, H, "target", once = true },
 	},
 	heal = { { "cast", "fol", "[@player]" }, { "cast", "hl", "[@player]" } },
 	cc = { { "cast", "hoj", H } },

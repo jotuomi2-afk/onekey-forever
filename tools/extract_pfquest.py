@@ -2,7 +2,11 @@
 """Build OneKeyDruid/QuestData.lua from pfQuest's own database (MIT only).
 
     git clone https://github.com/shagu/pfQuest.git /tmp/pfQuest
-    python3 tools/extract_pfquest.py /tmp/pfQuest OneKeyDruid/QuestData.lua
+    git -C /tmp/pfQuest checkout 104f35678ca39ab1fb78b655f815cc7016f5e0c8
+    python3 -I tools/extract_pfquest.py /tmp/pfQuest OneKeyDruid/QuestData.lua
+
+The script refuses another revision unless --any-revision is given: review
+the upstream diff before moving the pin.
 
 Reads pfQuest's Classic tables (db/quests.lua, units.lua, objects.lua,
 items.lua and their enUS names) and writes the compact format QuestHelp.lua
@@ -38,17 +42,31 @@ MAP_FIX = {
 }
 ALLIANCE, HORDE = 1 | 4 | 8 | 64, 2 | 16 | 32 | 128
 MAX_MIN_LEVEL, MAX_LEVEL = 45, 48
+PINNED = "104f35678ca39ab1fb78b655f815cc7016f5e0c8"
 
 
 def load(db):
-    lua = LuaRuntime(unpack_returned_tuples=True)
-    lua.execute("""pfDB = setmetatable({}, {__index = function(t, k)
-        local v = setmetatable({}, {__index = function(t2, k2) local x = {} rawset(t2, k2, x) return x end})
-        rawset(t, k, v) return v end})""")
+    """Run pfQuest's data files in a sandbox: no os, io, require or file
+    loading, each file in its own environment that holds only pfDB. The
+    files are third-party code from a clone; they only build tables."""
+    lua = LuaRuntime(unpack_returned_tuples=True, register_eval=False, register_builtins=False)
+    lua.execute("""
+        local load, setmetatable, rawset, error, tostring = load, setmetatable, rawset, error, tostring
+        os, io, package, require, dofile, loadfile, debug, collectgarbage = nil, nil, nil, nil, nil, nil, nil, nil
+        pfDB = setmetatable({}, {__index = function(t, k)
+            local v = setmetatable({}, {__index = function(t2, k2) local x = {} rawset(t2, k2, x) return x end})
+            rawset(t, k, v) return v end})
+        function RUN_DATA(src, name)
+            local env = { pfDB = pfDB }
+            local f, e = load(src, "=" .. name, "t", env)
+            if not f then error(name .. ": " .. tostring(e)) end
+            f()
+        end""")
+    run = lua.eval("RUN_DATA")
     for f in ("quests.lua", "units.lua", "objects.lua", "items.lua",
               "enUS/quests.lua", "enUS/units.lua", "enUS/objects.lua", "enUS/items.lua"):
         with open(os.path.join(db, f), encoding="utf-8") as fh:
-            lua.execute(fh.read())
+            run(fh.read(), f)
     return lua.eval("pfDB")
 
 
@@ -57,7 +75,9 @@ def ids(t):
 
 
 def esc(s):
-    return str(s).replace("\\", "\\\\").replace('"', '\\"').replace("|", "/").replace("\n", " ")
+    s = str(s).replace("\\", "\\\\").replace('"', '\\"').replace("|", "/")
+    # control characters as decimal escapes: the file must stay one line per record
+    return "".join("\\%03d" % ord(c) if ord(c) < 32 else c for c in s)
 
 
 def place(name, data):
@@ -83,9 +103,12 @@ def place(name, data):
 
 
 def main():
-    src, out_path = sys.argv[1], sys.argv[2]
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    src, out_path = args[0], args[1]
     db = os.path.join(src, "db")
     rev = subprocess.run(["git", "-C", src, "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip() or "unknown"
+    if rev != PINNED and "--any-revision" not in sys.argv:
+        sys.exit("pfQuest is at %s, the pinned revision is %s (see the docstring)" % (rev, PINNED))
     pf = load(db)
     Q, U, O, I = pf["quests"]["data"], pf["units"]["data"], pf["objects"]["data"], pf["items"]["data"]
     QN, UN, ON, IN = pf["quests"]["enUS"], pf["units"]["enUS"], pf["objects"]["enUS"], pf["items"]["enUS"]
@@ -106,6 +129,14 @@ def main():
             fac = "1"
         elif race and not race & ALLIANCE:
             fac = "2"
+        # no race mask: the faction of the quest givers decides (pfQuest's
+        # unit "fac": A, H or AH). A quest from Grom'gol is not for Alliance.
+        if not fac and q["start"] and q["start"]["U"]:
+            facs = {str(U[u]["fac"] or "") for u in ids(q["start"]["U"]) if U[u]}
+            if facs == {"A"}:
+                fac = "1"
+            elif facs == {"H"}:
+                fac = "2"
         starts = ["%d" % u for u in ids(q["start"]["U"] if q["start"] else None)] + \
                  ["o%d" % o for o in ids(q["start"]["O"] if q["start"] else None)]
         ends = ["%d" % u for u in ids(q["end"]["U"] if q["end"] else None)] + \

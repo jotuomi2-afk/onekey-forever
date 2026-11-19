@@ -1,6 +1,6 @@
 ---
 name: run-tests
-description: Run OneKey's full check - Lua 5.1 compile, macro and data tests, the simulated WoW client for all nine classes, the mutation check and the security scan - and read the results. Use after any change to the addon.
+description: Run OneKey's full check - Lua 5.1 compile, macro and data tests, the simulated WoW client for all nine classes, the fuzz run, coverage, the mutation check and the security scan - and read the results. Use after any change to the addon.
 ---
 
 # Run the OneKey tests
@@ -12,9 +12,14 @@ description: Run OneKey's full check - Lua 5.1 compile, macro and data tests, th
 2. Run, from the repository root, in this order:
    ```
    python3 -I tests/run_tests.py --json test-results.json
+   python3 -I tests/fuzz_test.py --runs 40
+   OKD_COVERAGE=1 python3 -I tests/run_tests.py --min-coverage 65
    python3 -I tests/mutation_check.py
    python3 -I security/scan.py
    ```
+   Before a release, run the fuzz with `--runs 500`. The gates and the
+   requirement table are in `docs/TEST_STRATEGY.md`; a new requirement
+   needs a row there and a test, or the traceability test fails.
    `-k WORD` on run_tests.py runs only the tests whose name has WORD
    (`-k macro`, `-k smoke`, `-k questdata`).
 3. Reading failures:
@@ -29,5 +34,8 @@ description: Run OneKey's full check - Lua 5.1 compile, macro and data tests, th
      `tests/wowstub.lua` with the real client's behaviour (check the API in
      the Warcraft Wiki), do not just make it return nil.
    - `MISSED` in the mutation check — a guard stopped catching its fault;
-     the guard is broken, not the mutant.
-4. Only call the work done when all three commands exit 0.
+     the guard is broken, not the mutant. `BASELINE FAILED` means the
+     unchanged suite fails: fix that first, or every mutant looks caught.
+   - `FAIL seed N` in the fuzz run — replay it with
+     `python3 -I tests/fuzz_test.py --seed N`.
+4. Only call the work done when all five commands exit 0.

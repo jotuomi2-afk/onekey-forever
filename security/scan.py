@@ -22,32 +22,145 @@ What it enforces (see docs/ARCHITECTURE.md, "Security"):
 import os, re, sys
 
 FORBIDDEN_CALLS = {
-    "R1": ["CastSpellByName", "CastSpellByID", "CastSpell", "UseAction", "UseItemByName", "UseInventoryItem",
-           "UseContainerItem", "TargetUnit", "TargetNearestEnemy", "AssistUnit", "AttackTarget", "StartAttack",
-           "MoveForwardStart", "MoveBackwardStart", "TurnLeftStart", "TurnRightStart", "StrafeLeftStart",
-           "StrafeRightStart", "JumpOrAscendStart", "ToggleAutoRun", "InteractUnit", "SpellStopCasting",
-           "CancelShapeshiftForm", "RunMacro", "RunMacroText", "PetAttack", "CameraOrSelectOrMoveStart",
-           "AcceptTrade", "AcceptGroup", "ConfirmLootSlot", "LootSlot", "BuyMerchantItem", "PickupContainerItem"],
-    "R2": ["SendChatMessage", "SendAddonMessage", "C_ChatInfo.SendAddonMessage", "SendMail", "BNSendWhisper",
-           "BNSendGameData", "GuildInvite", "InviteUnit", "JoinChannelByName", "C_ChatInfo.SendChatMessage"],
-    "R3": ["loadstring", "RunScript", "getfenv", "setfenv", "load", "dofile", "require"],
+    "R1": ["CastSpellByName", "CastSpellByID", "CastSpell", "CastShapeshiftForm", "UseAction", "UseItemByName",
+           "UseInventoryItem", "UseContainerItem", "C_Container.UseContainerItem", "TargetUnit", "TargetNearestEnemy",
+           "TargetNearest", "AssistUnit", "AttackTarget", "StartAttack", "MoveForwardStart", "MoveBackwardStart",
+           "TurnLeftStart", "TurnRightStart", "StrafeLeftStart", "StrafeRightStart", "JumpOrAscendStart",
+           "ToggleAutoRun", "InteractUnit", "SpellStopCasting", "CancelShapeshiftForm", "RunMacro", "RunMacroText",
+           "PetAttack", "CameraOrSelectOrMoveStart", "AcceptTrade", "AcceptGroup", "ConfirmLootSlot", "LootSlot",
+           "BuyMerchantItem", "PickupContainerItem", "PlaceAction", "PickupSpell", "C_Spell.PickupSpell",
+           "CreateMacro", "EditMacro", "SetOverrideBindingSpell", "SetOverrideBindingMacro",
+           "SetOverrideBindingItem", "SetBindingSpell", "SetBindingMacro", "SetBindingItem", "C_Timer.NewTicker",
+           "SecureCmdOptionParse"],
+    "R2": ["SendChatMessage", "SendAddonMessage", "C_ChatInfo.SendAddonMessage", "C_ChatInfo.SendAddonMessageLogged",
+           "SendMail", "BNSendWhisper", "BNSendGameData", "GuildInvite", "InviteUnit", "JoinChannelByName",
+           "C_ChatInfo.SendChatMessage", "ChatEdit_SendText", "C_Club.SendMessage", "C_BattleNet.SendWhisper"],
+    "R3": ["loadstring", "RunScript", "getfenv", "setfenv", "load", "dofile", "loadfile", "require", "getglobal",
+           "setglobal", "rawget", "rawset"],
+}
+# Uses that were reviewed and are allowed, each with its reason. A name that
+# is allowed here is still a finding anywhere else.
+ALLOWED_USES = {
+    ("Ranks.lua", "PlaceAction"): "replaces a lower rank on the player's own bars, out of combat, once",
+    ("Ranks.lua", "PickupSpell"): "the spell to place, see PlaceAction",
+    ("Ranks.lua", "C_Spell.PickupSpell"): "the spell to place, see PlaceAction",
+    ("Core.lua", "CreateMacro"): "/okd macros: makes macros the player then drags to bars",
 }
 SECRET_APIS = ["UnitHealth", "UnitPower", "UnitHealthPercent", "UnitPowerPercent", "UnitHealthMissing"]
 TOKEN_PATTERNS = [r"ghp_[A-Za-z0-9]{20,}", r"github_pat_[A-Za-z0-9_]{20,}", r"sk-[A-Za-z0-9]{20,}",
                   r"AKIA[0-9A-Z]{16}", r"xox[baprs]-[A-Za-z0-9-]{10,}", r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}"]
 ALLOWED_EXT = (".lua", ".toc", ".xml", ".md")
 ALLOWED_NAMES = ("LICENSE",)
+ALL_FORBIDDEN = {fn: rule for rule, names in FORBIDDEN_CALLS.items() for fn in names}
+# _G may only be written with a literal key prefix, for the binding labels
+_G_WRITE_OK = ("BINDING_HEADER_", "BINDING_NAME_")
 
 
-def strip_comments_and_strings(src):
-    """Remove Lua comments and string contents so that names inside them
-    (macro text like "/cast Claw", or this kind of note) do not count."""
-    src = re.sub(r"--\[(=*)\[.*?\]\1\]", "", src, flags=re.S)
-    src = re.sub(r"--[^\n]*", "", src)
-    src = re.sub(r"\[(=*)\[.*?\]\1\]", '""', src, flags=re.S)
-    src = re.sub(r'"(?:\\.|[^"\\\n])*"', '""', src)
-    src = re.sub(r"'(?:\\.|[^'\\\n])*'", "''", src)
-    return src
+def tokenize(src):
+    """A Lua 5.1 lexer: yields (kind, text, line). Comments are dropped;
+    strings come out as one token with their decoded-enough content."""
+    i, n, line, out = 0, len(src), 1, []
+    while i < n:
+        c = src[i]
+        if c == "\n":
+            line += 1; i += 1; continue
+        if c in " \t\r":
+            i += 1; continue
+        if src.startswith("--", i):
+            m = re.match(r"--\[(=*)\[", src[i:])
+            if m:
+                close = "]" + m.group(1) + "]"
+                j = src.find(close, i)
+                j = n if j < 0 else j + len(close)
+            else:
+                j = src.find("\n", i)
+                j = n if j < 0 else j
+            line += src.count("\n", i, j); i = j; continue
+        m = re.match(r"\[(=*)\[", src[i:])
+        if m:
+            close = "]" + m.group(1) + "]"
+            j = src.find(close, i)
+            j = n if j < 0 else j + len(close)
+            out.append(("str", src[i + len(m.group(0)):j - len(close)], line))
+            line += src.count("\n", i, j); i = j; continue
+        if c in "\"'":
+            j, buf = i + 1, []
+            while j < n and src[j] != c:
+                if src[j] == "\\" and j + 1 < n:
+                    buf.append(src[j:j + 2]); j += 2; continue
+                if src[j] == "\n":
+                    break
+                buf.append(src[j]); j += 1
+            out.append(("str", "".join(buf), line)); i = j + 1; continue
+        m = re.match(r"[A-Za-z_][A-Za-z0-9_]*", src[i:])
+        if m:
+            out.append(("name", m.group(0), line)); i += len(m.group(0)); continue
+        m = re.match(r"0[xX][0-9a-fA-F]+|\d+\.?\d*(?:[eE][-+]?\d+)?|\.\d+", src[i:])
+        if m:
+            out.append(("num", m.group(0), line)); i += len(m.group(0)); continue
+        m = re.match(r"\.\.\.|\.\.|==|~=|<=|>=|.", src[i:], re.S)
+        out.append(("op", m.group(0), line)); i += len(m.group(0))
+    return out
+
+
+def blank_code(tokens):
+    """Code lines with every string replaced by "" (for the R4 line regexes)."""
+    lines = {}
+    for kind, text, line in tokens:
+        lines.setdefault(line, []).append('""' if kind == "str" else text)
+    return {ln: " ".join(parts) for ln, parts in lines.items()}
+
+
+def scan_lua(name, src, findings):
+    toks = tokenize(src)
+
+    def hit(line, rule, msg):
+        findings.append((name, line, rule, msg))
+
+    def check_name(full, line):
+        rule = ALL_FORBIDDEN.get(full)
+        if rule and (name, full) not in ALLOWED_USES:
+            hit(line, rule, "uses " + full)
+
+    for k, (kind, text, line) in enumerate(toks):
+        prev = toks[k - 1] if k else ("op", "", 0)
+        if kind == "name":
+            if prev[1] in (".", ":"):
+                # a field: only _G.X and C_Something.X count
+                base = toks[k - 2] if k >= 2 else ("op", "", 0)
+                if base[0] == "name" and base[1] == "_G":
+                    check_name(text, line)
+                elif base[0] == "name" and (k < 3 or toks[k - 3][1] not in (".", ":")):
+                    check_name(base[1] + "." + text, line)
+                continue
+            check_name(text, line)
+            if text == "_G":
+                nxt = toks[k + 1] if k + 1 < len(toks) else ("op", "", 0)
+                if nxt[1] == "[":
+                    key = toks[k + 2] if k + 2 < len(toks) else ("op", "", 0)
+                    after = toks[k + 3] if k + 3 < len(toks) else ("op", "", 0)
+                    literal = key[0] == "str" and after[1] == "]"
+                    if literal:
+                        check_name(key[1], line)
+                    elif not (key[0] == "str" and key[1].startswith(_G_WRITE_OK)):
+                        hit(line, "R3", "_G indexed with a computed key")
+        elif kind == "str":
+            # an API name as a whole string is a lookup waiting to happen
+            if text in ALL_FORBIDDEN and (name, text) not in ALLOWED_USES:
+                hit(line, ALL_FORBIDDEN[text], "string names " + text)
+    for i, line in blank_code(toks).items():
+        for api in SECRET_APIS:
+            if re.search(r"(?<![\w.])%s\s*\([^)]*\)\s*(?:[<>]=?|==|~=|[-+*/%%^]|\.\.)" % api, line) or \
+               re.search(r"(?:[<>]=?|==|~=|[-+*/%%^]|\.\.)\s*%s\s*\(" % api, line):
+                hit(i, "R4", "compares or computes on " + api)
+
+
+def xml_scripts(src):
+    """Inline Lua in an XML file: <Script> bodies and On* handler bodies or attributes."""
+    for m in re.finditer(r"<(Script|Binding|On\w+)([^>]*)>(.*?)</\1>", src, re.S):
+        yield src.count("\n", 0, m.start()) + 1, m.group(3)
+    for m in re.finditer(r"\b(On\w+)\s*=\s*\"([^\"]*)\"", src):
+        yield src.count("\n", 0, m.start()) + 1, m.group(2)
 
 
 def scan(addon_dir):
@@ -65,31 +178,37 @@ def scan(addon_dir):
             for m in re.finditer(pat, raw):
                 line = raw.count("\n", 0, m.start()) + 1
                 findings.append((name, line, "R5", "looks like a secret or an address: " + m.group(0)[:12] + "..."))
-        if not name.endswith(".lua"):
-            continue
-        code = strip_comments_and_strings(raw)
-        lines = code.split("\n")
-        for i, line in enumerate(lines, 1):
-            for rule, names in FORBIDDEN_CALLS.items():
-                for fn in names:
-                    # a call or a reference to the global, not a field of our own tables
-                    if re.search(r"(?<![\w.:])%s\s*[\(\"']" % re.escape(fn), line) or \
-                       re.search(r"(?<![\w.:])%s\s*[,)]" % re.escape(fn), line) and rule != "R3":
-                        findings.append((name, i, rule, "uses " + fn))
-            for api in SECRET_APIS:
-                # the value of a secret API used in a comparison or arithmetic on the same line
-                if re.search(r"(?<![\w.])%s\s*\([^)]*\)\s*(?:[<>]=?|==|~=|[-+*/%%])" % api, line) or \
-                   re.search(r"(?:[<>]=?|==|~=|[-+*/%%])\s*%s\s*\(" % api, line):
-                    if "Max" not in api:
-                        findings.append((name, i, "R4", "compares or computes on " + api))
+        if name.endswith(".lua") and name != "QuestData.lua":
+            scan_lua(name, raw, findings)
+        elif name.endswith(".xml"):
+            for line, body in xml_scripts(raw):
+                sub = []
+                scan_lua(name, body, sub)
+                findings += [(n, line + l - 1, r, "inline script: " + msg) for n, l, r, msg in sub]
+                if re.search(r"\bfile\s*=", body):
+                    findings.append((name, line, "R3", "script loaded from a file"))
+            for m in re.finditer(r"<Script[^>]*\bfile\s*=", raw):
+                findings.append((name, raw.count("\n", 0, m.start()) + 1, "R3", "XML loads a script file"))
     qd = os.path.join(addon_dir, "QuestData.lua")
     if os.path.exists(qd):
-        head = open(qd, encoding="utf-8").read(2000)
+        text = open(qd, encoding="utf-8").read()
+        head = text[:2000]
         if "pfQuest" not in head or "MIT" not in head or "extract_pfquest.py" not in head:
             findings.append(("QuestData.lua", 1, "R6", "pfQuest MIT notice or generator line missing"))
-        for other in ("Questie", "Polestar", "wago.tools", "wowhead"):
-            if other.lower() in head.lower():
-                findings.append(("QuestData.lua", 1, "R6", "data from another source: " + other))
+        low = text.lower()
+        for other in ("questie", "polestar", "wago.tools", "wowhead", "classicdb", "aowow"):
+            at = low.find(other)
+            if at >= 0:
+                findings.append(("QuestData.lua", text.count("\n", 0, at) + 1, "R6", "data from another source: " + other))
+        # data only: the file may hold tables and strings, no calls of its own
+        toks = tokenize(text)
+        for k, (kind, t, line) in enumerate(toks):
+            if kind == "name" and t not in ("local", "return", "true", "false", "nil", "QuestData", "ns",
+                                             "select", "Q", "N", "O", "I", "_", "ADDON", "addon") \
+                    and k + 1 < len(toks) and toks[k + 1][1] == "(":
+                if t not in ("select",):
+                    findings.append(("QuestData.lua", line, "R3", "data file calls " + t))
+                    break
     return findings
 
 

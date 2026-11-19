@@ -1,4 +1,4 @@
-# OneKey
+# OneKey Forever
 
 One key for leveling in **World of Warcraft: Forever**. Each press does what
 fits the moment: buff, heal, eat, pick a target, pull or fight. Built for the
@@ -10,7 +10,7 @@ feral druid, with a general engine for every other class.
 
 ## Install
 
-1. Download `OneKey-<version>.zip` from [Releases](../../releases).
+1. Download `OneKeyForever-<version>.zip` from [Releases](../../releases).
 2. Unpack it into `World of Warcraft/_forever_/Interface/AddOns/` so that
    you get `AddOns/OneKeyDruid/`.
 3. Restart the game. Type `/okd bind F` to pick your key.
@@ -55,7 +55,7 @@ pip install lupa
 python3 tests/run_tests.py        # the addon in Lua 5.1 against a fake client
 python3 tests/mutation_check.py   # proves the tests catch planted faults
 python3 security/scan.py          # policy scan (no automation, no network, ...)
-python3 tools/build.py            # all of the above, then dist/OneKey-<v>.zip
+python3 tools/build.py            # all of the above, then dist/OneKeyForever-<v>.zip
 ```
 
 How the tests and the security checks fit together, and the Claude agents and

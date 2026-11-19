@@ -267,25 +267,53 @@ end
 
 -- Join lines; while the text is over the limit, drop the line with the
 -- highest priority number (the least needed). lines: { {text, prio}, ... }
+-- lines: { text, priority [, shorter text, its priority] }. Over the limit,
+-- the cheapest step goes first: drop the line with the highest priority
+-- number, or swap a line for its shorter form when that ranks higher (a
+-- tie swaps, since a shorter line keeps more of the macro). Once it fits,
+-- dropped lines that would still fit come back (the greedy drop can take
+-- out more than needed). Text is never cut inside a line: with only
+-- priority 1 lines left, the last one goes.
 local function fit(lines)
 	local limit = Logic.MACRO_LIMIT
-	while true do
+	for i = 1, #lines do lines[i].at = i end
+	local dropped = {}
+	local function join(t)
 		local parts = {}
-		for i = 1, #lines do parts[i] = lines[i][1] end
-		local text = table.concat(parts, "\n")
-		if #text <= limit then return text end
-		local worst, at = 1, nil
-		for i = 1, #lines do
-			if lines[i][2] > worst then worst, at = lines[i][2], i end
-		end
-		if not at then return text:sub(1, limit) end
-		table.remove(lines, at)
+		for i = 1, #t do parts[i] = t[i][1] end
+		return table.concat(parts, "\n")
 	end
-end
-
-local function seq(prefix, reset, list)
-	if #list == 1 then return ("/cast %s%s"):format(prefix, list[1]) end
-	return ("/castsequence %sreset=%s %s"):format(prefix, reset, table.concat(list, ", "))
+	while #join(lines) > limit do
+		local worst, at, swap = 1, nil, false
+		for i = 1, #lines do
+			local l = lines[i]
+			if l[2] > worst then worst, at, swap = l[2], i, false end
+			if l[3] and l[4] >= worst and l[4] > 1 then worst, at, swap = l[4], i, true end
+		end
+		if not at then
+			if #lines <= 1 then return lines[1] and lines[1][1]:sub(1, limit) or "" end
+			at = #lines
+		end
+		if swap then
+			local l = lines[at]
+			lines[at] = { l[3], l[2], at = l.at }
+		else
+			dropped[#dropped + 1] = table.remove(lines, at)
+		end
+	end
+	-- give back what fits, the most important first
+	table.sort(dropped, function(a, b) return a[2] < b[2] or a[2] == b[2] and a.at < b.at end)
+	for _, d in ipairs(dropped) do
+		local trial = {}
+		local placed = false
+		for i = 1, #lines do
+			if not placed and lines[i].at > d.at then trial[#trial + 1] = d placed = true end
+			trial[#trial + 1] = lines[i]
+		end
+		if not placed then trial[#trial + 1] = d end
+		if #join(trial) <= limit then lines = trial end
+	end
+	return join(lines)
 end
 
 -- A spell name as a macro wants it: one that ends in a bracket needs "()"
@@ -293,6 +321,15 @@ end
 local function M(name)
 	if name:sub(-1) == ")" then return name .. "()" end
 	return name
+end
+
+Logic.Fit = fit
+
+local function seq(prefix, reset, list)
+	if #list == 1 then return ("/cast %s%s"):format(prefix, M(list[1])) end
+	local names = {}
+	for i = 1, #list do names[i] = M(list[i]) end
+	return ("/castsequence %sreset=%s %s"):format(prefix, reset, table.concat(names, ", "))
 end
 
 -- known: spell key -> true; N: spell key -> name on this client;
@@ -346,7 +383,7 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 		if cfg.pull and known.wrath and room(mc.wrath or 0) then
 			L[#L + 1] = { "/cast [noform,nocombat,harm] " .. N.wrath, 2 }
 			-- In combat and out of form: Rejuvenation and Moonfire once per
-			-- target, then the form. The form is in the list three times, so
+			-- target, then the form. The form is in the list twice, so
 			-- that after healing in a fight the next presses go straight
 			-- back into it.
 			local back = (", " .. formName):rep(2)
@@ -354,14 +391,18 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 			if hot and items.selfcast then
 				-- with the game's auto self cast on, a heal cast with an enemy
 				-- targeted lands on you, so one sequence does it all
-				L[#L + 1] = { ("/castsequence [noform,combat] reset=target %s%s%s"):format(N.rejuv,
-					moonOk and (", " .. N.moonfire) or "", back), 1 }
+				-- when space runs out the form goes in once instead of twice,
+				-- which keeps the Wrath pull in the macro
+				local head = ("/castsequence [noform,combat] reset=target %s%s"):format(N.rejuv,
+					moonOk and (", " .. N.moonfire) or "")
+				L[#L + 1] = { head .. back, 1, head .. ", " .. formName, 3 }
 			else
 				if hot then
 					L[#L + 1] = { ("/castsequence [noform,combat,@player] reset=target %s, null"):format(N.rejuv), 5 }
 				end
 				if moonOk then
-					L[#L + 1] = { ("/castsequence [noform,combat] reset=target %s%s"):format(N.moonfire, back), 1 }
+					local head = ("/castsequence [noform,combat] reset=target %s"):format(N.moonfire)
+					L[#L + 1] = { head .. back, 1, head .. ", " .. formName, 3 }
 				else
 					L[#L + 1] = { "/cast [noform,combat] " .. formName, 1 }
 				end
@@ -373,7 +414,7 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 			-- Enrage for rage at the start, Faerie Fire, Feral Charge,
 			-- Demoralizing Roar (off by default: it costs the first Maul), Maul.
 			if cfg.enrage and known.enrage then L[#L + 1] = { "/cast " .. inForm .. N.enrage, 3 } end
-			if known.ff then L[#L + 1] = { once(inForm, N.ff), 6 } end
+			if known.ff then L[#L + 1] = { once(inForm, N.ff), 2 } end
 			if known.chargeBear then L[#L + 1] = { "/cast " .. inForm .. M(N.chargeBear), 7 } end
 			if cfg.roar and known.roar then L[#L + 1] = { once(inForm, N.roar), 4 } end
 			if known.maul then L[#L + 1] = { "/cast " .. inForm .. "!" .. N.maul, 1 } end
@@ -392,7 +433,13 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 			if known.rake then s[#s + 1] = N.rake end
 			for _ = 1, (known.rake or known.fb or known.rip) and 3 or 1 do s[#s + 1] = N.claw end
 			if known.fb then s[#s + 1] = N.fb elseif known.rip then s[#s + 1] = N.rip end
-			L[#L + 1] = { seq(inForm, "target", s), 1 }
+			-- short of space, two Claws before the finisher instead of three
+			local short
+			if #s >= 5 and s[#s - 1] == N.claw then
+				short = {}
+				for i = 1, #s do if i ~= #s - 1 then short[#short + 1] = s[i] end end
+			end
+			L[#L + 1] = { seq(inForm, "target", s), 1, short and seq(inForm, "target", short), short and 3 }
 			if cfg.shiftpower and known.shiftpower then L[#L + 1] = { "/cast " .. nos .. M(N.shiftpower), 8 } end
 		end
 	else
@@ -570,6 +617,21 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 end
 
 -- The macro for one of Decide's actions. spell: the name to cast; item: id.
+-- A key the player typed for /okd bind or /okd sos, as the binding API
+-- wants it, or nil and why not. Modifiers are refused: the addon adds
+-- Shift, Alt and Ctrl itself.
+function Logic.KeyName(text)
+	local k = tostring(text or ""):gsub("^%s+", ""):gsub("%s+$", ""):upper()
+	if k:find("SHIFT%-") or k:find("CTRL%-") or k:find("ALT%-") then
+		return nil, "give the key without Shift, Ctrl or Alt: they are added for you"
+	end
+	if k:match("^[A-Z0-9]$") or k:match("^F[1-9]$") or k:match("^F1[0-2]$") or k:match("^NUMPAD[0-9]$")
+		or k:match("^BUTTON[3-5]$") or k:match("^[;',%./%[%]\\%-=`]$") then
+		return k
+	end
+	return nil, "not a key: use a letter, a digit, F1-F12, NUMPAD0-9 or BUTTON3-5"
+end
+
 function Logic.ActionMacro(action, spell, item, fight)
 	if action == "heal" or action == "cure" or action == "buff" then
 		return "/cancelform [form]\n/cast [@player] " .. spell
@@ -577,6 +639,8 @@ function Logic.ActionMacro(action, spell, item, fight)
 		return "/use item:" .. item
 	elseif action == "attack" then
 		return fight
+	elseif action == "find" then
+		return "/targetenemy [noharm][dead]"
 	end
 	return ""
 end

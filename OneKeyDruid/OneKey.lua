@@ -16,7 +16,7 @@ if CLASS == "DRUID" then return end
 local CL = ns.CLASSES and ns.CLASSES[CLASS]
 local Logic = ns.Logic
 
-local VERSION = "0.26.0"
+local VERSION = "0.27.0"
 local PREFIX = "|cff7fd4ffOneKey|r "
 local LIMIT = 255
 local NAMES = { fight = "OneKeyMain", heal = "OneKeyHeal", cc = "OneKeyAlt", behind = "OneKeyCtrl",
@@ -26,6 +26,7 @@ local db
 local N, known = {}, {}
 local buttons = {}
 local macros = {}
+ns.OneKeyMacros = macros -- read by the tests
 local food, water, potion
 local hud, warn = nil, {}
 local ready, dirty, bagsDirty = false, true, true
@@ -130,14 +131,16 @@ end
 -- Macros from the class's lists
 ---------------------------------------------------------------------------
 
+-- lines: { text, priority }. Logic.Fit drops the least needed lines first
+-- and gives back any that fit afterwards.
 local function fit(lines)
-	while true do
-		local parts = {}
-		for i = 1, #lines do parts[i] = lines[i][1] end
-		local text = table.concat(parts, "\n")
-		if #text <= LIMIT or #lines <= 1 then return text:sub(1, LIMIT) end
-		table.remove(lines) -- the last line is the least needed
-	end
+	for i = 1, #lines do lines[i][2] = lines[i][2] or 1 end
+	return Logic.Fit(lines)
+end
+
+local function M(name)
+	if name:sub(-1) == ")" then return name .. "()" end
+	return name
 end
 
 -- one line of a class list as macro text, or nil when not learned
@@ -150,26 +153,33 @@ local function line(e)
 		return e[2]
 	elseif kind == "cast" then
 		if not known[e[2]] then return nil end
-		return ("/cast %s%s%s"):format(e[3] or "", e.bang and "!" or "", N[e[2]])
+		return ("/cast %s%s%s"):format(e[3] or "", e.bang and "!" or "", M(N[e[2]]))
 	elseif kind == "once" then
 		if not known[e[2]] then return nil end
-		return ("/castsequence %sreset=target %s, null"):format(e[3] or "", N[e[2]])
+		return ("/castsequence %sreset=target %s, null"):format(e[3] or "", M(N[e[2]]))
 	elseif kind == "seq" then
 		local list = {}
-		for _, k in ipairs(e[2]) do if known[k] then list[#list + 1] = N[k] end end
+		for _, k in ipairs(e[2]) do if known[k] then list[#list + 1] = M(N[k]) end end
 		if #list == 0 then return nil end
+		if #list == 1 and e.once then return ("/castsequence %sreset=target %s, null"):format(e[3] or "", list[1]) end
 		if #list == 1 then return ("/cast %s%s"):format(e[3] or "", list[1]) end
 		return ("/castsequence %sreset=%s %s"):format(e[3] or "", e[4] or "target", table.concat(list, ", "))
 	end
 end
 
+-- Priorities: the head (targeting, auto attack), raw lines (the pet) and
+-- the last learned line, which is the class's main filler spell, are never
+-- dropped. Of the others, later lines go first.
 local function build(list, head)
 	local L = {}
-	for _, h in ipairs(head or {}) do L[#L + 1] = { h } end
+	for _, h in ipairs(head or {}) do L[#L + 1] = { h, 1 } end
+	local body = {}
 	for _, e in ipairs(list or {}) do
 		local t = line(e)
-		if t then L[#L + 1] = { t } end
+		if t then body[#body + 1] = { t, e[1] == "raw" and 1 or 2 + #body } end
 	end
+	if #body > 0 then body[#body][2] = 1 end
+	for _, b in ipairs(body) do L[#L + 1] = b end
 	if #L == 0 then return "" end
 	return fit(L)
 end
@@ -187,7 +197,7 @@ local function rebuild()
 	-- with nothing learned that hits, the wand or the white swing does it
 	macros.fight = build(all, head)
 	if CL.wand and known.shoot and not CL.melee then
-		macros.fight = fit({ { macros.fight }, { ("/cast [harm,nodead] %s"):format(N.shoot) } })
+		macros.fight = fit({ { macros.fight, 1 }, { ("/cast [harm,nodead] %s"):format(N.shoot), 2 } })
 	end
 	macros.heal = build(CL.heal)
 	-- Alt: the class's stop, and out of combat with no enemy: eat and drink
@@ -282,6 +292,9 @@ local function decide()
 		end
 		return macros.fight, tr("fight", key)
 	end
+	-- No enemy: the press only picks one. The next update checks its level
+	-- and class before the key will attack it.
+	if tk ~= "unknown" then return TARGET, tr("target", key) end
 	return macros.fight, tr("target", key)
 end
 
@@ -401,7 +414,7 @@ local function updateRun(now)
 	for i = #live.times, 1, -1 do
 		if now - live.times[i] <= 5 then n5 = n5 + 1 else table.remove(live.times, i) end
 	end
-	local strong = adds.n >= 3 or n5 >= 5 or (now - live.start > 45)
+	local strong = adds.n >= 3 or n5 >= 5 or (live.start > 0 and now - live.start > 45)
 	if strong and locked() then
 		runBox.text:SetText(tr("run", db.sos or "G"))
 		runBox.box:Show()
@@ -464,13 +477,19 @@ end
 -- Buttons and keys
 ---------------------------------------------------------------------------
 
+-- after a /reload in combat the attributes wait for the fight to end
+local secureLater = {}
 local function secureButton(name)
 	local b = CreateFrame("Button", name, UIParent, "SecureActionButtonTemplate")
 	b:SetSize(1, 1)
 	b:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -10, 10)
 	b:RegisterForClicks("AnyUp", "AnyDown")
-	b:SetAttribute("type", "macro")
-	b:SetAttribute("macrotext", "")
+	if locked() then
+		secureLater[#secureLater + 1] = b
+	else
+		b:SetAttribute("type", "macro")
+		b:SetAttribute("macrotext", "")
+	end
 	b:HookScript("PreClick", function() clicks[#clicks + 1] = GetTime() if #clicks > 12 then table.remove(clicks, 1) end end)
 	return b
 end
@@ -498,7 +517,8 @@ local alarm = { on = false, n = 0 }
 local function alarmTick()
 	if not alarm.on then return end
 	local last = clicks[#clicks] or 0
-	if not locked() or last > alarm.since or alarm.n >= 15 then alarm.on = false return end
+	-- the first tick runs on the combat event, just before the lock
+	if (alarm.n > 0 and not locked()) or last > alarm.since or alarm.n >= 15 then alarm.on = false return end
 	alarm.n = alarm.n + 1
 	if PlaySound then pcall(PlaySound, 8959, "Master") end
 	if FlashClientIcon then pcall(FlashClientIcon) end
@@ -567,7 +587,7 @@ end
 
 local driver = CreateFrame("Frame")
 local elapsed = 0
-driver:SetScript("OnEvent", function(_, event, arg1)
+driver:SetScript("OnEvent", function(_, event, arg1, arg2)
 	if event == "ADDON_LOADED" then
 		if arg1 ~= ADDON then return end
 		OneKeyDruidDB = OneKeyDruidDB or {}
@@ -583,7 +603,15 @@ driver:SetScript("OnEvent", function(_, event, arg1)
 		bindKey()
 		ready = true
 		if C_Timer and C_Timer.After then C_Timer.After(3, trackGathering) end
-		if db.alarm ~= false and SetCVar then pcall(SetCVar, "Sound_EnableSoundWhenGameIsInBG", "1") end
+		-- the alarm must be heard with the game in the background; the old
+		-- setting is kept and comes back with /okd alarm off
+		if db.alarm ~= false and SetCVar and GetCVar then
+			local was = GetCVar("Sound_EnableSoundWhenGameIsInBG")
+			if was ~= "1" then
+				db.bgSoundWas = was or "0"
+				pcall(SetCVar, "Sound_EnableSoundWhenGameIsInBG", "1")
+			end
+		end
 		say(("%s %s loaded: %s fights, Shift/Alt/Ctrl+%s help, %s emergency."):format(CLASS:lower(), VERSION,
 			db.key, db.key, tostring(db.sos)))
 	elseif not ready then
@@ -593,9 +621,15 @@ driver:SetScript("OnEvent", function(_, event, arg1)
 	elseif event == "PLAYER_REGEN_ENABLED" then
 		current.text = nil
 		adds.n = 0
+		if #secureLater > 0 then
+			for _, b in ipairs(secureLater) do b:SetAttribute("type", "macro") end
+			secureLater = {}
+			rebuild()
+		end
 		bindKey()
 	elseif event == "UNIT_COMBAT" then
-		if arg1 == "player" then live.times[#live.times + 1] = GetTime() end
+		-- only damage taken counts as a hit (not heals, dodges or misses)
+		if arg1 == "player" and arg2 == "WOUND" then live.times[#live.times + 1] = GetTime() end
 	elseif event == "BAG_UPDATE_DELAYED" then
 		bagsDirty = true
 	elseif event == "MERCHANT_SHOW" then
@@ -635,11 +669,22 @@ SlashCmdList.ONEKEYDRUID = function(msg)
 	cmd = (cmd or ""):lower()
 	if cmd == "bind" and rest ~= "" then
 		if locked() then say("not in combat.") return end
-		db.key = rest:upper()
+		local k, why = Logic.KeyName(rest)
+		if not k then say(why) return end
+		if k == db.sos then say(k .. " is the emergency key. Choose another key, or move it with /okd sos <key>.") return end
+		db.key = k
 		bindKey()
 		say("key: " .. db.key)
 	elseif cmd == "sos" and rest ~= "" then
-		db.sos = rest:lower() ~= "off" and rest:upper() or false
+		if locked() then say("not in combat.") return end
+		if rest:lower() == "off" then
+			db.sos = false
+		else
+			local k, why = Logic.KeyName(rest)
+			if not k then say(why) return end
+			if k == db.key then say(k .. " is the fight key. Choose another key.") return end
+			db.sos = k
+		end
 		bindKey()
 	elseif cmd == "lang" and (rest == "fi" or rest == "en") then
 		db.lang = rest
@@ -648,6 +693,10 @@ SlashCmdList.ONEKEYDRUID = function(msg)
 		say(db.brave and "the key pulls anything." or "the key will not pull mobs 3+ levels over you, elites or skulls.")
 	elseif cmd == "alarm" then
 		db.alarm = rest:lower() ~= "off"
+		if not db.alarm and db.bgSoundWas and SetCVar then
+			pcall(SetCVar, "Sound_EnableSoundWhenGameIsInBG", db.bgSoundWas)
+			db.bgSoundWas = nil
+		end
 	elseif cmd == "herbs" then
 		db.herbs = rest:lower() ~= "off"
 		trackGathering()

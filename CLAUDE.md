@@ -1,4 +1,4 @@
-# OneKey — notes for Claude
+# OneKey Forever — notes for Claude
 
 A World of Warcraft: Forever addon (Lua 5.1, client interface 16001). The
 addon is in `OneKeyDruid/`; the folder name and `OneKeyDruidDB` must not

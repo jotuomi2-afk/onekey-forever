@@ -76,6 +76,9 @@ end
 
 local function run(say)
 	local ok, done = pcall(R.Update)
+	-- an error between pickup and place would leave the spell on the
+	-- cursor; Update starts only with an empty cursor, so clearing is safe
+	if not ok and ClearCursor then pcall(ClearCursor) end
 	-- nil: not now (settings not loaded yet, in combat, cursor busy): try later
 	pending = not ok or done == nil
 	if ok and done and #done > 0 and say then

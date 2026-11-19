@@ -1,8 +1,8 @@
 ## Interface: 16001
-## Title: OneKey
+## Title: OneKey Forever
 ## Notes: One key for leveling, every class: it heals, eats, buffs, picks a target or fights, whichever fits now.
 ## Author: Jukka Tuominen
-## Version: 0.26.0
+## Version: 0.27.0
 ## X-License: MIT
 ## SavedVariablesPerCharacter: OneKeyDruidDB
 

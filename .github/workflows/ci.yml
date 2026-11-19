@@ -25,6 +25,10 @@ jobs:
         run: python3 -I tests/run_tests.py --json test-results.json
       - name: Tests for the tests (planted faults must be caught)
         run: python3 -I tests/mutation_check.py
+      - name: Fuzz (40 runs per class)
+        run: python3 -I tests/fuzz_test.py --runs 40
+      - name: Coverage gate (65 %)
+        run: OKD_COVERAGE=1 python3 -I tests/run_tests.py --min-coverage 65
       - name: Security scan
         run: python3 -I security/scan.py
       - name: Build the zip (proves it packages)

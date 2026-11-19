@@ -1,8 +1,10 @@
 # Test and security architecture
 
 OneKey runs inside a game client we cannot run in CI. The architecture makes
-up for that in four layers, each catching what the one before cannot, and
-lets Claude agents run all of them through skills.
+up for that in layers, each catching what the one before cannot, and lets
+Claude agents run all of them through skills. The test policy, risk register,
+quality gates, requirement traceability and threat model are in
+[TEST_STRATEGY.md](TEST_STRATEGY.md) (ISO/IEC/IEEE 29119-3 structure).
 
 ```
                 ┌──────────────────────────────────────────────────────┐
@@ -10,6 +12,8 @@ lets Claude agents run all of them through skills.
                 │ L2  unit       tests/run_tests.py  Logic, macros, data│
                 │ L3  simulated  tests/wowstub.lua   whole addon, 9     │
                 │                classes, login → rest → fight → slash  │
+                │     fuzz       tests/fuzz_test.py  random sessions    │
+                │     coverage   OKD_COVERAGE=1 … --min-coverage 65     │
                 │ L4  meta       tests/mutation_check.py planted faults │
                 └──────────────┬───────────────────────────────────────┘
                                │ all green
@@ -21,8 +25,13 @@ lets Claude agents run all of them through skills.
 
 ## L1 Static scan (`security/scan.py`)
 
-Reads the addon's files with comments and strings removed (macro text such as
-`/cast Claw` is data, not a call) and enforces:
+Reads the addon's Lua with a real Lua 5.1 tokenizer, so comments and macro
+text (`/cast Claw`) are data, while a forbidden name is found however it is
+reached: a call, a bare reference, `_G.Name`, `_G["Name"]`, a string that
+names the API, or `_G[...]` with a computed key. Inline scripts in XML files
+(`<Script>`, `On…` handlers, `<Binding>` bodies) are scanned the same way.
+Reviewed exceptions (Ranks.lua's `PlaceAction`, `/okd macros`'s
+`CreateMacro`) are listed with their reason in `ALLOWED_USES`. It enforces:
 
 | Rule | What | Why |
 |---|---|---|
@@ -64,15 +73,28 @@ real client's rules:
   game
 - **taint guard**: `SetAttribute`, `SetOverrideBindingClick` and
   `ClearOverrideBindings` during combat lockdown are recorded as violations
-  (the real client blocks them and the key stops working)
+  and, as in the real client, do not take effect
+- **events** reach only frames that registered them; **timers**
+  (`C_Timer.After`) run when due; the **damage meter** returns plain numbers
+  out of combat and secret ones in combat
 - every macro written to a button is ≤ 255 characters; F and G are bound
+
+`tests/fuzz_test.py` plays random but reproducible sessions (a seed per run)
+for all classes and checks five invariants after every step: no Lua error,
+no secure change in combat, no macro over 255 characters, no maths on a
+secret value, no new globals. Some runs drop the client's scale curve or the
+damage meter. Line coverage is measured with a Lua line hook.
 
 ## L4 Tests for the tests (`tests/mutation_check.py`)
 
-Plants six known faults in a copy of the addon — a secret comparison, a
-spell cast from Lua, a chat message, a button change in combat, a 256+
-character macro, a removed licence notice — and fails unless the suite
-catches every one. A weakened test therefore cannot pass review quietly.
+First runs the unchanged suite, which must pass (a broken suite would
+"catch" everything). Then plants 13 known faults in a copy of the addon —
+a secret comparison, a spell cast from Lua, automation behind `_G`, an API
+name built from strings, `loadstring`, a chat message, a script in XML, a
+button change in combat, a 256+ character macro, a dropped pull spell, a
+removed licence notice, other quest databases at the top and deep in the
+data — and fails unless the named test fails with the expected message. A
+weakened test therefore cannot pass review quietly.
 
 ## L5 In-game evidence
 

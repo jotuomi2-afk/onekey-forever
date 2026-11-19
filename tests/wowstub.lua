@@ -48,8 +48,19 @@ function frameMeta.SetScript(self, event, fn)
 	STUB.scripts[#STUB.scripts + 1] = { frame = self, event = event, fn = fn }
 end
 function frameMeta.HookScript(self, event, fn) frameMeta.SetScript(self, event, fn) end
+-- events reach a frame only after it registered them, as in the client
+function frameMeta.RegisterEvent(self, e)
+	if type(e) ~= "string" or e == "" then error("RegisterEvent: bad event " .. tostring(e), 2) end
+	if not rawget(self, "_events") then rawset(self, "_events", {}) end
+	rawget(self, "_events")[e] = true
+end
+function frameMeta.RegisterUnitEvent(self, e) frameMeta.RegisterEvent(self, e) end
+function frameMeta.UnregisterEvent(self, e) local t = rawget(self, "_events") if t then t[e] = nil end end
+function frameMeta.UnregisterAllEvents(self) rawset(self, "_events", {}) end
+function frameMeta.IsEventRegistered(self, e) local t = rawget(self, "_events") return t and t[e] or false end
 function frameMeta.SetAttribute(self, k, v)
-	if STUB.combat then violation("SetAttribute(" .. tostring(k) .. ") in combat on " .. tostring(self._name)) end
+	-- blocked in combat, as in the client: the change does not happen
+	if STUB.combat then violation("SetAttribute(" .. tostring(k) .. ") in combat on " .. tostring(self._name)) return end
 	STUB.attrs[(self._name or "?") .. ":" .. k] = v
 end
 function frameMeta.GetAttribute(self, k) return STUB.attrs[(self._name or "?") .. ":" .. k] end
@@ -85,11 +96,18 @@ UIParent = CreateFrame("Frame", "UIParent")
 Minimap = CreateFrame("Frame", "Minimap")
 STANDARD_TEXT_FONT = "Fonts\\FRIZQT__.TTF"
 
+STUB.bindOwner = {}
 function SetOverrideBindingClick(owner, prio, key, button)
-	if STUB.combat then violation("SetOverrideBindingClick in combat") end
+	if STUB.combat then violation("SetOverrideBindingClick in combat") return end
 	STUB.bindings[key] = button
+	STUB.bindOwner[key] = owner
 end
-function ClearOverrideBindings() if STUB.combat then violation("ClearOverrideBindings in combat") end end
+function ClearOverrideBindings(owner)
+	if STUB.combat then violation("ClearOverrideBindings in combat") end
+	for k, o in pairs(STUB.bindOwner) do
+		if o == owner then STUB.bindings[k] = nil STUB.bindOwner[k] = nil end
+	end
+end
 function SetOverrideBinding() end
 function GetBindingKey() return nil end
 function GetBindingAction() return "" end
@@ -168,7 +186,15 @@ function GetInventoryItemDurability() return 50, 100 end
 function GetCVarBool() return false end
 function SetCVar() end
 function GetCVar() return "0" end
-function PlaySound() end
+STUB.macros = {}
+function GetMacroIndexByName(n) return STUB.macros[n] and 1 or 0 end
+function CreateMacro(n, icon, body, perChar)
+	if STUB.combat then violation("CreateMacro in combat") end
+	STUB.macros[n] = body
+	return 1
+end
+STUB.sounds = 0
+function PlaySound() STUB.sounds = STUB.sounds + 1 end
 function FlashClientIcon() end
 function GetNumGroupMembers() return 0 end
 function IsInGroup() return false end
@@ -248,7 +274,9 @@ GetItemCount = function() return 0 end
 GetItemCooldown = function() return 0, 0, 1 end
 
 -- curves, maps, quests, meters -------------------------------------------------
-Enum = { LuaCurveType = { Step = 1 }, PowerType = { Mana = 0 } }
+Enum = { LuaCurveType = { Step = 1 }, PowerType = { Mana = 0 },
+	DamageMeterSessionType = { Overall = 0, Current = 1 },
+	DamageMeterType = { DamageDone = 0, Dps = 1, HealingDone = 2, Hps = 3, DamageTaken = 4 } }
 CurveConstants = { ScaleTo100 = {} }
 function CreateColor(r, g, b, a)
 	return { GetRGBA = function() return r, g, b, a end }
@@ -278,8 +306,29 @@ C_Minimap = {
 	SetTracking = function() end,
 }
 C_NamePlate = { GetNamePlates = function() return {} end }
-C_Timer = { After = function() end, NewTicker = function() return { Cancel = function() end } end }
-C_DamageMeter = nil
+-- timers are real: STUB.tick runs every callback that is due
+STUB.timers = {}
+C_Timer = {
+	After = function(sec, fn)
+		if type(sec) ~= "number" or type(fn) ~= "function" then error("C_Timer.After: bad arguments", 2) end
+		STUB.timers[#STUB.timers + 1] = { at = STUB.now + sec, fn = fn }
+	end,
+	NewTicker = function() return { Cancel = function() end } end,
+}
+-- the damage meter: plain numbers out of combat, secret ones in combat,
+-- as in the client. STUB.meter = false turns it off.
+STUB.meter = true
+C_DamageMeter = {
+	IsDamageMeterAvailable = function() return STUB.meter, nil end,
+	GetCombatSessionFromType = function(sessionType, kind)
+		if not STUB.meter then return nil end
+		local function v(n) if STUB.combat then return secretValue() end return n end
+		return { combatSources = {
+			{ name = v("Player"), isLocalPlayer = v(true), classFilename = v("DRUID"),
+			  totalAmount = v(1234), amountPerSecond = v(56) },
+		} }
+	end,
+}
 C_CVar = { GetCVarBool = function() return false end, SetCVar = function() end }
 C_AddOns = { IsAddOnLoaded = function() return false end }
 
@@ -287,7 +336,7 @@ C_AddOns = { IsAddOnLoaded = function() return false end }
 function STUB.fire(event, ...)
 	local errs = {}
 	for _, s in ipairs(STUB.scripts) do
-		if s.event == "OnEvent" then
+		if s.event == "OnEvent" and rawget(s.frame, "_events") and rawget(s.frame, "_events")[event] then
 			local ok, e = pcall(s.fn, s.frame, event, ...)
 			if not ok then errs[#errs + 1] = event .. ": " .. tostring(e) end
 		end
@@ -304,6 +353,15 @@ function STUB.tick(n, dt)
 				local ok, e = pcall(s.fn, s.frame, dt or 0.25)
 				if not ok then errs[#errs + 1] = "OnUpdate: " .. tostring(e) end
 			end
+		end
+		local due, keep = {}, {}
+		for _, t in ipairs(STUB.timers) do
+			if t.at <= STUB.now then due[#due + 1] = t else keep[#keep + 1] = t end
+		end
+		STUB.timers = keep
+		for _, t in ipairs(due) do
+			local ok, e = pcall(t.fn)
+			if not ok then errs[#errs + 1] = "timer: " .. tostring(e) end
 		end
 	end
 	return errs

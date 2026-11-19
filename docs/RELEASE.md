@@ -5,8 +5,9 @@
 1. ~~Quest data licence~~ — done in 0.25.0: QuestData.lua is now built
    from pfQuest's own repository (MIT only) by `tools/extract_pfquest.py`;
    `security/scan.py` (R6) fails if another source appears in it.
-2. **Name.** "OneKey" may clash with other addons on CurseForge/Wago; search
-   before announcing. The folder stays `OneKeyDruid` either way.
+2. ~~Name~~ — decided: **OneKey Forever** (repository `onekey-forever`,
+   zip `OneKeyForever-X.Y.Z.zip`). No WoW addon of that name was found; the
+   folder stays `OneKeyDruid` for players' settings.
 3. **Repository settings** (once, by the owner):
    - Settings → Environments → `release`: required reviewer = owner
    - Settings → Code security: private vulnerability reporting on,
@@ -35,9 +36,9 @@ client's interface number changes, after the in-game check.
    places, add a `## x.y.z` section at the top of CHANGELOG.md.
 2. Open a PR. CI runs the tests, the tests for the tests, the scan and the
    build. The `security-reviewer` agent reviews the diff.
-3. Merge. Tag on main: `git tag -s vX.Y.Z -m "OneKey X.Y.Z"` and push the tag.
+3. Merge. Tag on main: `git tag -s vX.Y.Z -m "OneKey Forever X.Y.Z"` and push the tag.
 4. The `release` workflow checks the tag against the toc, runs everything
-   again, builds `OneKey-X.Y.Z.zip` and its `.sha256`, and creates a **draft**
+   again, builds `OneKeyForever-X.Y.Z.zip` and its `.sha256`, and creates a **draft**
    release with the CHANGELOG section as notes.
 5. The owner downloads the draft's zip, does the in-game check, publishes.
 6. Optional later: CurseForge/Wago through the BigWigsMods packager
@@ -63,7 +64,7 @@ README.md CHANGELOG.md SECURITY.md THIRD_PARTY_NOTICES.md LICENSE CLAUDE.md
 Create it empty on GitHub (public or private first), then from this folder:
 
 ```
-git remote add origin git@github.com:<owner>/onekey.git
+git remote add origin git@github.com:<owner>/onekey-forever.git
 git push -u origin main
 ```
 

@@ -71,10 +71,78 @@ class Suite:
         return wrap
 
 
+COVERAGE = os.environ.get("OKD_COVERAGE") == "1"
+_HIT = {}  # file -> set of executed lines
+
+
 def new_lua():
     lua = LuaRuntime(unpack_returned_tuples=True)
     lua.execute(read(STUB))
+    if COVERAGE:
+        # Lua line hook: records every executed line of the addon's chunks
+        lua.execute("""COV = {}
+        debug.sethook(function(_, line)
+            local s = debug.getinfo(2, "S").source
+            if s:sub(1, 1) == "@" then
+                local t = COV[s] if not t then t = {} COV[s] = t end
+                t[line] = true
+            end
+        end, "l")""")
+        _COV_RUNTIMES.append(lua)
     return lua
+
+
+_COV_RUNTIMES = []
+
+
+def collect_coverage():
+    for lua in _COV_RUNTIMES:
+        cov = lua.eval("COV")
+        for src in cov.keys():
+            name = str(src)[1:]
+            hits = _HIT.setdefault(name, set())
+            for ln in cov[src].keys():
+                hits.add(int(ln))
+    _COV_RUNTIMES.clear()
+
+
+_NONEXEC = re.compile(r"^\s*(--.*|end[,);]*|else|\}[,)]*|\)|\]\]|)\s*$")
+
+
+def coverage_report(minimum=None):
+    """Approximate line coverage: a line counts as executable unless it is
+    blank, a comment, or a bare closer. Data files are excluded."""
+    collect_coverage()
+    rows, tot_e, tot_h = [], 0, 0
+    for f in toc_files():
+        if not f.endswith(".lua") or f == "QuestData.lua":
+            continue
+        lines = read(os.path.join(ADDON, f)).split("\n")
+        in_long = False
+        exe = set()
+        for i, l in enumerate(lines, 1):
+            if in_long:
+                if "]]" in l:
+                    in_long = False
+                continue
+            if l.strip().startswith("--[["):
+                in_long = "]]" not in l
+                continue
+            if not _NONEXEC.match(l):
+                exe.add(i)
+        hit = _HIT.get(f, set()) & exe
+        rows.append((f, len(hit), len(exe)))
+        tot_e += len(exe)
+        tot_h += len(hit)
+    print("\nLine coverage (approximate)")
+    for f, h, e in rows:
+        print("  %-14s %5d/%-5d %5.1f%%" % (f, h, e, 100.0 * h / max(e, 1)))
+    pct = 100.0 * tot_h / max(tot_e, 1)
+    print("  %-14s %5d/%-5d %5.1f%%" % ("total", tot_h, tot_e, pct))
+    if minimum is not None and pct < minimum:
+        print("coverage %.1f%% is below the gate %.1f%%" % (pct, minimum))
+        return False
+    return True
 
 
 def load_addon(lua, files=None):
@@ -151,6 +219,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("-k", dest="only")
     ap.add_argument("--json")
+    ap.add_argument("--min-coverage", type=float, help="with OKD_COVERAGE=1: fail below this %%")
     a = ap.parse_args()
     S = Suite(a.only)
 
@@ -200,10 +269,11 @@ def main():
         N = lua.eval("""{bear="Bear Form",cat="Cat Form",ht="Healing Touch",rejuv="Rejuvenation",regrowth="Regrowth",
             grasp="Nature's Grasp",bash="Bash",maul="Maul",wrath="Wrath",moonfire="Moonfire",roots="Entangling Roots",
             enrage="Enrage",roar="Demoralizing Roar",claw="Claw",rip="Rip",rake="Rake",shred="Shred",prowl="Prowl",
-            ff="Faerie Fire",fb="Ferocious Bite",ravage="Ravage",pounce="Pounce",tf="Tiger's Fury",hibernate="Hibernate",
+            ff="Faerie Fire (Feral)",fb="Ferocious Bite",ravage="Ravage",pounce="Pounce",tf="Tiger's Fury",hibernate="Hibernate",
             thorns="Thorns",motw="Mark of the Wild",direbear="Dire Bear Form",shadowmeld="Shadowmeld",
             travel="Travel Form",aquatic="Aquatic Form"}""")
         key_by_name = {v: k for k, v in N.items()}
+        key_by_name["Faerie Fire"] = "ff"  # the client resolves ff to the feral spell
         for level in (1, 4, 10, 14, 18, 20, 22, 24, 30, 32, 36, 40):
             kn = lua.eval("{}")
             for sid, (name, lvl) in DRUID_SPELLS.items():
@@ -225,6 +295,15 @@ def main():
                         p.append("level %d cat fight has no Claw" % level)
                     if mode == "cat" and level >= 18 and "Faerie Fire" not in fight:
                         p.append("level %d cat fight lost Faerie Fire (selfcast %s)" % (level, sc))
+                    if mode != "caster" and "Wrath" in N.values() and level >= 1 and "wrath" in kn.keys() \
+                            and "nocombat" not in fight:
+                        p.append("level %d %s fight has no out-of-combat pull (selfcast %s)" % (level, mode, sc))
+                    if mode == "bear" and level >= 18 and "Faerie Fire" not in fight:
+                        p.append("level %d bear fight lost Faerie Fire (selfcast %s)" % (level, sc))
+                    for k in o.keys():
+                        v = o[k]
+                        if isinstance(v, str) and re.search(r"\(Feral\)(?!\()", v):
+                            p.append("level %d %s %s: 'Faerie Fire (Feral)' without () is read as a rank" % (level, mode, k))
                     if mode == "bear" and "Maul" not in fight:
                         p.append("level %d bear fight has no Maul" % level)
                     if mode != "caster" and "Form" not in fight:
@@ -242,6 +321,68 @@ def main():
         o = ns.Logic.BuildMacros(kn, N, lua.eval("{B=1,C=3}"), "cat", ns.Logic.DEFAULTS, lua.eval("{}"))
         if o.nuke and "Cat Form" not in o.nuke:
             return ["nuke macro never shifts into a form: a fight could stay in caster form"]
+
+    @S.test("keys: /okd bind takes only real keys and never the emergency key")
+    def _():
+        p = []
+        lua = new_lua()
+        ns, errs = load_addon(lua, ["Logic.lua"])
+        KN = ns.Logic.KeyName
+
+        def K(x):
+            r = KN(x)
+            return r if isinstance(r, tuple) else (r, None)
+        for good, want in (("f", "F"), (" g ", "G"), ("F12", "F12"), ("numpad5", "NUMPAD5"), ("button4", "BUTTON4")):
+            if K(good)[0] != want:
+                p.append("%r should be the key %s" % (good, want))
+        for bad in ("shift-f", "F G", "\u00e4", "50%", "F13", "", "ctrl-x"):
+            if K(bad)[0] is not None:
+                p.append("%r was accepted as a key" % bad)
+        for cls, cid in (("DRUID", 11), ("MAGE", 8)):
+            lua = new_lua()
+            spells = druid_spells(20) if cls == "DRUID" else \
+                {v[1]: v[2] for v in load_addon(new_lua(), ["Classes.lua"])[0].CLASSES[cls].spells.values()}
+            set_class(lua, cls, cid, 20, spells)
+            lua.execute("STUB.buffs = {}")
+            ns, e2 = load_addon(lua)
+            p += e2
+            fire, slash = lua.eval("STUB.fire"), lua.eval("STUB.slash")
+            for e in ("ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD"):
+                p += lua_list(fire(e, "OneKeyDruid"))
+            for cmd in ("bind F", "sos G", "bind G", "bind shift-f"):
+                e = slash(cmd)
+                if e:
+                    p.append("%s /okd %s: %s" % (cls, cmd, e))
+            b = lua.eval("STUB.bindings")
+            if b["SHIFT-SHIFT-F"]:
+                p.append("%s: bound SHIFT-SHIFT-F" % cls)
+            if not b["F"]:
+                p.append("%s: /okd bind G (the emergency key) moved the fight key off F" % cls)
+        return p
+
+    for cls, cid in (("DRUID", 11), ("MAGE", 8)):
+        @S.test("reload in combat: %s keys work once the fight ends" % cls.lower())
+        def _(cls=cls, cid=cid):
+            lua = new_lua()
+            spells = druid_spells(20) if cls == "DRUID" else \
+                {v[1]: v[2] for v in load_addon(new_lua(), ["Classes.lua"])[0].CLASSES[cls].spells.values()}
+            set_class(lua, cls, cid, 20, spells)
+            lua.execute("STUB.buffs = {} STUB.combat = true")
+            ns, errs = load_addon(lua)
+            fire, tick = lua.eval("STUB.fire"), lua.eval("STUB.tick")
+            for e in ("ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD"):
+                errs += lua_list(fire(e, "OneKeyDruid"))
+            errs += lua_list(tick(8, 0.25))
+            for v in lua_list(lua.eval("STUB.violations")):
+                errs.append("taint while locked: " + v)
+            lua.execute("STUB.combat = false STUB.violations = {}")
+            errs += lua_list(fire("PLAYER_REGEN_ENABLED"))
+            errs += lua_list(tick(4, 0.25))
+            attrs = lua.eval("STUB.attrs")
+            types = [str(k) for k in attrs.keys() if str(k).endswith(":type") and attrs[k] == "macro"]
+            if len(types) < 5:
+                errs.append("only %d buttons got type=macro after the fight" % len(types))
+            return errs
 
     @S.test("logic: route and water advice")
     def _():
@@ -293,6 +434,60 @@ def main():
                 if not b["G"]:
                     errs.append("emergency key G not bound")
                 return errs
+
+    for cls, cid in (("DRUID", 11), ("MAGE", 8)):
+        @S.test("alarm: %s attacked while away hears a sound" % cls.lower())
+        def _(cls=cls, cid=cid):
+            lua = new_lua()
+            spells = druid_spells(20) if cls == "DRUID" else \
+                {v[1]: v[2] for v in load_addon(new_lua(), ["Classes.lua"])[0].CLASSES[cls].spells.values()}
+            set_class(lua, cls, cid, 20, spells)
+            lua.execute("STUB.buffs = {}")
+            ns, errs = load_addon(lua)
+            fire, tick = lua.eval("STUB.fire"), lua.eval("STUB.tick")
+            for e in ("ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD"):
+                errs += lua_list(fire(e, "OneKeyDruid"))
+            errs += lua_list(tick(60, 10))          # ten minutes without a press
+            errs += lua_list(fire("PLAYER_REGEN_DISABLED"))  # comes before the lock
+            lua.execute("STUB.combat = true")
+            errs += lua_list(tick(20, 0.5))
+            if lua.eval("STUB.sounds") == 0:
+                errs.append("no alarm sound in a fight after ten idle minutes")
+            return errs
+
+    @S.test("macro: every class keeps its main spell, and no enemy means only targeting")
+    def _():
+        p = []
+        probe, _ = load_addon(new_lua(), ["Classes.lua"])
+        for cls, cid in (("MAGE", 8), ("WARRIOR", 1), ("ROGUE", 4), ("HUNTER", 3), ("PRIEST", 5),
+                         ("WARLOCK", 9), ("PALADIN", 2), ("SHAMAN", 7)):
+            CL = probe.CLASSES[cls]
+            spells = {v[1]: v[2] for v in CL.spells.values()}
+            # the main spell: the last fight line that names a spell
+            last = None
+            for i in range(1, len(CL.fight) + 1):
+                e = CL.fight[i]
+                if e[1] in ("cast", "once"):
+                    last = CL.spells[e[2]][2]
+                elif e[1] == "seq":
+                    last = CL.spells[e[2][1]][2]
+            lua = new_lua()
+            set_class(lua, cls, cid, 60, spells)
+            lua.execute("STUB.buffs = {} STUB.targetName = nil")
+            ns, errs = load_addon(lua)
+            p += errs
+            fire, tick = lua.eval("STUB.fire"), lua.eval("STUB.tick")
+            for e in ("ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD"):
+                p += lua_list(fire(e, "OneKeyDruid"))
+            p += lua_list(tick(4, 0.25))
+            fight = ns.OneKeyMacros.fight or ""
+            if last and last not in fight:
+                p.append("%s: main spell %s fell out of the fight macro (%d chars)" % (cls.lower(), last, len(fight)))
+            main = macro_attrs(lua).get("OneKeyMain:macrotext", "")
+            # a buff or a conjure is fine; an attack is not
+            if "[harm" in main or "/startattack" in main:
+                p.append("%s: with no target the key does more than target: %r" % (cls.lower(), main[:60]))
+        return p
 
     @S.test("ranks: a new rank replaces the old one on the bars, never in combat, only once")
     def _():
@@ -369,10 +564,11 @@ def main():
             p.append("%d of %d quests have a giver with no location" % (missing_start, n))
         return p
 
-    @S.test("questhelp: hints for an Alliance druid in Darkshore and Redridge")
+    @S.test("questhelp: hints for an Alliance druid in Darkshore, Redridge and Stranglethorn")
     def _():
         p = []
-        for zone, mapid, level in (("Darkshore", 1439, 14), ("Redridge Mountains", 1433, 20)):
+        for zone, mapid, level in (("Darkshore", 1439, 14), ("Redridge Mountains", 1433, 20),
+                                   ("Stranglethorn Vale", 1434, 35)):
             lua = new_lua()
             set_class(lua, "DRUID", 11, level, druid_spells(level))
             lua.execute('STUB.zone = "%s" STUB.map = %d STUB.quests = {} STUB.flagged = {}' % (zone, mapid))
@@ -387,16 +583,66 @@ def main():
             out = []
             L.List(lambda s: out.append(s), 50)
             text = "\n".join(out)
-            for horde in ("Orgrimmar", "Thunder Bluff", "Undercity"):
-                if "@ " + horde in text:
-                    p.append("Horde quest offered: " + horde)
+            # every offered quest by title must have an Alliance or neutral record
+            horde_only = set()
+            qdb = ns.QDB.q
+            for qid in qdb.keys():
+                f = str(qdb[qid]).split("|")
+                if f[-1] == "2":
+                    horde_only.add(f[0].strip())
+            alliance = {str(qdb[q]).split("|")[0].strip() for q in qdb.keys() if str(qdb[q]).split("|")[-1] != "2"}
+            # known Horde quests, independent of the data's own faction field
+            for t in ("The Defense of Grom'gol", "Mok'thardin's Enchantment", "Hunt for Yenniku"):
+                if t in text or t in (hint or ""):
+                    p.append("%s level %d: Horde quest offered: %s (known Horde)" % (zone, level, t))
+            for t in sorted(horde_only - alliance):
+                if t in text or t in (hint or ""):
+                    p.append("%s level %d: Horde quest offered: %s" % (zone, level, t))
         return p
+
+    @S.test("performance: QuestHelp.Refresh stays inside its frame budget")
+    def _():
+        if COVERAGE:
+            return []  # the line hook distorts timing
+        lua = new_lua()
+        set_class(lua, "DRUID", 11, 20, druid_spells(20))
+        lua.execute('STUB.zone = "Redridge Mountains" STUB.map = 1433 STUB.quests = {} STUB.flagged = {}')
+        ns, errs = load_addon(lua, ["QuestData.lua", "QuestHelp.lua"])
+        if errs:
+            return errs
+        bench = lua.eval("""function(QH, n)
+            local t = os.clock()
+            for i = 1, n do QH.Refresh(20) QH.Hint(true) end
+            return (os.clock() - t) / n * 1000
+        end""")
+        bench(ns.QH, 5)  # warm up
+        ms = bench(ns.QH, 50)
+        print("     QuestHelp.Refresh+Hint: %.2f ms per call" % ms)
+        # Refresh runs on quest-log and zone events and every few seconds, never
+        # per frame; 8 ms here leaves room for a slower game machine.
+        return [] if ms < 8 else ["Refresh+Hint took %.2f ms (budget 8 ms)" % ms]
 
     @S.test("security: static scan finds nothing")
     def _():
         sys.path.insert(0, os.path.join(ROOT, "security"))
         import scan
         return ["%s:%d %s: %s" % f for f in scan.scan(ADDON)]
+
+    @S.test("traceability: every requirement has a test")
+    def _():
+        p, names = [], [r["name"] for r in S.results]
+        text = read(os.path.join(ROOT, "docs", "TEST_STRATEGY.md"))
+        reqs = re.findall(r"^\| (REQ-\d+) \| [^|]+ \| ([^|]+) \|", text, re.M)
+        if len(reqs) < 10:
+            return ["only %d requirements found in TEST_STRATEGY.md" % len(reqs)]
+        for req, tests in reqs:
+            for t in (x.strip() for x in tests.split(";")):
+                if t == "fuzz":
+                    if not os.path.exists(os.path.join(ROOT, "tests", "fuzz_test.py")):
+                        p.append("%s: fuzz test missing" % req)
+                elif not any(n.startswith(t) for n in names):
+                    p.append("%s: no test named %r" % (req, t))
+        return p
 
     t0 = time.time()
     # the decorators already ran every test
@@ -411,7 +657,8 @@ def main():
     if a.json:
         with open(a.json, "w") as f:
             json.dump(S.results, f, indent=1)
-    sys.exit(0 if ok == len(S.results) else 1)
+    cov_ok = coverage_report(a.min_coverage) if COVERAGE else True
+    sys.exit(0 if ok == len(S.results) and cov_ok else 1)
 
 
 if __name__ == "__main__":
