@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.28.1
+
+- Druid, cat in stealth: F opens with Pounce, or with Claw before Pounce is
+  learned. Ravage and Shred fail from the front of a mob, and a failed
+  cast stops the macro, so F in stealth did nothing from the front. They
+  stay on Ctrl+F, the key for when you are behind the mob. The HUD says
+  so.
+- Hunter: Arcane Shot is the last line of F, after Auto Shot, so its
+  cooldown cannot stop anything. Ctrl+F is the melee key: Mongoose Bite
+  after a dodge, otherwise Raptor Strike. Shots fail inside their minimum
+  range, so F cannot also hold the melee attacks.
+- Priest: a press during Mind Flay no longer cuts it short. The wand waits
+  for channels to end for every class.
+- The test that keeps cooldown spells away from the start of F now also
+  covers spells that need you behind the target (Shred, Ravage, Backstab,
+  Ambush).
+
 ## 0.28.0
 
 The game stops a macro at the first spell that fails, for example one on

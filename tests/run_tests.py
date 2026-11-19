@@ -335,8 +335,12 @@ def main():
                         p.append("level %d bear fight has no Maul" % level)
                     if mode != "caster" and "Form" not in fight:
                         p.append("level %d %s fight never shifts into a form" % (level, mode))
-                    if mode == "cat" and "Prowl" in (o.catpull or "") and "Claw" not in o.catpull:
-                        p.append("level %d catpull without a fallback Claw" % level)
+                    cp = o.catpull or ""
+                    if mode == "cat" and "Prowl" in cp and "Claw" not in cp and "Pounce" not in cp:
+                        p.append("level %d catpull without an opener" % level)
+                    for pos in ("Ravage", "Shred"):
+                        if pos in cp:
+                            p.append("level %d catpull has %s, which fails from the front and stops F" % (level, pos))
         return p
 
     @S.test("macro: nuke mode ends in a form")
@@ -561,7 +565,9 @@ def main():
         # cooldown, out of range); only a usable-check failure (no mana,
         # not learned, reactive not ready) or a false [condition] skips.
         COOLDOWN = ("Fire Blast", "Frost Nova", "Cone of Cold", "Ice Lance", "Mind Blast", "Arcane Shot",
-                    "Stormstrike", "Enrage", "Feral Charge")
+                    "Stormstrike", "Enrage", "Feral Charge",
+                    # need you behind the target: fail from the front
+                    "Shred", "Ravage", "Backstab", "Ambush")
         p = []
         probe, _ = load_addon(new_lua(), ["Classes.lua"])
         for cls, cid in (("MAGE", 8), ("WARRIOR", 1), ("ROGUE", 4), ("HUNTER", 3), ("PRIEST", 5),
@@ -584,6 +590,10 @@ def main():
                 for cd in COOLDOWN:
                     if cd in l:
                         p.append("%s: %r has a cooldown and comes before %r" % (cls.lower(), l, casts[-1]))
+            if cls == "PRIEST":
+                for l in casts:
+                    if "nochanneling" not in l:
+                        p.append("priest: %r would cut Mind Flay short" % l)
         for level in (20, 30, 40):
             lua = new_lua()
             nsl, _ = load_addon(lua, ["Logic.lua"])

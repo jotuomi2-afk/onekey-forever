@@ -16,7 +16,7 @@ if CLASS == "DRUID" then return end
 local CL = ns.CLASSES and ns.CLASSES[CLASS]
 local Logic = ns.Logic
 
-local VERSION = "0.28.0"
+local VERSION = "0.28.1"
 local PREFIX = "|cff7fd4ffOneKey|r "
 local LIMIT = 255
 local NAMES = { fight = "OneKeyMain", heal = "OneKeyHeal", cc = "OneKeyAlt", behind = "OneKeyCtrl",
@@ -199,7 +199,7 @@ local function rebuild()
 	if CL.wand and known.shoot and not CL.melee then
 		-- out of mana the spells above are skipped (not stopped on) and the
 		-- wand shoots; "!" keeps a second press from turning it off
-		macros.fight = fit({ { macros.fight, 1 }, { ("/cast [harm,nodead] !%s"):format(N.shoot), 2 } })
+		macros.fight = fit({ { macros.fight, 1 }, { ("/cast [harm,nodead,nochanneling] !%s"):format(N.shoot), 2 } })
 	end
 	macros.heal = build(CL.heal)
 	-- Alt: the class's stop, and out of combat with no enemy: eat and drink

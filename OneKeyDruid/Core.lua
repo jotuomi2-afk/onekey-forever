@@ -16,7 +16,7 @@ local Logic = ns.Logic
 local _, CLASS = UnitClass("player")
 if CLASS ~= "DRUID" then return end
 
-local VERSION = "0.28.0"
+local VERSION = "0.28.1"
 local BUTTON = "OneKeyDruidButton"
 -- The buttons of the modifier keys.
 local NAMES = { heal = "OneKeyDruidHeal", cc = "OneKeyDruidStop", behind = "OneKeyDruidBehind",
@@ -373,7 +373,7 @@ local TEXT = {
 		cMany = "%d enemies: press %s or run", mHeal = "Shift held: healing", mStop = "Alt held: stop the mob",
 		mRest = "Alt held: eat and drink", mLeave = "Ctrl held: leave the form", mBehind = "Ctrl held: leave form / attack from behind",
 		low = "LOW HEALTH   press %s", lowNoSos = "LOW HEALTH   Shift+%s", healHint = "Heal: Shift+%s", drinkHint = "Low mana: Alt+%s to drink",
-		enemies = "%d ENEMIES", run = "RUN AWAY!  %s", catProwl = "%s: Prowl", toBear = "bear: Shift+%s", catOpen = "%s: from behind Ravage/Shred, else Claw", hold = "DO NOT PULL: too strong (%s). /okd brave on",
+		enemies = "%d ENEMIES", run = "RUN AWAY!  %s", catProwl = "%s: Prowl", toBear = "bear: Shift+%s", catOpen = "%s: Pounce/Claw · behind the mob: Ctrl+%s Ravage/Shred", hold = "DO NOT PULL: too strong (%s). /okd brave on",
 		afk = "Going AFK? Ctrl+%s: Shadowmeld", mHide = "Ctrl held: hide (Shadowmeld)",
 	},
 	fi = {
@@ -386,7 +386,7 @@ local TEXT = {
 		cMany = "%d vihollista: paina %s tai pakene", mHeal = "Shift pohjassa: parannat", mStop = "Alt pohjassa: pysäytä kohde",
 		mRest = "Alt pohjassa: syö ja juo", mLeave = "Ctrl pohjassa: muodosta pois", mBehind = "Ctrl pohjassa: muodosta pois / lyö takaa",
 		low = "VÄHÄN HP:TA   paina %s", lowNoSos = "VÄHÄN HP:TA   Shift+%s", healHint = "Paranna: Shift+%s", drinkHint = "Mana vähissä: Alt+%s juo",
-		enemies = "%d VIHOLLISTA", run = "PAKENE!  %s", catProwl = "%s: hiivi (Prowl)", toBear = "karhuksi: Shift+%s", catOpen = "%s: takaa Ravage/Shred, muuten Claw", hold = "ÄLÄ VEDÄ: liian vahva (%s). /okd brave on",
+		enemies = "%d VIHOLLISTA", run = "PAKENE!  %s", catProwl = "%s: hiivi (Prowl)", toBear = "karhuksi: Shift+%s", catOpen = "%s: Pounce/Claw · mobin takana: Ctrl+%s Ravage/Shred", hold = "ÄLÄ VEDÄ: liian vahva (%s). /okd brave on",
 		afk = "Menossa AFK? Ctrl+%s: Shadowmeld", mHide = "Ctrl pohjassa: piiloon (Shadowmeld)",
 	},
 }
@@ -1066,7 +1066,7 @@ local function update()
 			-- a cat with an enemy picked: Prowl, then the opener from behind
 			if action == "attack" and s.form == "cat" and macros.catpull then
 				action = "catpull"
-				label = tr(hasBuff(N.prowl) and "catOpen" or "catProwl", key)
+				label = tr(hasBuff(N.prowl) and "catOpen" or "catProwl", key, key)
 			end
 		else
 			-- no enemy: the press only picks one; the next update checks

@@ -601,10 +601,15 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 			{ ("/cast [form:%d,nostealth,harm,nodead] %s"):format(C, N.prowl), 1 },
 			{ "/stopmacro [nostealth]", 1 },
 		}
-		if known.ravage then P[#P + 1] = { "/cast [harm,nodead] " .. M(N.ravage), 2 } end
-		if known.shred then P[#P + 1] = { "/cast [harm,nodead] " .. M(N.shred), 2 } end
-		if known.pounce then P[#P + 1] = { "/cast [harm,nodead] " .. M(N.pounce), 2 } end
-		P[#P + 1] = { "/cast [harm,nodead] " .. N.claw, 1 }
+		-- One opener only. Ravage and Shred need you behind the mob: from
+		-- the front they fail, and a failed cast stops the macro, so the
+		-- lines after them would never run. They are on Ctrl+F (the "I am
+		-- behind" key). F opens with Pounce (stun, any side) or Claw.
+		if known.pounce then
+			P[#P + 1] = { "/cast [harm,nodead] " .. M(N.pounce), 1 }
+		else
+			P[#P + 1] = { "/cast [harm,nodead] " .. N.claw, 1 }
+		end
 		out.catpull = fit(P)
 	end
 

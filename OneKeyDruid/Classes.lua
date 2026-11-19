@@ -109,13 +109,16 @@ C.HUNTER = {
 		{ "raw", "/petattack [harm,nodead]" },
 		{ "once", "mark", H }, { "once", "serpent", H },
 		{ "cast", "auto", H, bang = true },
-		{ "cast", "raptor", H },
+		-- last: when it is on cooldown nothing after it is lost
+		{ "cast", "arcane", H },
 	},
 	heal = { { "cast", "mend", "[@pet,exists,nodead]" } },
 	cc = { { "cast", "conc", H }, { "cast", "wing", H } },
-	-- cooldown shots off F (a failed cast stops the macro): Mongoose Bite
-	-- after a dodge, otherwise Arcane Shot
-	behind = { { "cast", "mongoose", H }, { "cast", "arcane", H } },
+	-- The melee key. Shots fail inside their minimum range and a failed
+	-- cast stops the macro, so F (ranged) cannot also hold the melee
+	-- attacks: when the mob is on you, Ctrl+F. Mongoose Bite after a dodge
+	-- (skipped otherwise), then Raptor Strike.
+	behind = { { "cast", "mongoose", H }, { "cast", "raptor", H } },
 	sos = { { "potion" }, { "cast", "fd", "" } },
 	free = { { "cast", "disengage", H } },
 }
@@ -134,9 +137,10 @@ C.PRIEST = {
 	-- spell that fails, so it is on Ctrl+F, not F.
 	pull = {},
 	fight = {
-		{ "once", "swp", H },
-		{ "cast", "flay", H },
-		{ "cast", "smite", H },
+		-- [nochanneling]: a press during Mind Flay must not cut it short
+		{ "once", "swp", "[harm,nodead,nochanneling] " },
+		{ "cast", "flay", "[harm,nodead,nochanneling] " },
+		{ "cast", "smite", "[harm,nodead,nochanneling] " },
 	},
 	heal = { { "cast", "flash", "[@player]" }, { "cast", "heal", "[@player]" }, { "cast", "lheal", "[@player]" } },
 	cc = { { "cast", "scream", "" } },
