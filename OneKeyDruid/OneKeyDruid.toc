@@ -2,13 +2,14 @@
 ## Title: OneKey
 ## Notes: One key for leveling, every class: it heals, eats, buffs, picks a target or fights, whichever fits now.
 ## Author: Jukka Tuominen
-## Version: 0.25.0
+## Version: 0.26.0
 ## X-License: MIT
 ## SavedVariablesPerCharacter: OneKeyDruidDB
 
 QuestData.lua
 Logic.lua
 QuestHelp.lua
+Ranks.lua
 Classes.lua
 Core.lua
 OneKey.lua

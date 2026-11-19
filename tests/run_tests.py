@@ -294,6 +294,38 @@ def main():
                     errs.append("emergency key G not bound")
                 return errs
 
+    @S.test("ranks: a new rank replaces the old one on the bars, never in combat, only once")
+    def _():
+        p = []
+        lua = new_lua()
+        set_class(lua, "DRUID", 11, 20, druid_spells(20))
+        lua.execute("""STUB.book = { {"Healing Touch", 1, 5185}, {"Healing Touch", 2, 5186}, {"Wrath", 1, 5176} }
+                       STUB.bar = { [1] = 5185, [2] = 5176, [13] = 5185 }""")
+        ns, errs = load_addon(lua)
+        p += errs
+        lua.execute("STUB.combat = true")
+        p += lua_list(lua.eval("STUB.fire")("SPELLS_CHANGED"))
+        if lua.eval("#STUB.placed") != 0:
+            p.append("bars changed in combat")
+        lua.execute("STUB.combat = false")
+        p += lua_list(lua.eval("STUB.fire")("ADDON_LOADED", "OneKeyDruid"))
+        p += lua_list(lua.eval("STUB.fire")("PLAYER_REGEN_ENABLED"))
+        bar = lua.eval("STUB.bar")
+        if bar[1] != 5186 or bar[13] != 5186:
+            p.append("Healing Touch not moved to rank 2: %s, %s" % (bar[1], bar[13]))
+        if bar[2] != 5176:
+            p.append("Wrath changed although it has one rank")
+        if lua.eval("STUB.cursor"):
+            p.append("cursor left holding a spell")
+        # the player puts rank 1 back on purpose: it stays
+        lua.execute("STUB.bar[1] = 5185")
+        p += lua_list(lua.eval("STUB.fire")("SPELLS_CHANGED"))
+        if lua.eval("STUB.bar")[1] != 5185:
+            p.append("a rank put back on purpose was replaced again")
+        for v in lua_list(lua.eval("STUB.violations")):
+            p.append("taint: " + v)
+        return p
+
     @S.test("questdata: every record parses and its references resolve")
     def _():
         lua = new_lua()

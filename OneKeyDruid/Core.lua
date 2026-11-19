@@ -16,7 +16,7 @@ local Logic = ns.Logic
 local _, CLASS = UnitClass("player")
 if CLASS ~= "DRUID" then return end
 
-local VERSION = "0.25.0"
+local VERSION = "0.26.0"
 local BUTTON = "OneKeyDruidButton"
 -- The buttons of the modifier keys.
 local NAMES = { heal = "OneKeyDruidHeal", cc = "OneKeyDruidStop", behind = "OneKeyDruidBehind",
@@ -1566,6 +1566,7 @@ local function help()
 	print("  presses — what the last key presses did")
 	print("  probe — what this client lets an addon read (run it in a fight too)")
 	print("  session — this session's time and experience · log on|off|clear")
+	print("  ranks [on|off] — move spells on the action bars up to the newest rank")
 	print("  quests — hand-ins, quests to take and objectives near you · go — map pin and arrow to the next step")
 	print("  alarm on|off — loud sound and a flashing taskbar when something attacks you while you are away")
 	print("  where — which zone fits your level, what to train next, your XP by zone")
@@ -2016,6 +2017,8 @@ SlashCmdList.ONEKEYDRUID = function(msg)
 			ns.QH.Refresh(UnitLevel("player"))
 			ns.QH.List(say, 5)
 		end
+	elseif cmd == "ranks" then
+		if ns.Ranks then ns.Ranks.Slash(rest, say) end
 	elseif cmd == "skip" then
 		if rest == "clear" and ns.QH and ns.QH.ClearSkips then
 			ns.QH.ClearSkips() questDirty = true say("skipped hints back.")

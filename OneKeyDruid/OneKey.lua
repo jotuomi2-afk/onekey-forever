@@ -16,7 +16,7 @@ if CLASS == "DRUID" then return end
 local CL = ns.CLASSES and ns.CLASSES[CLASS]
 local Logic = ns.Logic
 
-local VERSION = "0.25.0"
+local VERSION = "0.26.0"
 local PREFIX = "|cff7fd4ffOneKey|r "
 local LIMIT = 255
 local NAMES = { fight = "OneKeyMain", heal = "OneKeyHeal", cc = "OneKeyAlt", behind = "OneKeyCtrl",
@@ -663,6 +663,8 @@ SlashCmdList.ONEKEYDRUID = function(msg)
 		local advice, fit = Logic.Route(lvl, zone)
 		say(("level %d in %s. %s"):format(lvl, zone, advice or "This zone still fits."))
 		for _, z in ipairs(fit) do say(("  %s (%d-%d)"):format(z[3], z[1], z[2])) end
+	elseif cmd == "ranks" then
+		if ns.Ranks then ns.Ranks.Slash(rest, say) end
 	elseif cmd == "status" then
 		say(("%s %s"):format(CLASS, VERSION))
 		for _, k in ipairs({ "fight", "heal", "cc", "behind", "sos", "free", "hide" }) do
@@ -671,6 +673,6 @@ SlashCmdList.ONEKEYDRUID = function(msg)
 	else
 		say(VERSION .. " — " .. CLASS:lower())
 		print("  bind KEY · sos KEY|off · lang fi|en · brave on|off · alarm on|off · herbs on|off")
-		print("  quests · go · where · status")
+		print("  quests · go · where · status · ranks [on|off]")
 	end
 end

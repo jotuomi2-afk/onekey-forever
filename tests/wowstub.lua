@@ -196,6 +196,7 @@ C_Spell = {
 	GetSpellPowerCost = function() return { { type = 0, cost = 40 } } end,
 	IsSpellUsable = function() return true, false end,
 	IsSpellPassive = function(id) return id == 16864 end,
+	PickupSpell = function(id) STUB.cursor = id end,
 	GetSpellCooldown = function() return { startTime = 0, duration = 0, isEnabled = true } end,
 }
 function GetSpellCooldown() return 0, 0, 1 end
@@ -207,6 +208,29 @@ C_UnitAuras = {
 	GetAuraDataByIndex = function() return nil end,
 }
 AuraUtil = { FindAuraByName = function(name) return STUB.buffs[name] and name or nil end }
+
+-- spellbook and action bars ---------------------------------------------------
+-- STUB.book: list of { name, rank, id }; STUB.bar: slot -> spell id
+STUB.book, STUB.bar, STUB.placed, STUB.cursor = {}, {}, {}, nil
+BOOKTYPE_SPELL = "spell"
+function GetNumSpellTabs() return 1 end
+function GetSpellTabInfo() return "General", nil, 0, #STUB.book end
+function GetSpellBookItemName(i)
+	local b = STUB.book[i]
+	if b then return b[1], "Rank " .. b[2], b[3] end
+end
+function GetActionInfo(slot)
+	if STUB.bar[slot] then return "spell", STUB.bar[slot] end
+end
+function GetCursorInfo() return STUB.cursor and "spell" or nil end
+function ClearCursor() STUB.cursor = nil end
+function PickupSpell(id) STUB.cursor = id end
+C_Spell_PickupSpell = PickupSpell
+function PlaceAction(slot)
+	if STUB.combat then STUB.violations[#STUB.violations + 1] = "PlaceAction in combat" end
+	STUB.bar[slot], STUB.cursor = STUB.cursor, STUB.bar[slot]
+	STUB.placed[#STUB.placed + 1] = slot
+end
 
 -- items and bags --------------------------------------------------------------
 C_Container = {

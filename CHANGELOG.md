@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.26.0
+
+- When you learn a new rank of a spell, the spell on your action bars moves
+  up to it (out of combat, after training). A lower rank you put back on
+  purpose stays. `/okd ranks` checks the bars now, `/okd ranks off` turns it
+  off.
+
 ## 0.25.0
 
 - Quest hints now come from pfQuest's own database only (MIT), built by
