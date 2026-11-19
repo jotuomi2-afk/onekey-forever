@@ -30,11 +30,17 @@ C.MAGE = {
 		dampen = { 604, "Dampen Magic" },
 	},
 	buffs = { { "ai" }, { "magearmor", "icearmor", "frostarmor" } },
-	pull = { { "cast", "frostbolt", "[nocombat,harm,nodead] " }, { "cast", "fireball", "[nocombat,harm,nodead] " } },
+	-- The pull is the first spell of the sequence: Fireball has the longest
+	-- range (35 yd; Frostbolt 30, Fire Blast 20). Then Frostbolt slows the
+	-- mob as it runs in, a second Frostbolt keeps it slow, and the sequence
+	-- starts over. Fire Blast, instant, goes in whenever it is ready once the
+	-- fight is on and the mob is within 20 yd; until then the press moves on
+	-- to the sequence. A new target or the end of the fight restarts it at
+	-- Fireball.
+	pull = {},
 	fight = {
-		{ "cast", "fireblast", H },
-		{ "cast", "frostbolt", H },
-		{ "cast", "fireball", H },
+		{ "cast", "fireblast", "[combat,harm,nodead] " },
+		{ "seq", { "fireball", "frostbolt", "frostbolt" }, H, "target/combat" },
 	},
 	heal = { { "cast", "nova", "" }, { "cast", "cone", H } },
 	cc = { { "cast", "poly", H } },

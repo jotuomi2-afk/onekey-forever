@@ -455,6 +455,40 @@ def main():
                 errs.append("no alarm sound in a fight after ten idle minutes")
             return errs
 
+    @S.test("macro: mage opens with the longest range (Fireball), then the Frostbolt slow")
+    def _():
+        p = []
+        probe, _ = load_addon(new_lua(), ["Classes.lua"])
+        CL = probe.CLASSES["MAGE"]
+        allspells = {v[1]: (v[2], k) for k, v in CL.spells.items()}
+        trained = {"fireball": 1, "frostarmor": 1, "frostbolt": 4, "ai": 6, "fireblast": 6, "water": 4, "food": 6,
+                   "missiles": 8, "poly": 8, "nova": 10, "shoot": 1}
+        for level in (1, 4, 6, 10, 20, 40):
+            spells = {sid: name for sid, (name, k) in allspells.items() if trained.get(k, 99) <= level}
+            lua = new_lua()
+            set_class(lua, "MAGE", 8, level, spells)
+            lua.execute("STUB.buffs = {}")
+            ns, errs = load_addon(lua)
+            p += errs
+            fire, tick = lua.eval("STUB.fire"), lua.eval("STUB.tick")
+            for e in ("ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD"):
+                p += lua_list(fire(e, "OneKeyDruid"))
+            p += lua_list(tick(2, 0.25))
+            fight = ns.OneKeyMacros.fight or ""
+            casts = [l for l in fight.split("\n") if l.startswith("/cast")]
+            first = next((l for l in casts if "[combat" not in l), "")
+            if "Fireball" not in first:
+                p.append("level %d: first spell out of combat is not Fireball: %r" % (level, first))
+            if level >= 4:
+                seq = next((l for l in casts if l.startswith("/castsequence")), "")
+                if not re.search(r"Fireball, Frostbolt", seq):
+                    p.append("level %d: Frostbolt does not follow Fireball: %r" % (level, seq))
+            if level >= 6 and not any("Fire Blast" in l and "[combat" in l for l in casts):
+                p.append("level %d: Fire Blast missing or usable before the fight" % level)
+            if len(fight) > MACRO_LIMIT:
+                p.append("level %d: %d chars" % (level, len(fight)))
+        return p
+
     @S.test("macro: every class keeps its main spell, and no enemy means only targeting")
     def _():
         p = []

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.27.1
+
+- Mage: F pulls with Fireball, the longest-range spell (35 yd), then casts
+  Frostbolt twice to slow the mob as it runs in, then Fireball again.
+  Fire Blast goes in whenever it is ready once the fight has started and
+  the mob is within 20 yards. A new target or the end of the fight starts
+  over at Fireball. Before this, F opened with Frostbolt and never cast
+  Fireball in a fight.
+
 ## 0.27.0
 
 The addon is now called **OneKey Forever** (the folder and the saved
