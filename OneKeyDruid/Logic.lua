@@ -28,7 +28,7 @@ Logic.DEFAULTS = {
 	buffs = true,    -- keep Mark of the Wild / Thorns / Omen of Clarity up
 	pull = true,     -- open from range (Wrath, then Moonfire) before shifting
 	roar = false,    -- bear: Demoralizing Roar once per target
-	enrage = true,   -- bear: Enrage as soon as it is ready, for rage
+	enrage = true,   -- kept for old settings; Enrage is no longer on F (its cooldown would stop the macro)
 	prowl = true,    -- cat: Prowl before the pull, then Ravage/Shred from behind, Pounce or Claw
 	manasafe = true, -- keep mana for the form: skip optional caster spells when it may not cover them
 	hpregen = 0.005,  -- health regained per second out of combat, as a share of the maximum (0.5 %)
@@ -411,21 +411,24 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 			L[#L + 1] = { "/cast [noform,harm,nodead] " .. formName, 1 }
 		end
 		if mode == "bear" then
-			-- Enrage for rage at the start, Faerie Fire, Feral Charge,
-			-- Demoralizing Roar (off by default: it costs the first Maul), Maul.
-			if cfg.enrage and known.enrage then L[#L + 1] = { "/cast " .. inForm .. N.enrage, 3 } end
+			-- The client stops a macro at the first spell that fails: one on
+			-- cooldown (Enrage) or out of range (Feral Charge next to the
+			-- mob) would keep Maul from ever being queued, so neither is on
+			-- F. A spell that cannot be used (no rage, not learned, a false
+			-- [condition]) is skipped and does not stop the macro.
+			-- Faerie Fire once, Demoralizing Roar (off by default: it costs
+			-- the first Maul), Maul.
 			if known.ff then L[#L + 1] = { once(inForm, N.ff), 2 } end
-			if known.chargeBear then L[#L + 1] = { "/cast " .. inForm .. M(N.chargeBear), 7 } end
 			if cfg.roar and known.roar then L[#L + 1] = { once(inForm, N.roar), 4 } end
 			if known.maul then L[#L + 1] = { "/cast " .. inForm .. "!" .. N.maul, 1 } end
 		elseif known.claw then
-			-- Cat: a line that cannot be cast (no energy, on cooldown, out
-			-- of range) is skipped by the client, so the order is a priority
-			-- list: Pounce from stealth, Faerie Fire, Feral Charge, then the
+			-- Cat: a line whose [condition] is false, or whose spell cannot
+			-- be used (no energy), is skipped. A spell on cooldown or out
+			-- of range is tried, fails and stops the macro, so Feral Charge
+			-- (too close in melee) is not on F. Pounce from stealth, then the
 			-- builder-finisher sequence, then Shifting Power.
 			local nos = ("[form:%d,nostealth] "):format(F)
 			if known.pounce then L[#L + 1] = { ("/cast [form:%d,stealth] %s"):format(F, M(N.pounce)), 6 } end
-			if known.charge then L[#L + 1] = { "/cast " .. nos .. M(N.charge), 7 } end
 			-- Faerie Fire opens the builder-finisher sequence: as its own line
 			-- it did not fit in the 255 characters and fell out of the macro
 			local s = {}

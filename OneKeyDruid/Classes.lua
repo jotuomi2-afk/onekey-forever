@@ -27,24 +27,27 @@ C.MAGE = {
 		blink = { 1953, "Blink" }, manashield = { 1463, "Mana Shield" }, barrier = { 11426, "Ice Barrier" },
 		cs = { 2139, "Counterspell" }, evo = { 12051, "Evocation" }, shoot = { 5019, "Shoot" },
 		water = { 5504, "Conjure Water" }, food = { 587, "Conjure Food" }, gem = { 759, "Conjure Mana Agate" },
-		dampen = { 604, "Dampen Magic" },
+		dampen = { 604, "Dampen Magic" }, icelance = { 30455, "Ice Lance" },
 	},
 	buffs = { { "ai" }, { "magearmor", "icearmor", "frostarmor" } },
-	-- The pull is the first spell of the sequence: Fireball has the longest
-	-- range (35 yd; Frostbolt 30, Fire Blast 20). Then Frostbolt slows the
-	-- mob as it runs in, a second Frostbolt keeps it slow, and the sequence
-	-- starts over. Fire Blast, instant, goes in whenever it is ready once the
-	-- fight is on and the mob is within 20 yd; until then the press moves on
-	-- to the sequence. A new target or the end of the fight restarts it at
-	-- Fireball.
+	-- The client stops a macro at the first spell that fails (on cooldown,
+	-- out of range), so F holds only spells without a cooldown: Fireball
+	-- pulls from the longest range (35 yd; Frostbolt 30, Fire Blast 20),
+	-- then Frostbolt slows the mob and keeps it slow. A new target or the
+	-- end of the fight starts over at Fireball. Out of mana the spells are
+	-- skipped and the wand shoots.
 	pull = {},
 	fight = {
-		{ "cast", "fireblast", "[combat,harm,nodead] " },
-		{ "seq", { "fireball", "frostbolt", "frostbolt" }, H, "target/combat" },
+		{ "seq", { "fireball", "frostbolt", "frostbolt", "frostbolt", "frostbolt" }, H, "target/combat" },
 	},
-	heal = { { "cast", "nova", "" }, { "cast", "cone", H } },
+	-- Shift+F, when the mob reaches you (the HUD says when): Frost Nova
+	-- freezes it, then Ice Lance on the frozen target (Shatter). Step back
+	-- and F goes on with Frostbolt.
+	heal = { { "seq", { "nova", "icelance" }, "", "combat" } },
+	-- Ctrl+F: instant damage while you move: Fire Blast, then Cone of Cold.
+	behind = { { "seq", { "fireblast", "cone" }, H, "combat" } },
+	alert = { freeze = "nova", lance = "icelance", cd = { nova = 25, icelance = 8 } },
 	cc = { { "cast", "poly", H } },
-	behind = { { "cast", "shoot", H } },
 	sos = { { "potion" }, { "cast", "barrier", "" }, { "cast", "nova", "" }, { "cast", "manashield", "" } },
 	free = { { "cast", "blink", "" } },
 }
@@ -106,12 +109,13 @@ C.HUNTER = {
 		{ "raw", "/petattack [harm,nodead]" },
 		{ "once", "mark", H }, { "once", "serpent", H },
 		{ "cast", "auto", H, bang = true },
-		{ "cast", "arcane", H },
 		{ "cast", "raptor", H },
 	},
 	heal = { { "cast", "mend", "[@pet,exists,nodead]" } },
 	cc = { { "cast", "conc", H }, { "cast", "wing", H } },
-	behind = { { "cast", "mongoose", H } },
+	-- cooldown shots off F (a failed cast stops the macro): Mongoose Bite
+	-- after a dodge, otherwise Arcane Shot
+	behind = { { "cast", "mongoose", H }, { "cast", "arcane", H } },
 	sos = { { "potion" }, { "cast", "fd", "" } },
 	free = { { "cast", "disengage", H } },
 }
@@ -126,16 +130,17 @@ C.PRIEST = {
 		form = { 15473, "Shadowform" }, flay = { 15407, "Mind Flay" },
 	},
 	buffs = { { "fort" }, { "inner" } },
-	pull = { { "cast", "mb", "[nocombat,harm,nodead] " }, { "cast", "smite", "[nocombat,harm,nodead] " } },
+	-- Mind Blast has a cooldown, and the client stops a macro at the first
+	-- spell that fails, so it is on Ctrl+F, not F.
+	pull = {},
 	fight = {
 		{ "once", "swp", H },
-		{ "cast", "mb", H },
 		{ "cast", "flay", H },
 		{ "cast", "smite", H },
 	},
 	heal = { { "cast", "flash", "[@player]" }, { "cast", "heal", "[@player]" }, { "cast", "lheal", "[@player]" } },
 	cc = { { "cast", "scream", "" } },
-	behind = { { "cast", "shoot", H } },
+	behind = { { "cast", "mb", H } },
 	sos = { { "potion" }, { "cast", "pws", "[@player]" }, { "cast", "scream", "" }, { "cast", "renew", "[@player]" } },
 }
 
@@ -194,13 +199,13 @@ C.SHAMAN = {
 	buffs = { { "ls" } },
 	pull = { { "cast", "lb", "[nocombat,harm,nodead] " } },
 	fight = {
-		{ "cast", "stormstrike", H },
 		{ "once", "fs", H },
 		{ "cast", "es", H },
 	},
 	heal = { { "cast", "lhw", "[@player]" }, { "cast", "hw", "[@player]" } },
 	cc = { { "cast", "earthbind", "" } },
-	behind = { { "cast", "es", H } },
+	-- Stormstrike has a cooldown: off F, on Ctrl+F (a failed cast stops the macro)
+	behind = { { "cast", "stormstrike", H } },
 	sos = { { "potion" }, { "cast", "stoneclaw", "" }, { "cast", "hw", "[@player]" } },
 	free = { { "cast", "ghost", "[nocombat]" } },
 }

@@ -16,7 +16,7 @@ if CLASS == "DRUID" then return end
 local CL = ns.CLASSES and ns.CLASSES[CLASS]
 local Logic = ns.Logic
 
-local VERSION = "0.27.1"
+local VERSION = "0.28.0"
 local PREFIX = "|cff7fd4ffOneKey|r "
 local LIMIT = 255
 local NAMES = { fight = "OneKeyMain", heal = "OneKeyHeal", cc = "OneKeyAlt", behind = "OneKeyCtrl",
@@ -197,7 +197,9 @@ local function rebuild()
 	-- with nothing learned that hits, the wand or the white swing does it
 	macros.fight = build(all, head)
 	if CL.wand and known.shoot and not CL.melee then
-		macros.fight = fit({ { macros.fight, 1 }, { ("/cast [harm,nodead] %s"):format(N.shoot), 2 } })
+		-- out of mana the spells above are skipped (not stopped on) and the
+		-- wand shoots; "!" keeps a second press from turning it off
+		macros.fight = fit({ { macros.fight, 1 }, { ("/cast [harm,nodead] !%s"):format(N.shoot), 2 } })
 	end
 	macros.heal = build(CL.heal)
 	-- Alt: the class's stop, and out of combat with no enemy: eat and drink
@@ -232,12 +234,16 @@ local TEXT = {
 		hold = "DO NOT PULL: too strong (%s). /okd brave on", dead = "You are dead", mounted = "Mounted",
 		cFight = "%s: fight", cMany = "%d enemies: press %s or run", run = "RUN AWAY!  %s",
 		low = "LOW HEALTH   press %s", drinkHint = "Low mana: Alt+%s to eat and drink",
-		afk = "Going AFK? Ctrl+%s: hide", noClass = "no list for this class yet" },
+		afk = "Going AFK? Ctrl+%s: hide", noClass = "no list for this class yet",
+		aNova = "IN MELEE: Shift+%s  %s", aLance = "FROZEN: Shift+%s  %s, then step back and %s",
+		aBack = "FROZEN: step back, %s" },
 	fi = { target = "%s: etsi kohde", fight = "%s: hyökkää", buff = "%s: buffaa (%s)", conjure = "%s: loihdi (%s)",
 		hold = "ÄLÄ VEDÄ: liian vahva (%s). /okd brave on", dead = "Olet kuollut", mounted = "Ratsailla",
 		cFight = "%s: taistele", cMany = "%d vihollista: paina %s tai pakene", run = "PAKENE!  %s",
 		low = "VÄHÄN HP:TA   paina %s", drinkHint = "Mana vähissä: Alt+%s syö ja juo",
-		afk = "Menossa AFK? Ctrl+%s: piiloon", noClass = "tälle luokalle ei vielä ole listaa" },
+		afk = "Menossa AFK? Ctrl+%s: piiloon", noClass = "tälle luokalle ei vielä ole listaa",
+		aNova = "LÄHITAISTELU: Shift+%s  %s", aLance = "JÄÄSSÄ: Shift+%s  %s, sitten taakse ja %s",
+		aBack = "JÄÄSSÄ: peräänny, %s" },
 }
 local function tr(key, ...)
 	local t = TEXT[db and db.lang] or TEXT.en
@@ -407,6 +413,70 @@ local function setNote()
 	if text ~= hud.noteText then hud.noteText = text hud.note:SetText(text or "") end
 end
 
+-- The freeze hint (mage): the key cannot test range or cooldowns (the
+-- client gives macros no such conditions, and the macro is locked in
+-- combat), so the HUD tells which key to press. It only shows text.
+local lastCast = {}
+local function cooldownLeft(key, now)
+	local name = N[key]
+	if not name then return 99 end
+	if C_Spell and C_Spell.GetSpellCooldown then
+		local ok, cd = pcall(C_Spell.GetSpellCooldown, name)
+		if ok and type(cd) == "table" and not secret(cd.startTime) and not secret(cd.duration)
+			and type(cd.startTime) == "number" and type(cd.duration) == "number" then
+			-- the global cooldown is not the spell's own
+			if cd.duration <= 1.5 then return 0 end
+			return math.max(0, cd.startTime + cd.duration - now)
+		end
+	end
+	local t, len = lastCast[key], CL and CL.alert and CL.alert.cd and CL.alert.cd[key] or 0
+	if not t then return 0 end
+	return math.max(0, t + len - now)
+end
+
+local function noteCast(spellID)
+	if not CL or secret(spellID) or type(spellID) ~= "number" then return end
+	local name
+	if C_Spell and C_Spell.GetSpellName then
+		local ok, n = pcall(C_Spell.GetSpellName, spellID)
+		if ok and not secret(n) then name = n end
+	end
+	if not name then return end
+	for key, n in pairs(N) do
+		if n == name then lastCast[key] = GetTime() end
+	end
+end
+
+local function alertText(now)
+	local A = CL and CL.alert
+	if not A or not known[A.freeze] then return nil end
+	local key = db.key or "F"
+	local frozenAt = lastCast[A.freeze]
+	if frozenAt and now - frozenAt < 8 then
+		if A.lance and known[A.lance] and cooldownLeft(A.lance, now) == 0 then
+			return tr("aLance", key, N[A.lance], key)
+		end
+		return tr("aBack", key)
+	end
+	local hit = false
+	for i = #live.times, 1, -1 do
+		if now - live.times[i] <= 2.5 then hit = true break end
+	end
+	if hit and cooldownLeft(A.freeze, now) == 0 then return tr("aNova", key, N[A.freeze]) end
+	return nil
+end
+local shownAlert
+ns.OneKeyAlert = function() return shownAlert end -- read by the tests
+
+local function updateAlert(now)
+	if not hud or not hud.alert then return end
+	local text = locked() and alertText(now) or nil
+	if text ~= shownAlert then
+		shownAlert = text
+		hud.alert:SetText(text and ("|cff80d0ff" .. text .. "|r") or "")
+	end
+end
+
 local runBox
 local function updateRun(now)
 	if not runBox then return end
@@ -432,6 +502,8 @@ local function createHud()
 	hud:SetScale(db.scale or 1)
 	hud.text = hud:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	hud.text:SetPoint("CENTER")
+	hud.alert = hud:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
+	hud.alert:SetPoint("BOTTOM", hud, "TOP", 0, 40)
 	hud.note = hud:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	hud.note:SetPoint("BOTTOM", hud, "TOP", 0, -2)
 	hud.vitals = hud:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -554,11 +626,13 @@ local function update()
 			end
 		end
 		updateRun(now)
+		updateAlert(now)
 		setNote()
 		return
 	end
 	warn.drink.frame:Show()
 	if runBox then runBox.box:Hide() end
+	updateAlert(GetTime())
 	if bagsDirty then scanBags() bagsDirty, dirty = false, true end
 	if dirty then rebuild() end
 	local text, label = decide()
@@ -587,7 +661,7 @@ end
 
 local driver = CreateFrame("Frame")
 local elapsed = 0
-driver:SetScript("OnEvent", function(_, event, arg1, arg2)
+driver:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 	if event == "ADDON_LOADED" then
 		if arg1 ~= ADDON then return end
 		OneKeyDruidDB = OneKeyDruidDB or {}
@@ -627,6 +701,8 @@ driver:SetScript("OnEvent", function(_, event, arg1, arg2)
 			rebuild()
 		end
 		bindKey()
+	elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
+		if arg1 == "player" then noteCast(arg3) end
 	elseif event == "UNIT_COMBAT" then
 		-- only damage taken counts as a hit (not heals, dodges or misses)
 		if arg1 == "player" and arg2 == "WOUND" then live.times[#live.times + 1] = GetTime() end
@@ -651,6 +727,7 @@ for _, e in ipairs({ "ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_REGEN_DISABLED", "P
 	pcall(driver.RegisterEvent, driver, e)
 end
 pcall(driver.RegisterUnitEvent, driver, "UNIT_COMBAT", "player")
+pcall(driver.RegisterUnitEvent, driver, "UNIT_SPELLCAST_SUCCEEDED", "player")
 
 driver:SetScript("OnUpdate", function(_, dt)
 	elapsed = elapsed + dt

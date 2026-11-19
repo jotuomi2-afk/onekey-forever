@@ -172,6 +172,33 @@ def set_class(lua, cls, class_id, level, spells):
     lua.execute('STUB.class = "%s" STUB.classId = %d STUB.level = %d' % (cls, class_id, level))
 
 
+def druid_fight(lua, ns, level, mode, selfcast=True):
+    """The druid fight macro at a level, with every spell and talent known
+    (Feral Charge included), as Logic.BuildMacros makes it."""
+    N = lua.eval("""{bear="Bear Form",cat="Cat Form",ht="Healing Touch",rejuv="Rejuvenation",regrowth="Regrowth",
+     grasp="Nature's Grasp",bash="Bash",maul="Maul",wrath="Wrath",moonfire="Moonfire",roots="Entangling Roots",
+     enrage="Enrage",roar="Demoralizing Roar",claw="Claw",rip="Rip",rake="Rake",shred="Shred",prowl="Prowl",
+     ff="Faerie Fire (Feral)",fb="Ferocious Bite",ravage="Ravage",pounce="Pounce",tf="Tiger's Fury",
+     hibernate="Hibernate",thorns="Thorns",motw="Mark of the Wild",direbear="Dire Bear Form",
+     charge="Feral Charge - Cat",chargeBear="Feral Charge",travel="Travel Form"}""")
+    kb = {v: k for k, v in N.items()}
+    kb["Faerie Fire"] = "ff"
+    kn = lua.eval("{}")
+    for sid, (name, lvl) in DRUID_SPELLS.items():
+        if lvl <= level and name in kb:
+            kn[kb[name]] = True
+    if level >= 20:
+        kn["charge"] = True
+        kn["chargeBear"] = True
+    cfg = lua.eval("{}")
+    for k in ns.Logic.DEFAULTS.keys():
+        cfg[k] = ns.Logic.DEFAULTS[k]
+    cfg["enrage"] = True
+    o = ns.Logic.BuildMacros(kn, N, lua.eval("{B=1,A=2,C=3}"), mode, cfg,
+                             lua.eval("{selfcast=%s,potion=118,food=4536,water=159}" % ("true" if selfcast else "false")))
+    return o.fight
+
+
 def druid_spells(level):
     return {sid: n for sid, (n, lvl) in DRUID_SPELLS.items() if lvl <= level}
 
@@ -455,38 +482,118 @@ def main():
                 errs.append("no alarm sound in a fight after ten idle minutes")
             return errs
 
-    @S.test("macro: mage opens with the longest range (Fireball), then the Frostbolt slow")
-    def _():
-        p = []
+    def mage_session(level, extra=()):
         probe, _ = load_addon(new_lua(), ["Classes.lua"])
         CL = probe.CLASSES["MAGE"]
         allspells = {v[1]: (v[2], k) for k, v in CL.spells.items()}
         trained = {"fireball": 1, "frostarmor": 1, "frostbolt": 4, "ai": 6, "fireblast": 6, "water": 4, "food": 6,
-                   "missiles": 8, "poly": 8, "nova": 10, "shoot": 1}
-        for level in (1, 4, 6, 10, 20, 40):
-            spells = {sid: name for sid, (name, k) in allspells.items() if trained.get(k, 99) <= level}
+                   "missiles": 8, "poly": 8, "nova": 10, "shoot": 1, "blink": 20, "cone": 26}
+        for k in extra:
+            trained[k] = 1
+        spells = {sid: name for sid, (name, k) in allspells.items() if trained.get(k, 99) <= level}
+        lua = new_lua()
+        set_class(lua, "MAGE", 8, level, spells)
+        lua.execute("STUB.buffs = {}")
+        ns, errs = load_addon(lua)
+        fire, tick = lua.eval("STUB.fire"), lua.eval("STUB.tick")
+        for e in ("ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD"):
+            errs += lua_list(fire(e, "OneKeyDruid"))
+        errs += lua_list(tick(2, 0.25))
+        return lua, ns, errs, fire, tick
+
+    @S.test("macro: mage opens with the longest range (Fireball), then the Frostbolt slow")
+    def _():
+        p = []
+        for level in (1, 4, 6, 10, 20, 26, 40):
+            lua, ns, errs, fire, tick = mage_session(level, ("icelance",) if level >= 20 else ())
+            p += errs
+            M = ns.OneKeyMacros
+            fight, heal, behind = M.fight or "", M.heal or "", M.behind or ""
+            casts = [l for l in fight.split("\n") if l.startswith("/cast")]
+            if not casts or "Fireball" not in casts[0]:
+                p.append("level %d: the first spell is not Fireball: %r" % (level, casts[:1]))
+            if level >= 4 and not re.search(r"Fireball, Frostbolt, Frostbolt", fight):
+                p.append("level %d: Frostbolt does not follow Fireball: %r" % (level, fight))
+            for cd in ("Fire Blast", "Frost Nova", "Cone of Cold", "Ice Lance"):
+                if cd in fight:
+                    p.append("level %d: %s (a cooldown) is on F and can stop the macro" % (level, cd))
+            if level >= 10 and "Frost Nova" not in heal:
+                p.append("level %d: Shift+F has no Frost Nova: %r" % (level, heal))
+            if level >= 20 and "Frost Nova, Ice Lance" not in heal:
+                p.append("level %d: Shift+F does not follow Nova with Ice Lance: %r" % (level, heal))
+            if level >= 6 and "Fire Blast" not in behind:
+                p.append("level %d: Ctrl+F has no Fire Blast: %r" % (level, behind))
+            if "!Shoot" not in fight:
+                p.append("level %d: no wand fallback on F" % level)
+            for k in ("fight", "heal", "behind"):
+                if len(M[k] or "") > MACRO_LIMIT:
+                    p.append("level %d %s: %d chars" % (level, k, len(M[k])))
+        return p
+
+    @S.test("hud: mage hit in melee is told to Frost Nova, then Ice Lance")
+    def _():
+        lua, ns, p, fire, tick = mage_session(20, ("icelance",))
+        p += lua_list(fire("PLAYER_REGEN_DISABLED"))
+        lua.execute("STUB.combat = true")
+        p += lua_list(tick(2, 0.25))
+        if ns.OneKeyAlert():
+            p.append("a hint before any hit: %r" % ns.OneKeyAlert())
+        p += lua_list(fire("UNIT_COMBAT", "player", "WOUND", "", 30, 1))
+        p += lua_list(tick(2, 0.25))
+        a = ns.OneKeyAlert() or ""
+        if "Frost Nova" not in a or "Shift+F" not in a:
+            p.append("no Frost Nova hint after a melee hit: %r" % a)
+        p += lua_list(fire("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-1", 122))
+        p += lua_list(tick(2, 0.25))
+        a = ns.OneKeyAlert() or ""
+        if "Ice Lance" not in a:
+            p.append("no Ice Lance hint after Frost Nova: %r" % a)
+        lua.execute("STUB.combat = false")
+        p += lua_list(fire("PLAYER_REGEN_ENABLED"))
+        p += lua_list(tick(2, 0.25))
+        if ns.OneKeyAlert():
+            p.append("the hint stays after the fight: %r" % ns.OneKeyAlert())
+        return p
+
+    @S.test("macro: no class has a cooldown spell before another spell on F")
+    def _():
+        # The client stops a macro at the first spell that fails (on
+        # cooldown, out of range); only a usable-check failure (no mana,
+        # not learned, reactive not ready) or a false [condition] skips.
+        COOLDOWN = ("Fire Blast", "Frost Nova", "Cone of Cold", "Ice Lance", "Mind Blast", "Arcane Shot",
+                    "Stormstrike", "Enrage", "Feral Charge")
+        p = []
+        probe, _ = load_addon(new_lua(), ["Classes.lua"])
+        for cls, cid in (("MAGE", 8), ("WARRIOR", 1), ("ROGUE", 4), ("HUNTER", 3), ("PRIEST", 5),
+                         ("WARLOCK", 9), ("PALADIN", 2), ("SHAMAN", 7)):
+            CL = probe.CLASSES[cls]
+            spells = {v[1]: v[2] for v in CL.spells.values()}
             lua = new_lua()
-            set_class(lua, "MAGE", 8, level, spells)
+            set_class(lua, cls, cid, 60, spells)
             lua.execute("STUB.buffs = {}")
             ns, errs = load_addon(lua)
             p += errs
-            fire, tick = lua.eval("STUB.fire"), lua.eval("STUB.tick")
+            fire = lua.eval("STUB.fire")
             for e in ("ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD"):
                 p += lua_list(fire(e, "OneKeyDruid"))
-            p += lua_list(tick(2, 0.25))
-            fight = ns.OneKeyMacros.fight or ""
-            casts = [l for l in fight.split("\n") if l.startswith("/cast")]
-            first = next((l for l in casts if "[combat" not in l), "")
-            if "Fireball" not in first:
-                p.append("level %d: first spell out of combat is not Fireball: %r" % (level, first))
-            if level >= 4:
-                seq = next((l for l in casts if l.startswith("/castsequence")), "")
-                if not re.search(r"Fireball, Frostbolt", seq):
-                    p.append("level %d: Frostbolt does not follow Fireball: %r" % (level, seq))
-            if level >= 6 and not any("Fire Blast" in l and "[combat" in l for l in casts):
-                p.append("level %d: Fire Blast missing or usable before the fight" % level)
-            if len(fight) > MACRO_LIMIT:
-                p.append("level %d: %d chars" % (level, len(fight)))
+            p += lua_list(lua.eval("STUB.tick")(4, 0.25))
+            casts = [l for l in (ns.OneKeyMacros.fight or "").split("\n") if l.startswith("/cast")]
+            if not casts:
+                p.append("%s: no fight macro" % cls.lower())
+            for l in casts[:-1]:
+                for cd in COOLDOWN:
+                    if cd in l:
+                        p.append("%s: %r has a cooldown and comes before %r" % (cls.lower(), l, casts[-1]))
+        for level in (20, 30, 40):
+            lua = new_lua()
+            nsl, _ = load_addon(lua, ["Logic.lua"])
+            for mode in ("bear", "cat"):
+                fight = druid_fight(lua, nsl, level, mode)
+                casts = [l for l in fight.split("\n") if l.startswith("/cast")]
+                for l in casts[:-1]:
+                    for cd in COOLDOWN:
+                        if cd in l:
+                            p.append("druid %d %s: %r has a cooldown and comes before %r" % (level, mode, l, casts[-1]))
         return p
 
     @S.test("macro: every class keeps its main spell, and no enemy means only targeting")

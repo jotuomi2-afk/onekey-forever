@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.28.0
+
+The game stops a macro at the first spell that fails, for example one on
+cooldown or out of range, and the lines after it never run. Spells the game
+cannot use at all (no mana, not learned) are skipped. The old macros
+assumed that a spell on cooldown was skipped too, so a cooldown early in a
+macro could block the whole key.
+
+- Mage:
+  - F: Fireball (the longest range), then Frostbolt ×4, which keeps the mob
+    slowed. The wand fires when you are out of mana. No cooldown spells
+    remain on F.
+  - Shift+F: Frost Nova, then Ice Lance on the frozen mob (Shatter).
+  - Ctrl+F: Fire Blast, then Cone of Cold, for instant damage while moving.
+  - In combat, a large HUD line says when a mob has reached you
+    ("IN MELEE: Shift+F Frost Nova"), and after the Nova "FROZEN: Shift+F
+    Ice Lance, then step back and F". It only shows text: the key cannot
+    see range or cooldowns, and macros are locked in combat.
+- Druid: Enrage and Feral Charge are no longer on F. With Enrage on cooldown
+  or Feral Charge too close to the mob, they stopped the macro before Maul
+  or the cat sequence.
+- Priest: Mind Blast moved to Ctrl+F. Shaman: Stormstrike moved to Ctrl+F.
+  Hunter: Arcane Shot moved to Ctrl+F (after Mongoose Bite).
+- A new test checks that no fight macro has a cooldown spell before
+  another spell.
+
 ## 0.27.1
 
 - Mage: F pulls with Fireball, the longest-range spell (35 yd), then casts
