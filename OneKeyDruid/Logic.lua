@@ -423,13 +423,12 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 			-- mob) would keep Maul from ever being queued, so neither is on
 			-- F. A spell that cannot be used (no rage, not learned, a false
 			-- [condition]) is skipped and does not stop the macro.
-			-- Demoralizing Roar (off by default: it costs the first Maul),
-			-- Maul (queued on the next swing, no global cooldown, so the press
-			-- goes on), then Faerie Fire once per target. Last, because on its
-			-- cooldown (a new mob within 6 s) it fails and would stop Maul.
+			-- Faerie Fire once per target first (after Maul it never came: Maul
+			-- without rage stops the macro), Demoralizing Roar (off by default:
+			-- it costs the first Maul), Maul.
+			if known.ff then L[#L + 1] = { once(inForm, N.ff), 2 } end
 			if cfg.roar and known.roar then L[#L + 1] = { once(inForm, N.roar), 4 } end
 			if known.maul then L[#L + 1] = { "/cast " .. inForm .. "!" .. N.maul, 1 } end
-			if known.ff then L[#L + 1] = { once(inForm, N.ff), 2 } end
 		elseif known.claw then
 			-- Cat: a line whose [condition] is false, or whose spell cannot
 			-- be used (no energy), is skipped. A spell on cooldown or out
@@ -438,25 +437,31 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 			-- builder-finisher sequence, then Shifting Power.
 			local nos = ("[form:%d,nostealth] "):format(F)
 			if known.pounce then L[#L + 1] = { ("/cast [form:%d,stealth] %s"):format(F, M(N.pounce)), 6 } end
-			-- Faerie Fire is not in the sequence any more: there it came back
-			-- every round (twice a fight in the log of 20.11.), taking a global
-			-- cooldown from Claw each time. It is a line AFTER the sequence
-			-- instead: Faerie Fire (Feral) costs no energy, so it goes in only
-			-- while the sequence waits for energy (a spell without energy is
-			-- skipped, not stopped on), in time the cat would stand idle. On
-			-- its cooldown it fails, and nothing comes after it to stop.
-			local s = {}
-			if known.rake then s[#s + 1] = N.rake end
-			for _ = 1, (known.rake or known.fb or known.rip) and 3 or 1 do s[#s + 1] = N.claw end
-			if known.fb then s[#s + 1] = N.fb elseif known.rip then s[#s + 1] = N.rip end
-			-- short of space, two Claws before the finisher instead of three
-			local short
-			if #s >= 5 and s[#s - 1] == N.claw then
-				short = {}
-				for i = 1, #s do if i ~= #s - 1 then short[#short + 1] = s[i] end end
+			-- Faerie Fire opens the sequence, and the sequence runs two rounds
+			-- of builders and a finisher before it starts over, so Faerie Fire
+			-- comes once a fight (it lasts 40 s) instead of every round. In
+			-- 0.29.2 it was a line after the sequence, on the idea that a spell
+			-- without energy is skipped: it is not, the client stops on "not
+			-- enough energy", and Faerie Fire was never cast (reported 20.11.).
+			-- Short of space: one round.
+			local round = {}
+			for _ = 1, (known.rake or known.fb or known.rip) and 3 or 1 do round[#round + 1] = N.claw end
+			local fin = (known.fb and N.fb) or (known.rip and N.rip) or nil
+			if fin then round[#round + 1] = fin end
+			local function build(rounds, claws)
+				local t = {}
+				if known.ff then t[#t + 1] = N.ff end
+				if known.rake then t[#t + 1] = N.rake end
+				for r = 1, rounds do
+					for _ = 1, claws do t[#t + 1] = N.claw end
+					if fin then t[#t + 1] = fin end
+				end
+				return t
 			end
-			L[#L + 1] = { seq(inForm, "target", s), 1, short and seq(inForm, "target", short), short and 3 }
-			if known.ff then L[#L + 1] = { "/cast " .. inForm .. M(N.ff), 3 } end
+			local claws = #round - (fin and 1 or 0)
+			local long = seq(inForm, "target", build(fin and 2 or 1, claws))
+			local short = seq(inForm, "target", build(1, math.max(1, claws - 1)))
+			L[#L + 1] = { long, 1, short, 3 }
 			if cfg.shiftpower and known.shiftpower then L[#L + 1] = { "/cast " .. nos .. M(N.shiftpower), 8 } end
 		end
 	else

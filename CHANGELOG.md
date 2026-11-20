@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.29.5
+
+- Druid: Faerie Fire is cast again.
+  - In 0.29.2 it moved to a line after the cat sequence, on the idea that
+    a spell without energy is skipped. The game instead stops on "not
+    enough energy", so Faerie Fire was never reached.
+  - Cat: Faerie Fire now opens the sequence, and the sequence runs two
+    rounds (Claw ×3, Rip, Claw ×3, Rip) before it starts over. That makes
+    it once a fight rather than every round. From level 32 there is only
+    room for one round.
+  - Bear: Faerie Fire once per target, before Maul. A Maul without rage
+    stops the macro, so Faerie Fire placed after it never came.
+
 ## 0.29.4
 
 - Druid G (the emergency key), reworked after "no Nature's Grasp and no

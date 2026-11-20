@@ -503,10 +503,17 @@ def main():
             for sc in (True, False):
                 fight = druid_macros(lua, nsl, level, "cat", sc).fight
                 seqs = [l for l in fight.split("\n") if l.startswith("/castsequence [form:3]")]
-                if any("Faerie Fire" in l for l in seqs):
-                    p.append("level %d: Faerie Fire is in the cat sequence again (recast every round)" % level)
-                if "Faerie Fire" not in fight:
-                    p.append("level %d selfcast %s: Faerie Fire fell out of the cat macro" % (level, sc))
+                seq = seqs[0] if seqs else ""
+                # Faerie Fire opens the cat sequence (a line after it is never
+                # reached: no energy stops the macro), once per two rounds
+                if "reset=target Faerie Fire" not in seq:
+                    p.append("level %d selfcast %s: Faerie Fire does not open the cat sequence: %r" % (level, sc, seq))
+                fins = len(re.findall(r"\b(Rip|Ferocious Bite)\b", seq))
+                if 20 <= level < 32 and not sc and fins < 2:
+                    p.append("level %d: one round per Faerie Fire (it comes back every round): %r" % (level, seq))
+                acts = [l for l in fight.split("\n") if l.startswith(("/cast", "/use"))]
+                if acts and acts[-1] != seq:
+                    p.append("level %d: a line after the cat sequence is never reached: %r" % (level, acts[-1]))
                 if "nocombat,harm] Wrath" not in fight:
                     p.append("level %d selfcast %s: the Wrath pull fell out" % (level, sc))
         # Ctrl+F follows the pull guard; health after a resurrection
