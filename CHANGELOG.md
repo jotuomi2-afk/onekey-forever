@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.30.2
+
+- Druid, water: the shift into and out of Aquatic Form now goes into F's
+  macro as the game's own `[swimming]` condition. The game checks it at
+  the moment you press. In 0.30.1 the addon tried to find out itself
+  whether you were swimming, and on WoW: Forever that did not work. Out of
+  combat, in water F goes into Aquatic Form; out of the water, still in
+  Aquatic Form, it goes into your fighting form. The long fight macro has
+  no room for these lines.
+
 ## 0.30.1
 
 - Druid, out of combat: in water F shifts you into Aquatic Form, and back on

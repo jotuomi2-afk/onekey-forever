@@ -34,6 +34,7 @@ local secretMeta = {
 	__tostring = function() return "<secret>" end,
 }
 local function secretValue() return setmetatable({}, secretMeta) end
+STUB_secret = secretValue -- for the tests
 function issecretvalue(v) return type(v) == "table" and getmetatable(v) == secretMeta end
 
 -- frames --------------------------------------------------------------------

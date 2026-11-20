@@ -16,7 +16,7 @@ local Logic = ns.Logic
 local _, CLASS = UnitClass("player")
 if CLASS ~= "DRUID" then return end
 
-local VERSION = "0.30.1"
+local VERSION = "0.30.2"
 local BUTTON = "OneKeyDruidButton"
 -- The buttons of the modifier keys.
 local NAMES = { heal = "OneKeyDruidHeal", cc = "OneKeyDruidStop", behind = "OneKeyDruidBehind",
@@ -437,10 +437,33 @@ local function guardBehind(hold)
 	kids.behind:SetAttribute("macrotext", hold and "" or (macros.behind or ""))
 end
 
+-- Water and land, decided by the game when you press (the [swimming]
+-- condition), so it works even where the addon cannot read it: in water F
+-- goes into Aquatic Form (and does nothing else there); out of the water
+-- in Aquatic Form it goes back into your fighting form. Only out of
+-- combat, and only where it fits in the 255 characters (not on the long
+-- fight macro).
+local function swimPrefix()
+	if not (known.aquatic and forms.A) then return nil end
+	local land = (Logic.Mode(db, known) == "bear" and known.bear) and (known.direbear and N.direbear or N.bear)
+		or (known.cat and N.cat) or nil
+	local t = { ("/cast [swimming,noform:%d] %s"):format(forms.A, N.aquatic), "/stopmacro [swimming]" }
+	if land then
+		t[#t + 1] = ("/cast [noswimming,form:%d] %s"):format(forms.A, land)
+		t[#t + 1] = ("/stopmacro [form:%d]"):format(forms.A)
+	end
+	return table.concat(t, "\n")
+end
+
 local function apply(text, label, what)
 	setHud(label)
 	current.what = what
 	guardBehind(what == "hold")
+	local pre = not locked() and swimPrefix()
+	if pre then
+		local joined = text ~= "" and (pre .. "\n" .. text) or pre
+		if #joined <= 255 then text = joined end
+	end
 	if locked() or text == current.text then return end
 	current.text = text
 	button:SetAttribute("macrotext", text)
@@ -1090,27 +1113,17 @@ local function update()
 		if sig ~= manaSig then manaSig, dirty = sig, true end
 	end
 	if dirty then rebuild() end
-	-- Water out of combat: F puts you into Aquatic Form; back on land it
-	-- puts you back into your fighting form. The press is still yours: the
-	-- key only holds the right shift (it is set out of combat, so it cannot
-	-- change mid-fight).
 	local key = db.key or "?"
-	local swimming = IsSwimming and IsSwimming()
-	if secret(swimming) then swimming = nil end
+	-- Water: the label only (the macro does the work, see swimPrefix)
+	local okS, swimming = pcall(function() return IsSwimming and IsSwimming() end)
+	if not okS or secret(swimming) then swimming = nil end
 	local fnow = formNow()
 	if swimming and known.aquatic and fnow ~= "aquatic" then
-		apply("/cast " .. N.aquatic, tr("swim", key, N.aquatic), "swim")
+		apply("", tr("swim", key, N.aquatic), "swim")
 		return
 	elseif swimming and fnow == "aquatic" then
 		apply("", tr("swimming"), "none")
 		return
-	elseif swimming == false and fnow == "aquatic" then
-		local bearName = known.direbear and N.direbear or N.bear
-		local back = (Logic.Mode(db, known) == "bear" and known.bear) and bearName or (known.cat and N.cat) or nil
-		if back then
-			apply("/cast " .. back, tr("swim", key, back), "land")
-			return
-		end
 	end
 	local s = readState()
 	local action, arg = Logic.Decide(s)

@@ -668,19 +668,24 @@ def main():
 
         def main():
             return macro_attrs(lua).get("OneKeyDruidButton:macrotext", "")
+        # the game decides by [swimming] when you press; the addon only sets it up
+        want = ["/cast [swimming,noform:2] Aquatic Form", "/stopmacro [swimming]",
+                "/cast [noswimming,form:2] Cat Form", "/stopmacro [form:2]"]
+        if main().split("\n")[:4] != want:
+            p.append("out of combat F does not start with the water lines: %r" % main()[:160])
+        # in water the label says so (where the client tells)
         lua.execute("STUB.swimming = true")
         p += lua_list(tick(2, 0.25))
-        if main() != "/cast Aquatic Form":
-            p.append("in the water F holds %r" % main())
-        lua.execute("STUB.form = 2")  # Aquatic Form (stance 2 in the stub)
-        p += lua_list(fire("UPDATE_SHAPESHIFT_FORM"))
+        if "Aquatic Form" not in (ns.DruidHud() or ""):
+            p.append("in water the HUD says %r" % ns.DruidHud())
+        if main().split("\n")[:2] != want[:2]:
+            p.append("in water F holds %r" % main())
+        # a secret or missing swim state: the macro still works
+        lua.execute("STUB.swimming = STUB_secret()")
         p += lua_list(tick(2, 0.25))
-        if main() != "":
-            p.append("swimming in Aquatic Form, F holds %r" % main())
+        if main().split("\n")[:2] != want[:2]:
+            p.append("with a secret swim state F holds %r" % main())
         lua.execute("STUB.swimming = false")
-        p += lua_list(tick(2, 0.25))
-        if main() != "/cast Cat Form":
-            p.append("back on land F holds %r" % main())
         # in combat nothing changes
         lua.execute("STUB.swimming = true STUB.combat = true")
         p += lua_list(tick(2, 0.25))
