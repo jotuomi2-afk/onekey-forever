@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.28.3
+
+- Rogue: F chains the stuns, as the WoW Forever guides advise:
+  - Cheap Shot from stealth, Sinister Strike up to 5 combo points, then
+    Kidney Shot.
+  - One more Sinister Strike while the mob is stunned, then Gouge as the
+    stun ends (the energy comes back while Gouge holds).
+  - Then Sinister Strike again and Eviscerate.
+  - Kidney Shot and Gouge sit inside one sequence: on cooldown, a press
+    waits for them instead of stopping the whole key.
+  - Before Kidney Shot (level 30): Sinister Strike to 5 points, Eviscerate,
+    Gouge, and round again.
+- Mage: the Frostbolt slow never lapses. Fireball opens once per target,
+  and every press after that is Frostbolt, whose slow lasts longer than its
+  cast. Fireball no longer comes back mid-fight.
+
 ## 0.28.2
 
 From the log of 19.11. (a death in Ashenvale against three furbolgs):

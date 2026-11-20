@@ -520,8 +520,15 @@ def main():
             casts = [l for l in fight.split("\n") if l.startswith("/cast")]
             if not casts or "Fireball" not in casts[0]:
                 p.append("level %d: the first spell is not Fireball: %r" % (level, casts[:1]))
-            if level >= 4 and not re.search(r"Fireball, Frostbolt, Frostbolt", fight):
-                p.append("level %d: Frostbolt does not follow Fireball: %r" % (level, fight))
+            if level >= 4:
+                # Fireball once per target, then only Frostbolt: the slow never lapses
+                if "reset=target Fireball, null" not in fight:
+                    p.append("level %d: Fireball is not a once-per-target opener: %r" % (level, fight))
+                after = casts[1:]
+                if not after or "Frostbolt" not in after[0]:
+                    p.append("level %d: Frostbolt is not the filler after the opener: %r" % (level, fight))
+                if any("Fireball" in l for l in after):
+                    p.append("level %d: Fireball is cast again mid-fight (the slow can lapse)" % level)
             for cd in ("Fire Blast", "Frost Nova", "Cone of Cold", "Ice Lance"):
                 if cd in fight:
                     p.append("level %d: %s (a cooldown) is on F and can stop the macro" % (level, cd))
@@ -536,6 +543,38 @@ def main():
             for k in ("fight", "heal", "behind"):
                 if len(M[k] or "") > MACRO_LIMIT:
                     p.append("level %d %s: %d chars" % (level, k, len(M[k])))
+        return p
+
+    @S.test("macro: rogue chains the stuns (Cheap Shot, Kidney Shot, Gouge)")
+    def _():
+        p = []
+        probe, _ = load_addon(new_lua(), ["Classes.lua"])
+        CL = probe.CLASSES["ROGUE"]
+        allspells = {v[1]: (v[2], k) for k, v in CL.spells.items()}
+        trained = {"ss": 1, "evis": 1, "stealth": 1, "cs": 26, "gouge": 6, "kick": 12, "evasion": 8,
+                   "sprint": 10, "vanish": 22, "kidney": 30, "ambush": 18, "snd": 10, "throw": 1}
+        for level in (6, 26, 30, 40):
+            spells = {sid: name for sid, (name, k) in allspells.items() if trained.get(k, 99) <= level}
+            lua = new_lua()
+            set_class(lua, "ROGUE", 4, level, spells)
+            lua.execute("STUB.buffs = {}")
+            ns, errs = load_addon(lua)
+            p += errs
+            fire = lua.eval("STUB.fire")
+            for e in ("ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD"):
+                p += lua_list(fire(e, "OneKeyDruid"))
+            p += lua_list(lua.eval("STUB.tick")(2, 0.25))
+            fight = ns.OneKeyMacros.fight or ""
+            seq = next((l for l in fight.split("\n") if l.startswith("/castsequence")), "")
+            if level >= 26 and "[stealth,harm,nodead] Cheap Shot" not in fight:
+                p.append("level %d: no Cheap Shot opener from stealth" % level)
+            if level >= 30:
+                if not re.search(r"Sinister Strike, Kidney Shot, Sinister Strike, Gouge, .*Eviscerate$", seq):
+                    p.append("level %d: the stun chain is wrong: %r" % (level, seq))
+            elif "Gouge" not in seq or "Eviscerate" not in seq:
+                p.append("level %d: no Gouge and finisher in the chain: %r" % (level, seq))
+            if len(fight) > MACRO_LIMIT:
+                p.append("level %d: %d chars" % (level, len(fight)))
         return p
 
     @S.test("hud: mage hit in melee is told to Frost Nova, then Ice Lance")

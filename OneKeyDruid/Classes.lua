@@ -36,13 +36,17 @@ C.MAGE = {
 	buffs = { { "ai" }, { "magearmor", "icearmor", "frostarmor" } },
 	-- The client stops a macro at the first spell that fails (on cooldown,
 	-- out of range), so F holds only spells without a cooldown: Fireball
-	-- pulls from the longest range (35 yd; Frostbolt 30, Fire Blast 20),
-	-- then Frostbolt slows the mob and keeps it slow. A new target or the
-	-- end of the fight starts over at Fireball. Out of mana the spells are
-	-- skipped and the wand shoots.
+	-- pulls from the longest range (35 yd; Frostbolt 30, Fire Blast 20).
+	-- Out of mana the spells are skipped and the wand shoots.
+	-- Frostbolt keeps the mob slowed the whole fight: Fireball only opens
+	-- (once per target), every press after that is Frostbolt, whose slow
+	-- lasts longer than its cast, so it never runs out. Before Frostbolt is
+	-- learned, Fireball is the filler.
 	pull = {},
 	fight = {
-		{ "seq", { "fireball", "frostbolt", "frostbolt", "frostbolt", "frostbolt" }, H, "target/combat" },
+		{ "once", "fireball", H, need = "frostbolt" },
+		{ "cast", "frostbolt", H },
+		{ "cast", "fireball", H, without = "frostbolt" },
 	},
 	-- Shift+F, when the mob reaches you (the HUD says when): Frost Nova
 	-- freezes it, then Ice Lance on the frozen target (Shatter). Step back
@@ -78,17 +82,32 @@ C.WARRIOR = {
 }
 
 C.ROGUE = {
-	melee = true, attack = "/startattack [nostealth,harm,nodead]",
+	-- no /startattack line: Cheap Shot and Sinister Strike start the swing
+	-- themselves, and the stun chain needs the room in the macro
+	melee = true, attack = false,
 	spells = {
 		ss = { 1752, "Sinister Strike" }, evis = { 2098, "Eviscerate" }, snd = { 5171, "Slice and Dice" },
 		stealth = { 1784, "Stealth" }, cs = { 1833, "Cheap Shot" }, ambush = { 8676, "Ambush" },
 		gouge = { 1776, "Gouge" }, kick = { 1766, "Kick" }, evasion = { 5277, "Evasion" },
 		sprint = { 2983, "Sprint" }, vanish = { 1856, "Vanish" }, throw = { 2764, "Throw" },
+		kidney = { 408, "Kidney Shot" },
 	},
 	buffs = {},
+	-- The stun chain (WoW Forever guides): Cheap Shot from stealth (4 s,
+	-- 2 combo points), Sinister Strike to 5 points, Kidney Shot (5 s at 5
+	-- points), one more Sinister Strike while it is stunned, Gouge as the
+	-- stun ends (it breaks on damage, so the energy comes back while it
+	-- holds), then Sinister Strike and Eviscerate. In one /castsequence:
+	-- Kidney Shot and Gouge have cooldowns, and in a line of their own a
+	-- cooldown would stop the macro; in the sequence the press waits for
+	-- them. A spell without energy is skipped and the sequence waits. Before
+	-- Kidney Shot (level 30): Sinister Strike, Eviscerate, Gouge in between.
 	pull = { { "cast", "cs", "[stealth,harm,nodead] " } },
 	fight = {
-		{ "seq", { "ss", "ss", "ss", "evis" }, "[nostealth,harm,nodead] ", "target" },
+		{ "seq", { "ss", "ss", "ss", "kidney", "ss", "gouge", "ss", "ss", "evis" },
+			"[nostealth,harm,nodead] ", "target", need = "kidney" },
+		{ "seq", { "ss", "ss", "ss", "evis", "gouge", "ss", "ss", "ss", "evis" },
+			"[nostealth,harm,nodead] ", "target", without = "kidney" },
 	},
 	heal = { { "cast", "kick", H } },
 	cc = { { "cast", "gouge", H } },

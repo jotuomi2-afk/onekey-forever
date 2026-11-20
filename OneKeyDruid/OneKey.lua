@@ -16,7 +16,7 @@ if CLASS == "DRUID" then return end
 local CL = ns.CLASSES and ns.CLASSES[CLASS]
 local Logic = ns.Logic
 
-local VERSION = "0.28.2"
+local VERSION = "0.28.3"
 local PREFIX = "|cff7fd4ffOneKey|r "
 local LIMIT = 255
 local NAMES = { fight = "OneKeyMain", heal = "OneKeyHeal", cc = "OneKeyAlt", behind = "OneKeyCtrl",
@@ -145,6 +145,10 @@ end
 
 -- one line of a class list as macro text, or nil when not learned
 local function line(e)
+	-- need / without: the line only when a spell is (not) known, for
+	-- chains that change shape as the class learns spells
+	if e.need and not known[e.need] then return nil end
+	if e.without and known[e.without] then return nil end
 	local kind = e[1]
 	if kind == "potion" then
 		return potion and ("/use [combat] item:%d"):format(potion) or nil
@@ -199,7 +203,7 @@ local function rebuild()
 	if locked() or not CL then return end
 	readSpells()
 	local head = { TARGET }
-	if CL.melee then head[#head + 1] = CL.attack or "/startattack [harm,nodead]" end
+	if CL.melee and CL.attack ~= false then head[#head + 1] = CL.attack or "/startattack [harm,nodead]" end
 	local all = {}
 	for _, e in ipairs(CL.pull or {}) do all[#all + 1] = e end
 	for _, e in ipairs(CL.fight or {}) do all[#all + 1] = e end
