@@ -653,6 +653,41 @@ def main():
             p.append("the addon swapped Prowl again after the player put it back")
         return p
 
+    @S.test("druid: in water F holds Aquatic Form, on land the fighting form again")
+    def _():
+        p = []
+        lua = new_lua()
+        set_class(lua, "DRUID", 11, 23, druid_spells(23))
+        lua.execute('STUB.buffs = { ["Mark of the Wild"] = true, ["Thorns"] = true } STUB.form = 3')
+        ns, errs = load_addon(lua)
+        p += errs
+        fire, tick = lua.eval("STUB.fire"), lua.eval("STUB.tick")
+        for e in ("ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD"):
+            p += lua_list(fire(e, "OneKeyDruid"))
+        p += lua_list(tick(4, 0.25))
+
+        def main():
+            return macro_attrs(lua).get("OneKeyDruidButton:macrotext", "")
+        lua.execute("STUB.swimming = true")
+        p += lua_list(tick(2, 0.25))
+        if main() != "/cast Aquatic Form":
+            p.append("in the water F holds %r" % main())
+        lua.execute("STUB.form = 2")  # Aquatic Form (stance 2 in the stub)
+        p += lua_list(fire("UPDATE_SHAPESHIFT_FORM"))
+        p += lua_list(tick(2, 0.25))
+        if main() != "":
+            p.append("swimming in Aquatic Form, F holds %r" % main())
+        lua.execute("STUB.swimming = false")
+        p += lua_list(tick(2, 0.25))
+        if main() != "/cast Cat Form":
+            p.append("back on land F holds %r" % main())
+        # in combat nothing changes
+        lua.execute("STUB.swimming = true STUB.combat = true")
+        p += lua_list(tick(2, 0.25))
+        for v in lua_list(lua.eval("STUB.violations")):
+            p.append("taint: " + v)
+        return p
+
     @S.test("logic: route and water advice")
     def _():
         lua = new_lua()

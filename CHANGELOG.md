@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.30.1
+
+- Druid, out of combat: in water F shifts you into Aquatic Form, and back on
+  land it shifts you into your fighting form (cat, or bear in bear mode).
+  Each shift takes one press. The HUD shows what F will do. In combat F
+  stays the fight key.
+
 ## 0.30.0
 
 - Druid: pressing Prowl outside cat form now shifts into cat form first; the

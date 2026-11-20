@@ -167,7 +167,8 @@ function UnitDebuff() return nil end
 function UnitOnTaxi() return false end
 function IsMounted() return false end
 function IsResting() return false end
-function IsSwimming() return false end
+STUB.swimming = false
+function IsSwimming() return STUB.swimming end
 function IsFlying() return false end
 function IsShiftKeyDown() return false end
 function IsAltKeyDown() return false end

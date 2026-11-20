@@ -16,7 +16,7 @@ local Logic = ns.Logic
 local _, CLASS = UnitClass("player")
 if CLASS ~= "DRUID" then return end
 
-local VERSION = "0.30.0"
+local VERSION = "0.30.1"
 local BUTTON = "OneKeyDruidButton"
 -- The buttons of the modifier keys.
 local NAMES = { heal = "OneKeyDruidHeal", cc = "OneKeyDruidStop", behind = "OneKeyDruidBehind",
@@ -374,7 +374,7 @@ local TEXT = {
 		cMany = "%d enemies: press %s or run", mHeal = "Shift held: healing", mStop = "Alt held: stop the mob",
 		mRest = "Alt held: eat and drink", mLeave = "Ctrl held: leave the form", mBehind = "Ctrl held: leave form / attack from behind",
 		low = "LOW HEALTH   press %s", lowNoSos = "LOW HEALTH   Shift+%s", healHint = "Heal: Shift+%s", drinkHint = "Low mana: Alt+%s to drink",
-		enemies = "%d ENEMIES", run = "RUN AWAY!  %s", catProwl = "%s: Prowl", toBear = "bear: Shift+%s", catOpen = "%s: Pounce/Claw · behind the mob: Ctrl+%s Ravage/Shred", hold = "DO NOT PULL: too strong (%s). /okd brave on",
+		enemies = "%d ENEMIES", run = "RUN AWAY!  %s", catProwl = "%s: Prowl", swim = "%s: %s", swimming = "in the water", toBear = "bear: Shift+%s", catOpen = "%s: Pounce/Claw · behind the mob: Ctrl+%s Ravage/Shred", hold = "DO NOT PULL: too strong (%s). /okd brave on",
 		afk = "Going AFK? Ctrl+%s: Shadowmeld", mHide = "Ctrl held: hide (Shadowmeld)",
 	},
 	fi = {
@@ -388,7 +388,7 @@ local TEXT = {
 		cMany = "%d vihollista: paina %s tai pakene", mHeal = "Shift pohjassa: parannat", mStop = "Alt pohjassa: pysäytä kohde",
 		mRest = "Alt pohjassa: syö ja juo", mLeave = "Ctrl pohjassa: muodosta pois", mBehind = "Ctrl pohjassa: muodosta pois / lyö takaa",
 		low = "VÄHÄN HP:TA   paina %s", lowNoSos = "VÄHÄN HP:TA   Shift+%s", healHint = "Paranna: Shift+%s", drinkHint = "Mana vähissä: Alt+%s juo",
-		enemies = "%d VIHOLLISTA", run = "PAKENE!  %s", catProwl = "%s: hiivi (Prowl)", toBear = "karhuksi: Shift+%s", catOpen = "%s: Pounce/Claw · mobin takana: Ctrl+%s Ravage/Shred", hold = "ÄLÄ VEDÄ: liian vahva (%s). /okd brave on",
+		enemies = "%d VIHOLLISTA", run = "PAKENE!  %s", catProwl = "%s: hiivi (Prowl)", swim = "%s: %s", swimming = "vedessä", toBear = "karhuksi: Shift+%s", catOpen = "%s: Pounce/Claw · mobin takana: Ctrl+%s Ravage/Shred", hold = "ÄLÄ VEDÄ: liian vahva (%s). /okd brave on",
 		afk = "Menossa AFK? Ctrl+%s: Shadowmeld", mHide = "Ctrl pohjassa: piiloon (Shadowmeld)",
 	},
 }
@@ -1090,10 +1090,31 @@ local function update()
 		if sig ~= manaSig then manaSig, dirty = sig, true end
 	end
 	if dirty then rebuild() end
+	-- Water out of combat: F puts you into Aquatic Form; back on land it
+	-- puts you back into your fighting form. The press is still yours: the
+	-- key only holds the right shift (it is set out of combat, so it cannot
+	-- change mid-fight).
+	local key = db.key or "?"
+	local swimming = IsSwimming and IsSwimming()
+	if secret(swimming) then swimming = nil end
+	local fnow = formNow()
+	if swimming and known.aquatic and fnow ~= "aquatic" then
+		apply("/cast " .. N.aquatic, tr("swim", key, N.aquatic), "swim")
+		return
+	elseif swimming and fnow == "aquatic" then
+		apply("", tr("swimming"), "none")
+		return
+	elseif swimming == false and fnow == "aquatic" then
+		local bearName = known.direbear and N.direbear or N.bear
+		local back = (Logic.Mode(db, known) == "bear" and known.bear) and bearName or (known.cat and N.cat) or nil
+		if back then
+			apply("/cast " .. back, tr("swim", key, back), "land")
+			return
+		end
+	end
 	local s = readState()
 	local action, arg = Logic.Decide(s)
 	local label, spell, item
-	local key = db.key or "?"
 	if action == "heal" or action == "cure" or action == "buff" then
 		spell = N[arg]
 		label = tr(action, key, spell)
