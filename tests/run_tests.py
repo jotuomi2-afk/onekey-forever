@@ -468,7 +468,8 @@ def main():
         attrs = macro_attrs(lua)
         free = next((v for k, v in attrs.items() if "Free" in k or "free" in k), "")
         hide = next((v for k, v in attrs.items() if "Hide" in k or "hide" in k), "")
-        for want in ("[form:3] !Cat Form", "[form:1] !Bear Form", "[noform] Cat Form"):
+        # Forever has no powershifting: the key swaps forms
+        for want in ("[form:3] Bear Form", "[form:1] Cat Form", "[noform] Cat Form"):
             if want not in free:
                 p.append("break-free key lacks %r: %r" % (want, free))
         if "/cancelform" not in hide:
@@ -579,7 +580,7 @@ def main():
             p.append("40 %% missing before a tough mob: %s (should heal)" % r)
         return p
 
-    @S.test("druid: G is Nature's Grasp (when ready), Rejuvenation, the bear, then the potion")
+    @S.test("druid: G is Rejuvenation with the potion, Nature's Grasp (when ready), then the bear")
     def _():
         p = []
         lua = new_lua()
@@ -587,8 +588,9 @@ def main():
         o = druid_macros(lua, nsl, 23, "cat")
         g, plain = o.sosGrasp or "", o.sos or ""
         lines = g.split("\n")
-        want = ["/cancelform [form:3]", "/castsequence reset=combat Nature's Grasp, null",
-                "/castsequence [@player] reset=20/combat Rejuvenation, Bear Form, null", "/use [combat] item:118"]
+        want = ["/cancelform [form:3]",
+                "/castsequence [@player] reset=20/combat Rejuvenation, Nature's Grasp, Bear Form, null",
+                "/use [combat] item:118"]
         if lines != want:
             p.append("G with Grasp is %r" % lines)
         if "Nature's Grasp" in plain or "Bear Form, null" not in plain:

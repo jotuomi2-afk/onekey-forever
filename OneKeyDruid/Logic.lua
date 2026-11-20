@@ -567,16 +567,16 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 	-- is proven to cover Rejuvenation and the form; otherwise the bear stays
 	-- (and the potion) and the heal key does the healing.
 	local leave = room(mc.rejuv or 0) and (known.rejuv or known.ht)
-	-- One pass, not a loop: Nature's Grasp (once a fight, only when it is
-	-- ready as the fight starts: Core picks out.sosGrasp then), Rejuvenation
-	-- on yourself, then the BEAR (more health and armour when they are on
+	-- One pass, not a loop: Rejuvenation on yourself (and the potion), then
+	-- Nature's Grasp (once a fight, only when it is ready as the fight
+	-- starts: Core picks out.sosGrasp then), then the BEAR (more health and armour when they are on
 	-- you; a cat or travel form only without one), then nothing more but the
 	-- potion until 20 s without a press or the end of the fight. A loop
 	-- came back to Nature's Grasp on its cooldown, and a failed cast stops
 	-- the macro. Only a cat leaves its form here: from the bear,
 	-- Rejuvenation leaves it by itself, and a later press must not drop
-	-- the bear again. The potion is last: it goes in on the press after
-	-- Nature's Grasp, with the heal (it does not use the global cooldown).
+	-- the bear again. The potion is last: it goes in with the heal on the
+	-- first press (it does not use the global cooldown).
 	if leave then sos[#sos + 1] = { ("/cancelform [form:%d]"):format(C or 3), 1 } end
 	local steps = {}
 	if known.rejuv then
@@ -591,36 +591,42 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 		steps[#steps + 1] = "null"
 	end
 	if leave and #steps > 0 then
-		if known.grasp then graspLine = { ("/castsequence reset=combat %s, null"):format(N.grasp), 1 } end
-		sos[#sos + 1] = { ("/castsequence [@player] reset=20/combat %s"):format(table.concat(steps, ", ")), 1 }
+		local plainSeq = ("/castsequence [@player] reset=20/combat %s"):format(table.concat(steps, ", "))
+		if known.grasp then
+			-- the heal (and the potion) on the first press, Nature's Grasp on
+			-- the second: near death the heal cannot wait a global cooldown
+			-- (a death in the log of 20.11. came with Grasp first)
+			local g = {}
+			for i, v in ipairs(steps) do
+				g[#g + 1] = v
+				if i == 1 then g[#g + 1] = N.grasp end
+			end
+			graspLine = ("/castsequence [@player] reset=20/combat %s"):format(table.concat(g, ", "))
+		end
+		sos[#sos + 1] = { plainSeq, 1, nil, nil, grasp = graspLine }
 	elseif B then
 		-- no mana to leave: stay a bear, or go back into it if the form is lost
 		sos[#sos + 1] = { ("/cast [noform] %s"):format(bearName), 1 }
 	end
 	if items.potion then sos[#sos + 1] = { ("/use [combat] item:%d"):format(items.potion), 1 } end
-	local plain = {}
-	for i = 1, #sos do plain[i] = { sos[i][1], sos[i][2] } end
-	out.sos = fit(plain)
-	if graspLine then
-		local with = {}
-		for i = 1, #sos do
-			with[#with + 1] = { sos[i][1], sos[i][2] }
-			if i == 1 then with[#with + 1] = graspLine end
-		end
-		out.sosGrasp = fit(with)
+	local plain, with = {}, {}
+	for i = 1, #sos do
+		plain[i] = { sos[i][1], sos[i][2] }
+		with[i] = { sos[i].grasp or sos[i][1], sos[i][2] }
 	end
+	out.sos = fit(plain)
+	if graspLine then out.sosGrasp = fit(with) end
 
 	-- Shift + emergency key: break free. Entering a form removes roots and
-	-- slows. In a form, "!" shifts straight back into the same form (a
-	-- powershift); the client refuses it without the mana, so the druid is
-	-- never left in caster form and still rooted. In caster form it goes
-	-- into the fighting form; Ctrl + emergency key brings you back to caster
-	-- form (the HUD says so). A macro cannot remember the form you were in,
-	-- and the key cannot change in combat, so one press cannot do both.
+	-- slows. WoW: Forever has no powershifting (shifting into the form you
+	-- are in), so the key swaps: cat to bear, bear to cat, caster form into
+	-- the fighting form. Ctrl + emergency key brings you back to caster form.
 	if F then
 		local parts = {}
-		if B then parts[#parts + 1] = ("[form:%d] !%s"):format(B, bearName) end
-		if C and known.cat then parts[#parts + 1] = ("[form:%d] !%s"):format(C, N.cat) end
+		if C and B and known.cat then
+			parts[#parts + 1] = ("[form:%d] %s"):format(C, bearName)
+			parts[#parts + 1] = ("[form:%d] %s"):format(B, N.cat)
+		end
 		parts[#parts + 1] = "[noform] " .. formName
 		out.free = "/cast " .. table.concat(parts, "; ")
 	end

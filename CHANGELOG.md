@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.29.6
+
+- Druid G: the heal comes first. In order: Rejuvenation together with the
+  potion, then Nature's Grasp, then Bear Form. In the death to Ilkrud
+  Magthrull, Nature's Grasp came first and took the global cooldown when
+  the heal was needed.
+- Druid Shift+G (break free from roots) swaps forms: cat to bear, bear to
+  cat, caster form to your fighting form. WoW: Forever has no
+  powershifting, so the 0.29.1 way of shifting back into the same form
+  did not work.
+
 ## 0.29.5
 
 - Druid: Faerie Fire is cast again.
