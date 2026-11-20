@@ -189,7 +189,12 @@ function GetCVarBool() return false end
 function SetCVar() end
 function GetCVar() return "0" end
 STUB.macros = {}
-function GetMacroIndexByName(n) return STUB.macros[n] and 1 or 0 end
+function GetMacroIndexByName(n) if STUB.macros[n] then STUB.macroIdx = n return 1 end return 0 end
+function GetMacroInfo(i) local n = STUB.macroIdx return n, 1, STUB.macros[n] end
+function EditMacro(i, name, icon, body)
+	if STUB.combat then violation("EditMacro in combat") end
+	STUB.macros[name or STUB.macroIdx] = body
+end
 function CreateMacro(n, icon, body, perChar)
 	if STUB.combat then violation("CreateMacro in combat") end
 	STUB.macros[n] = body

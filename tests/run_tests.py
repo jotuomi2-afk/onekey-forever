@@ -641,6 +641,13 @@ def main():
         body = lua.eval('STUB.macros["OKD Prowl"]') or ""
         if "/cast [noform:3] Cat Form; [nostealth] Prowl" not in body:
             p.append("no OKD Prowl macro, or a wrong one: %r" % body)
+        # a macro from an older version with the wrong stance number is put right
+        lua.execute('STUB.macros["OKD Prowl"] = "#showtooltip Prowl\\n/cast [noform:9] Cat Form; [nostealth] Prowl"')
+        p += lua_list(fire("SPELLS_CHANGED"))
+        p += lua_list(tick(4, 0.25))
+        body = lua.eval('STUB.macros["OKD Prowl"]') or ""
+        if "[noform:3] Cat Form" not in body:
+            p.append("an old OKD Prowl macro was not put right: %r" % body)
         if lua.eval("STUB.bar[5]") != "OKD Prowl":
             p.append("Prowl on the bar was not swapped: %r" % lua.eval("STUB.bar[5]"))
         for v in lua_list(lua.eval("STUB.violations")):

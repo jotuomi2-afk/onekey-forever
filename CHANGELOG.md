@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.30.3
+
+- Druid: the OKD Prowl macro prowls again.
+  - It names cat form by its stance number. When it was made before the game
+    had listed your forms, it got a guessed number. Your cat form has another
+    number, so the macro turned cat form off and on ("Ability is not ready
+    yet") instead of prowling.
+  - The macro is now made only once your forms are known.
+  - If the existing macro has the wrong number, the addon corrects it out of
+    combat. It changes no other macro.
+
 ## 0.30.2
 
 - Druid, water: the shift into and out of Aquatic Form now goes into F's

@@ -16,7 +16,7 @@ local Logic = ns.Logic
 local _, CLASS = UnitClass("player")
 if CLASS ~= "DRUID" then return end
 
-local VERSION = "0.30.2"
+local VERSION = "0.30.3"
 local BUTTON = "OneKeyDruidButton"
 -- The buttons of the modifier keys.
 local NAMES = { heal = "OneKeyDruidHeal", cc = "OneKeyDruidStop", behind = "OneKeyDruidBehind",
@@ -604,10 +604,18 @@ local PROWL_MACRO = "OKD Prowl"
 local function prowlKey()
 	if locked() or db.prowlkey == false or not (known.prowl and known.cat) then return end
 	if not (GetMacroIndexByName and CreateMacro) then return end
-	if GetMacroIndexByName(PROWL_MACRO) == 0 then
-		local body = ("#showtooltip %s\n/cast [noform:%d] %s; [nostealth] %s"):format(
-			N.prowl, forms.C or 3, N.cat, N.prowl)
+	-- the real stance number of cat form, never a guess: a guessed 3 made
+	-- the macro switch cat form off and on instead of prowling (20.11.)
+	if not forms.C then return end
+	local body = ("#showtooltip %s\n/cast [noform:%d] %s; [nostealth] %s"):format(
+		N.prowl, forms.C, N.cat, N.prowl)
+	local idx = GetMacroIndexByName(PROWL_MACRO)
+	if idx == 0 then
 		if not pcall(CreateMacro, PROWL_MACRO, "INV_MISC_QUESTIONMARK", body, true) then return end
+	elseif GetMacroInfo and EditMacro then
+		-- an older body (a wrong stance number) is put right
+		local ok, _, _, old = pcall(GetMacroInfo, idx)
+		if ok and old ~= body then pcall(EditMacro, idx, PROWL_MACRO, nil, body) end
 	end
 	local ok, n = pcall(ns.Ranks.SwapProwl, N.prowl, PROWL_MACRO)
 	if ok and n and n > 0 then

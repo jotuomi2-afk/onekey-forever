@@ -45,6 +45,7 @@ ALLOWED_USES = {
     ("Ranks.lua", "PickupSpell"): "the spell to place, see PlaceAction",
     ("Ranks.lua", "C_Spell.PickupSpell"): "the spell to place, see PlaceAction",
     ("Core.lua", "CreateMacro"): "/okd macros, and the OKD Prowl macro once: macros the player presses himself",
+    ("Core.lua", "EditMacro"): "puts the addon's own OKD Prowl macro right (its cat form number); no other macro",
 }
 SECRET_APIS = ["UnitHealth", "UnitPower", "UnitHealthPercent", "UnitPowerPercent", "UnitHealthMissing"]
 TOKEN_PATTERNS = [r"ghp_[A-Za-z0-9]{20,}", r"github_pat_[A-Za-z0-9_]{20,}", r"sk-[A-Za-z0-9]{20,}",
