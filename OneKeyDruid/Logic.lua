@@ -575,39 +575,19 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 	if items.potion then sos[#sos + 1] = { ("/use [combat] item:%d"):format(items.potion), 1 } end
 	out.sos = fit(sos)
 
-	-- Shift + emergency key: break free. Leaving a form removes roots and
-	-- slows; the same press goes straight back into the fighting form.
-	-- Shift + emergency key: a new form breaks roots and slows. As a cat
-	-- with a bear known it is the bear (more health and armour when more
-	-- than one is on you), as a bear back to the cat; otherwise out of the
-	-- form and back into it.
+	-- Shift + emergency key: break free. Entering a form removes roots and
+	-- slows. In a form, "!" shifts straight back into the same form (a
+	-- powershift); the client refuses it without the mana, so the druid is
+	-- never left in caster form and still rooted. In caster form it goes
+	-- into the fighting form; Ctrl + emergency key brings you back to caster
+	-- form (the HUD says so). A macro cannot remember the form you were in,
+	-- and the key cannot change in combat, so one press cannot do both.
 	if F then
-		if C and B and known.cat then
-			out.free = ("/cast [form:%d] %s; [form:%d] %s; [noform] %s"):format(C, bearName, B, N.cat, formName)
-		else
-			out.free = "/cancelform [form]\n/cast [noform] " .. formName
-		end
-	end
-
-	-- Cat, out of combat, an enemy picked: Prowl, then from stealth Ravage
-	-- or Shred if you are behind the target (the client skips a line it
-	-- cannot cast), else Pounce, else Claw. Combat swaps in the fight macro.
-	if C and known.claw and known.prowl and cfg.prowl ~= false then
-		local P = {
-			{ "/targetenemy [noharm][dead]", 1 },
-			{ ("/cast [form:%d,nostealth,harm,nodead] %s"):format(C, N.prowl), 1 },
-			{ "/stopmacro [nostealth]", 1 },
-		}
-		-- One opener only. Ravage and Shred need you behind the mob: from
-		-- the front they fail, and a failed cast stops the macro, so the
-		-- lines after them would never run. They are on Ctrl+F (the "I am
-		-- behind" key). F opens with Pounce (stun, any side) or Claw.
-		if known.pounce then
-			P[#P + 1] = { "/cast [harm,nodead] " .. M(N.pounce), 1 }
-		else
-			P[#P + 1] = { "/cast [harm,nodead] " .. N.claw, 1 }
-		end
-		out.catpull = fit(P)
+		local parts = {}
+		if B then parts[#parts + 1] = ("[form:%d] !%s"):format(B, bearName) end
+		if C and known.cat then parts[#parts + 1] = ("[form:%d] !%s"):format(C, N.cat) end
+		parts[#parts + 1] = "[noform] " .. formName
+		out.free = "/cast " .. table.concat(parts, "; ")
 	end
 
 	-- Ctrl + emergency key: hide before going away. Shadowmeld (night elf)

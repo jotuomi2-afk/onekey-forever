@@ -72,6 +72,7 @@ Likelihood (L) and impact (I) are rated 1–3; their product sets the depth of t
 | RK15 | The "find a target" press also pulls, past the elite/+3 guard | 2 | 2 | REQ-21 | The mage pulls with the longest-range spell (Fireball), then slows with Frostbolt; cooldown spells sit on Shift+F and Ctrl+F | macro: mage opens |
 | REQ-22 | No macro (F, G, the druid keys) tries anything that can fail (cooldown, range, target type, position, a potion) before another spell: the client stops a macro at the first failed cast | macro: nothing that can fail |
 | REQ-24 | The rogue chains its stuns: Cheap Shot, Kidney Shot, Gouge, inside one sequence | macro: rogue chains |
+| REQ-26 | Rooted, the druid breaks free with Shift+G in any form (the same form, mana permitting); from caster form the HUD offers Ctrl+G back | druid: rooted |
 | REQ-25 | The mage keeps the Frostbolt slow up: Fireball only opens | macro: mage opens |
 | REQ-23 | The HUD tells a mage in melee to Frost Nova, then Ice Lance and step back | hud: mage hit in melee |
 | REQ-20 |
@@ -110,6 +111,7 @@ point to several tests; names are matched on their beginning.
 | REQ-21 | The mage pulls with the longest-range spell (Fireball), then slows with Frostbolt; cooldown spells sit on Shift+F and Ctrl+F | macro: mage opens |
 | REQ-22 | No macro (F, G, the druid keys) tries anything that can fail (cooldown, range, target type, position, a potion) before another spell: the client stops a macro at the first failed cast | macro: nothing that can fail |
 | REQ-24 | The rogue chains its stuns: Cheap Shot, Kidney Shot, Gouge, inside one sequence | macro: rogue chains |
+| REQ-26 | Rooted, the druid breaks free with Shift+G in any form (the same form, mana permitting); from caster form the HUD offers Ctrl+G back | druid: rooted |
 | REQ-25 | The mage keeps the Frostbolt slow up: Fireball only opens | macro: mage opens |
 | REQ-23 | The HUD tells a mage in melee to Frost Nova, then Ice Lance and step back | hud: mage hit in melee |
 | REQ-20 | With no enemy targeted, the key only targets; the next update checks the target before attacking | macro: every class; smoke: |

@@ -317,6 +317,14 @@ C_Timer = {
 }
 -- the damage meter: plain numbers out of combat, secret ones in combat,
 -- as in the client. STUB.meter = false turns it off.
+-- loss of control: STUB.rooted = true puts a root on the player
+STUB.rooted = false
+C_LossOfControl = {
+	GetActiveLossOfControlDataCount = function() return STUB.rooted and 1 or 0 end,
+	GetActiveLossOfControlData = function(i)
+		if STUB.rooted and i == 1 then return { locType = "ROOT", duration = 8 } end
+	end,
+}
 STUB.meter = true
 C_DamageMeter = {
 	IsDamageMeterAvailable = function() return STUB.meter, nil end,

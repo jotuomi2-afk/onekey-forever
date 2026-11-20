@@ -453,6 +453,47 @@ def main():
                 p.append("%s: Finnish letters in the English texts" % f)
         return p
 
+    @S.test("druid: rooted, the HUD says Shift+G breaks free; from caster form Ctrl+G brings you back")
+    def _():
+        p = []
+        lua = new_lua()
+        set_class(lua, "DRUID", 11, 22, druid_spells(22))
+        lua.execute("STUB.buffs = {}")
+        ns, errs = load_addon(lua)
+        p += errs
+        fire, tick = lua.eval("STUB.fire"), lua.eval("STUB.tick")
+        for e in ("ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD"):
+            p += lua_list(fire(e, "OneKeyDruid"))
+        p += lua_list(tick(4, 0.25))
+        attrs = macro_attrs(lua)
+        free = next((v for k, v in attrs.items() if "Free" in k or "free" in k), "")
+        hide = next((v for k, v in attrs.items() if "Hide" in k or "hide" in k), "")
+        for want in ("[form:3] !Cat Form", "[form:1] !Bear Form", "[noform] Cat Form"):
+            if want not in free:
+                p.append("break-free key lacks %r: %r" % (want, free))
+        if "/cancelform" not in hide:
+            p.append("Ctrl+G does not bring you back to caster form: %r" % hide)
+        # caster form, in combat, rooted
+        lua.execute('STUB.targetName = "Thistlefur Shaman" STUB.targetLevel = 23 STUB.form = 0')
+        p += lua_list(fire("PLAYER_TARGET_CHANGED"))
+        p += lua_list(fire("PLAYER_REGEN_DISABLED"))
+        lua.execute("STUB.combat = true STUB.rooted = true")
+        p += lua_list(tick(3, 0.25))
+        t = ns.DruidHud() or ""
+        if "Shift+G" not in t:
+            p.append("rooted in caster form, the HUD says %r" % t)
+        # Shift+G: into cat form, the root is gone
+        lua.execute("STUB.rooted = false STUB.form = 3")
+        p += lua_list(fire("UPDATE_SHAPESHIFT_FORM"))
+        p += lua_list(tick(3, 0.25))
+        t = ns.DruidHud() or ""
+        if "Ctrl+G" not in t:
+            p.append("after breaking free from caster form, the HUD says %r" % t)
+        p += lua_list(tick(40, 0.25))
+        if "Ctrl+G" in (ns.DruidHud() or ""):
+            p.append("the back-to-caster hint stays too long")
+        return p
+
     @S.test("logic: route and water advice")
     def _():
         lua = new_lua()

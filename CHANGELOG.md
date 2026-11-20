@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.29.1
+
+- Druid, rooted: the HUD shows "ROOTED: Shift+G breaks free".
+  - In cat or bear form, Shift+G powershifts straight back into the same
+    form, which removes the roots. Without enough mana the game refuses the
+    shift, so you are never left rooted in caster form.
+  - In caster form, Shift+G goes into your fighting form, which also
+    removes the roots. For 8 seconds after that the HUD shows "Back to
+    caster form: Ctrl+G".
+  - A macro cannot remember the form you came from, and keys cannot change
+    in combat, so the return to caster form takes its own press.
+
 ## 0.29.0
 
 - The addon's texts are in English by default, for release. Characters

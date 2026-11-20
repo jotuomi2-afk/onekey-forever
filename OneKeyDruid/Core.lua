@@ -16,7 +16,7 @@ local Logic = ns.Logic
 local _, CLASS = UnitClass("player")
 if CLASS ~= "DRUID" then return end
 
-local VERSION = "0.29.0"
+local VERSION = "0.29.1"
 local BUTTON = "OneKeyDruidButton"
 -- The buttons of the modifier keys.
 local NAMES = { heal = "OneKeyDruidHeal", cc = "OneKeyDruidStop", behind = "OneKeyDruidBehind",
@@ -369,6 +369,7 @@ local TEXT = {
 		nuke = "%s: attack with spells (weak target)",
 		heal = "%s: heal first (%s)", cure = "%s: cure (%s)", buff = "%s: buff (%s)",
 		cFight = "%s: hit", cFinish = "%s: finish it", cForm = "%s: back to your form",
+		cRoot = "ROOTED: Shift+%s breaks free", cBack = "Back to caster form: Ctrl+%s",
 		cHits = "Many hits taken: Shift+%s to heal", cTwo = "2 enemies: Alt+%s stops one, %s if it gets bad",
 		cMany = "%d enemies: press %s or run", mHeal = "Shift held: healing", mStop = "Alt held: stop the mob",
 		mRest = "Alt held: eat and drink", mLeave = "Ctrl held: leave the form", mBehind = "Ctrl held: leave form / attack from behind",
@@ -382,6 +383,7 @@ local TEXT = {
 		nuke = "%s: hyökkää loitsuilla (heikko kohde)",
 		heal = "%s: paranna ensin (%s)", cure = "%s: poista (%s)", buff = "%s: buffaa (%s)",
 		cFight = "%s: lyö", cFinish = "%s: viimeistele", cForm = "%s: takaisin muotoon",
+		cRoot = "JUURISSA: Shift+%s vapauttaa", cBack = "Takaisin caster-muotoon: Ctrl+%s",
 		cHits = "Paljon osumia: Shift+%s parantaa", cTwo = "2 vihollista: Alt+%s pysäyttää yhden, %s jos pahenee",
 		cMany = "%d vihollista: paina %s tai pakene", mHeal = "Shift pohjassa: parannat", mStop = "Alt pohjassa: pysäytä kohde",
 		mRest = "Alt pohjassa: syö ja juo", mLeave = "Ctrl pohjassa: muodosta pois", mBehind = "Ctrl pohjassa: muodosta pois / lyö takaa",
@@ -415,6 +417,7 @@ end
 -- what the fight looks like so far, for the advice in combat
 local live = { hits = 0, at = 0, times = {}, start = 0, lastKill = nil }
 
+ns.DruidHud = function() return currentLabel end -- read by the tests
 local function setHud(text)
 	if hud and hud.text and text ~= currentLabel then
 		currentLabel = text
@@ -957,6 +960,24 @@ local function hideRun()
 	if runBox then for _, r in ipairs(runBox) do r.box:Hide() end end
 end
 
+-- Rooted? The client's loss-of-control list says so (plain values only;
+-- a secret one counts as not known). The HUD only tells which key frees
+-- you: the key itself cannot change in combat.
+local function rooted()
+	local L = C_LossOfControl
+	if not L or not L.GetActiveLossOfControlDataCount or not L.GetActiveLossOfControlData then return false end
+	local ok, n = pcall(L.GetActiveLossOfControlDataCount)
+	if not ok or secret(n) or type(n) ~= "number" then return false end
+	for i = 1, n do
+		local ok2, d = pcall(L.GetActiveLossOfControlData, i)
+		if ok2 and type(d) == "table" and not secret(d.locType) and d.locType == "ROOT" then return true end
+	end
+	return false
+end
+
+-- Broke free from caster form: for a few seconds the HUD offers the way back.
+local fromCaster = { at = 0, lastForm = "none" }
+
 local function combatHud()
 	setLight(false)
 	-- Count the pull twice a second; one warning sound per fight.
@@ -974,8 +995,19 @@ local function combatHud()
 	local mod = heldMod()
 	local key, sos = db.key or "?", db.sos or "G"
 	local text
+	local form = formNow()
+	if fromCaster.lastForm == "none" and form ~= "none" and fromCaster.wasRooted then
+		fromCaster.at = now
+	end
+	fromCaster.lastForm = form
+	local isRooted = rooted()
+	fromCaster.wasRooted = isRooted and form == "none"
 	if mod and macros[mod] then
 		text = modLabel(mod)
+	elseif isRooted and macros.free then
+		text = "|cffff8040" .. tr("cRoot", sos) .. "|r"
+	elseif form ~= "none" and now - fromCaster.at < 8 then
+		text = "|cff80d0ff" .. tr("cBack", sos) .. "|r"
 	elseif adds.n >= 3 then
 		text = "|cffff4040" .. tr("cMany", adds.n, sos) .. "|r"
 	elseif adds.n == 2 then
