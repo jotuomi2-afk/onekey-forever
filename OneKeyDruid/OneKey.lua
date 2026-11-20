@@ -16,7 +16,7 @@ if CLASS == "DRUID" then return end
 local CL = ns.CLASSES and ns.CLASSES[CLASS]
 local Logic = ns.Logic
 
-local VERSION = "0.28.3"
+local VERSION = "0.29.0"
 local PREFIX = "|cff7fd4ffOneKey|r "
 local LIMIT = 255
 local NAMES = { fight = "OneKeyMain", heal = "OneKeyHeal", cc = "OneKeyAlt", behind = "OneKeyCtrl",
@@ -681,7 +681,9 @@ driver:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		db = OneKeyDruidDB
 		if db.key == nil then db.key = "F" end
 		if db.sos == nil then db.sos = "G" end
-		if db.lang == nil then db.lang = "fi" end
+		-- English by default; 0.29 moves every character to it once
+		-- (Finnish: /okd lang fi)
+		if db.lang == nil or (db.langSet or 0) < 29 then db.lang, db.langSet = "en", 29 end
 	elseif event == "PLAYER_LOGIN" then
 		if not CL then say(tr("noClass")) return end
 		buttons.fight = secureButton(NAMES.fight)
@@ -811,7 +813,7 @@ SlashCmdList.ONEKEYDRUID = function(msg)
 		end
 	else
 		say(VERSION .. " — " .. CLASS:lower())
-		print("  bind KEY · sos KEY|off · lang fi|en · brave on|off · alarm on|off · herbs on|off")
+		print("  bind KEY · sos KEY|off · lang en|fi · brave on|off · alarm on|off · herbs on|off")
 		print("  quests · go · where · status · ranks [on|off]")
 	end
 end

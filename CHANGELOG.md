@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.29.0
+
+- The addon's texts are in English by default, for release. Characters
+  that had Finnish switch to English once; `/okd lang fi` brings Finnish
+  back and stays.
+
 ## 0.28.3
 
 - Rogue: F chains the stuns, as the WoW Forever guides advise:

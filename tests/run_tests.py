@@ -419,6 +419,40 @@ def main():
                 errs.append("only %d buttons got type=macro after the fight" % len(types))
             return errs
 
+    @S.test("lang: English is the default, also for an old Finnish setting")
+    def _():
+        p = []
+        for cls, cid in (("DRUID", 11), ("MAGE", 8)):
+            for old in (None, "fi"):
+                lua = new_lua()
+                spells = druid_spells(20) if cls == "DRUID" else \
+                    {v[1]: v[2] for v in load_addon(new_lua(), ["Classes.lua"])[0].CLASSES[cls].spells.values()}
+                set_class(lua, cls, cid, 20, spells)
+                lua.execute("STUB.buffs = {}")
+                if old:
+                    lua.execute('OneKeyDruidDB = { lang = "fi" }')
+                ns, errs = load_addon(lua)
+                p += errs
+                fire = lua.eval("STUB.fire")
+                for e in ("ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD"):
+                    p += lua_list(fire(e, "OneKeyDruid"))
+                lang = lua.eval("OneKeyDruidDB.lang")
+                if lang != "en":
+                    p.append("%s (old %s): lang is %r" % (cls.lower(), old, lang))
+                # /okd lang fi still sticks after the move
+                lua.eval("STUB.slash")("lang fi")
+                for e in ("ADDON_LOADED",):
+                    p += lua_list(fire(e, "OneKeyDruid"))
+                if lua.eval("OneKeyDruidDB.lang") != "fi":
+                    p.append("%s: /okd lang fi did not stick" % cls.lower())
+        for f in ("Core.lua", "OneKey.lua"):
+            src = read(os.path.join(ADDON, f))
+            m = re.search(r"\ben = \{(.*?)\n\t\},?\n|\ben = \{([^\n]*)\}", src, re.S)
+            body = (m.group(1) or m.group(2)) if m else ""
+            if re.search("[\u00e4\u00f6]", body):
+                p.append("%s: Finnish letters in the English texts" % f)
+        return p
+
     @S.test("logic: route and water advice")
     def _():
         lua = new_lua()

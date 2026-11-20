@@ -46,7 +46,7 @@ update from an older version.
 
 `/okd` lists them all. The most used: `bind KEY`, `status`, `quests`, `go`,
 `skip`, `where`, `mode cat|bear|auto`, `brave on|off`, `prowl on|off`,
-`alarm on|off`, `herbs on|off`, `lang fi|en`.
+`alarm on|off`, `herbs on|off`, `lang en|fi` (English by default).
 
 ## For developers
 

@@ -16,7 +16,7 @@ local Logic = ns.Logic
 local _, CLASS = UnitClass("player")
 if CLASS ~= "DRUID" then return end
 
-local VERSION = "0.28.3"
+local VERSION = "0.29.0"
 local BUTTON = "OneKeyDruidButton"
 -- The buttons of the modifier keys.
 local NAMES = { heal = "OneKeyDruidHeal", cc = "OneKeyDruidStop", behind = "OneKeyDruidBehind",
@@ -1580,7 +1580,7 @@ local function help()
 	print("  sos KEY|off — the emergency key (G): Rejuvenation, back to form, potion")
 	print("  mode auto|cat|bear|caster")
 	print("  heal N · drink N · panic N — thresholds in percent · scale N — text size (1.3)")
-	print("  lang fi|en — language of the texts on screen")
+	print("  lang en|fi — language of the texts on screen (English by default)")
 	print("  buffs · pull · prehot · enrage · roar · escape · shiftpower · hud · light · sound · dps · nuke · manasafe — each on|off (manaregen N)")
 	print("  food [item link]|auto · water [item link]|auto")
 	print("  macros — make action bar macros · status — show what the key does")
@@ -2190,6 +2190,9 @@ driver:SetScript("OnEvent", function(_, event, arg1)
 		if (db.version or 0) < 6 then db.roar, db.version = false, 6 end
 		-- 0.7: Shift heals at once; rooting first is off unless asked for.
 		if db.version < 7 then db.escape, db.version = false, 7 end
+		-- 0.29: English is the language of the released addon; Finnish
+		-- stays one command away (/okd lang fi).
+		if db.version < 29 then db.lang, db.version = "en", 29 end
 	elseif event == "PLAYER_LOGIN" then
 		createButton()
 		createHud()
