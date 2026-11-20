@@ -16,7 +16,7 @@ if CLASS == "DRUID" then return end
 local CL = ns.CLASSES and ns.CLASSES[CLASS]
 local Logic = ns.Logic
 
-local VERSION = "0.28.1"
+local VERSION = "0.28.2"
 local PREFIX = "|cff7fd4ffOneKey|r "
 local LIMIT = 255
 local NAMES = { fight = "OneKeyMain", heal = "OneKeyHeal", cc = "OneKeyAlt", behind = "OneKeyCtrl",
@@ -171,6 +171,15 @@ end
 -- the last learned line, which is the class's main filler spell, are never
 -- dropped. Of the others, later lines go first.
 local function build(list, head)
+	-- a potion goes last, whatever the list says (see Classes.lua, sos)
+	if list then
+		local rest, pots = {}, {}
+		for _, e in ipairs(list) do
+			if e[1] == "potion" then pots[#pots + 1] = e else rest[#rest + 1] = e end
+		end
+		for _, e in ipairs(pots) do rest[#rest + 1] = e end
+		list = rest
+	end
 	local L = {}
 	for _, h in ipairs(head or {}) do L[#L + 1] = { h, 1 } end
 	local body = {}

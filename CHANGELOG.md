@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.28.2
+
+From the log of 19.11. (a death in Ashenvale against three furbolgs):
+
+- The emergency key G did nothing after the first press. Its first lines
+  (the potion, Bash, Nature's Grasp) were on cooldown, and the game stops
+  a macro at the first failed cast, so 49 presses in 13 seconds did
+  nothing.
+  - Druid G now: out of the form, Rejuvenation on yourself, back into a
+    form (travel, cat or bear), with the potion last. The potion does not
+    trigger the global cooldown, so it goes in on the same press.
+  - Bash stays on Alt+F, and Nature's Grasp is on the action bar.
+- All other classes: G is one emergency spell, then the potion.
+  - Mage: Mana Shield. Warrior: Demoralizing Shout. Rogue: Evasion.
+  - Hunter: Feign Death. Priest: Power Word: Shield. Warlock: Fear.
+  - Paladin: Divine Shield. Shaman: Healing Wave.
+- Druid Alt+F: Entangling Roots before Hibernate. Hibernate fails on
+  anything but beasts and dragonkin, and so stopped the roots. Bash is now
+  last.
+- The test now checks every macro: F, G and all the druid keys. Run on the
+  old code, it found 20 such problems.
+
 ## 0.28.1
 
 - Druid, cat in stealth: F opens with Pounce, or with Claw before Pounce is

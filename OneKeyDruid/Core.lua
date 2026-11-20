@@ -16,7 +16,7 @@ local Logic = ns.Logic
 local _, CLASS = UnitClass("player")
 if CLASS ~= "DRUID" then return end
 
-local VERSION = "0.28.1"
+local VERSION = "0.28.2"
 local BUTTON = "OneKeyDruidButton"
 -- The buttons of the modifier keys.
 local NAMES = { heal = "OneKeyDruidHeal", cc = "OneKeyDruidStop", behind = "OneKeyDruidBehind",
@@ -1577,7 +1577,7 @@ end
 local function help()
 	say("commands (/okd):")
 	print("  bind KEY · unbind — the key (also in the game's Keybindings)")
-	print("  sos KEY|off — the emergency key (G): potion, Bash, Nature's Grasp, Rejuvenation, back to form")
+	print("  sos KEY|off — the emergency key (G): Rejuvenation, back to form, potion")
 	print("  mode auto|cat|bear|caster")
 	print("  heal N · drink N · panic N — thresholds in percent · scale N — text size (1.3)")
 	print("  lang fi|en — language of the texts on screen")

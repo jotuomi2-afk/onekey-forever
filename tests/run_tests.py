@@ -173,14 +173,18 @@ def set_class(lua, cls, class_id, level, spells):
 
 
 def druid_fight(lua, ns, level, mode, selfcast=True):
-    """The druid fight macro at a level, with every spell and talent known
-    (Feral Charge included), as Logic.BuildMacros makes it."""
+    return druid_macros(lua, ns, level, mode, selfcast).fight
+
+
+def druid_macros(lua, ns, level, mode, selfcast=True):
+    """The druid macros at a level, with every spell and talent known
+    (Feral Charge included), as Logic.BuildMacros makes them."""
     N = lua.eval("""{bear="Bear Form",cat="Cat Form",ht="Healing Touch",rejuv="Rejuvenation",regrowth="Regrowth",
      grasp="Nature's Grasp",bash="Bash",maul="Maul",wrath="Wrath",moonfire="Moonfire",roots="Entangling Roots",
      enrage="Enrage",roar="Demoralizing Roar",claw="Claw",rip="Rip",rake="Rake",shred="Shred",prowl="Prowl",
      ff="Faerie Fire (Feral)",fb="Ferocious Bite",ravage="Ravage",pounce="Pounce",tf="Tiger's Fury",
      hibernate="Hibernate",thorns="Thorns",motw="Mark of the Wild",direbear="Dire Bear Form",
-     charge="Feral Charge - Cat",chargeBear="Feral Charge",travel="Travel Form"}""")
+     charge="Feral Charge - Cat",chargeBear="Feral Charge",travel="Travel Form",shadowmeld="Shadowmeld"}""")
     kb = {v: k for k, v in N.items()}
     kb["Faerie Fire"] = "ff"
     kn = lua.eval("{}")
@@ -196,7 +200,7 @@ def druid_fight(lua, ns, level, mode, selfcast=True):
     cfg["enrage"] = True
     o = ns.Logic.BuildMacros(kn, N, lua.eval("{B=1,A=2,C=3}"), mode, cfg,
                              lua.eval("{selfcast=%s,potion=118,food=4536,water=159}" % ("true" if selfcast else "false")))
-    return o.fight
+    return o
 
 
 def druid_spells(level):
@@ -559,15 +563,28 @@ def main():
             p.append("the hint stays after the fight: %r" % ns.OneKeyAlert())
         return p
 
-    @S.test("macro: no class has a cooldown spell before another spell on F")
+    # The client stops a macro at the first spell or item that fails (on
+    # cooldown, out of range, wrong target, not behind); only a failed
+    # usable-check (no mana, not learned, reactive not ready) or a false
+    # [condition] skips a line. So anything that can fail that way may only
+    # be the last thing a macro tries.
+    MAY_FAIL = ("Fire Blast", "Frost Nova", "Cone of Cold", "Ice Lance", "Mind Blast", "Arcane Shot",
+                "Stormstrike", "Enrage", "Feral Charge", "Bash", "Nature's Grasp", "Hibernate",
+                "Ice Barrier", "Evasion", "Feign Death", "Divine Shield", "Divine Protection", "Lay on Hands",
+                "Retaliation", "Intimidating Shout", "Psychic Scream", "Death Coil", "Stoneclaw Totem", "Gouge",
+                "Shred", "Ravage", "Backstab", "Ambush", "/use [combat]")
+
+    def may_fail_early(text):
+        acts = [l for l in text.split("\n") if l.startswith(("/cast", "/use"))]
+        out = []
+        for l in acts[:-1]:
+            for cd in MAY_FAIL:
+                if cd in l:
+                    out.append("%r can fail and comes before %r" % (l, acts[-1]))
+        return out
+
+    @S.test("macro: nothing that can fail comes before another spell (F, G and the druid keys)")
     def _():
-        # The client stops a macro at the first spell that fails (on
-        # cooldown, out of range); only a usable-check failure (no mana,
-        # not learned, reactive not ready) or a false [condition] skips.
-        COOLDOWN = ("Fire Blast", "Frost Nova", "Cone of Cold", "Ice Lance", "Mind Blast", "Arcane Shot",
-                    "Stormstrike", "Enrage", "Feral Charge",
-                    # need you behind the target: fail from the front
-                    "Shred", "Ravage", "Backstab", "Ambush")
         p = []
         probe, _ = load_addon(new_lua(), ["Classes.lua"])
         for cls, cid in (("MAGE", 8), ("WARRIOR", 1), ("ROGUE", 4), ("HUNTER", 3), ("PRIEST", 5),
@@ -583,27 +600,24 @@ def main():
             for e in ("ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD"):
                 p += lua_list(fire(e, "OneKeyDruid"))
             p += lua_list(lua.eval("STUB.tick")(4, 0.25))
-            casts = [l for l in (ns.OneKeyMacros.fight or "").split("\n") if l.startswith("/cast")]
-            if not casts:
+            M = ns.OneKeyMacros
+            if not M.fight:
                 p.append("%s: no fight macro" % cls.lower())
-            for l in casts[:-1]:
-                for cd in COOLDOWN:
-                    if cd in l:
-                        p.append("%s: %r has a cooldown and comes before %r" % (cls.lower(), l, casts[-1]))
+            for k in ("fight", "sos"):
+                p += ["%s %s: %s" % (cls.lower(), k, x) for x in may_fail_early(M[k] or "")]
             if cls == "PRIEST":
-                for l in casts:
-                    if "nochanneling" not in l:
+                for l in (M.fight or "").split("\n"):
+                    if l.startswith("/cast") and "nochanneling" not in l:
                         p.append("priest: %r would cut Mind Flay short" % l)
-        for level in (20, 30, 40):
+        for level in (12, 22, 30, 40):
             lua = new_lua()
             nsl, _ = load_addon(lua, ["Logic.lua"])
             for mode in ("bear", "cat"):
-                fight = druid_fight(lua, nsl, level, mode)
-                casts = [l for l in fight.split("\n") if l.startswith("/cast")]
-                for l in casts[:-1]:
-                    for cd in COOLDOWN:
-                        if cd in l:
-                            p.append("druid %d %s: %r has a cooldown and comes before %r" % (level, mode, l, casts[-1]))
+                o = druid_macros(lua, nsl, level, mode)
+                for k in ("fight", "sos", "cc", "heal", "catpull", "behind", "nuke"):
+                    p += ["druid %d %s %s: %s" % (level, mode, k, x) for x in may_fail_early(o[k] or "")]
+                if level >= 10 and "Rejuvenation" not in (o.sos or "") and mode == "cat":
+                    p.append("druid %d: G has no heal: %r" % (level, o.sos))
         return p
 
     @S.test("macro: every class keeps its main spell, and no enemy means only targeting")

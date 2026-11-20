@@ -16,6 +16,10 @@ local C = {}
 ns.CLASSES = C
 
 local H = "[harm,nodead] "
+-- sos (the emergency key): the client stops a macro at the first spell or
+-- item that fails, and one on cooldown fails, so each list has one spell
+-- and the potion last. The potion does not use the global cooldown: it goes
+-- in on the same press, and when it is on cooldown nothing after it is lost.
 
 C.MAGE = {
 	melee = false, wand = true, conjure = { water = "water", food = "food" },
@@ -48,7 +52,7 @@ C.MAGE = {
 	behind = { { "seq", { "fireblast", "cone" }, H, "combat" } },
 	alert = { freeze = "nova", lance = "icelance", cd = { nova = 25, icelance = 8 } },
 	cc = { { "cast", "poly", H } },
-	sos = { { "potion" }, { "cast", "barrier", "" }, { "cast", "nova", "" }, { "cast", "manashield", "" } },
+	sos = { { "cast", "manashield", "" }, { "potion" } },
 	free = { { "cast", "blink", "" } },
 }
 
@@ -70,7 +74,7 @@ C.WARRIOR = {
 	heal = { { "cast", "bloodrage", "" } },
 	cc = { { "cast", "ham", H } },
 	behind = { { "cast", "tc", "" }, { "cast", "demo", "" } },
-	sos = { { "potion" }, { "cast", "retal", "" }, { "cast", "fear", "" }, { "cast", "demo", "" } },
+	sos = { { "cast", "demo", "" }, { "potion" } },
 }
 
 C.ROGUE = {
@@ -89,7 +93,7 @@ C.ROGUE = {
 	heal = { { "cast", "kick", H } },
 	cc = { { "cast", "gouge", H } },
 	behind = { { "cast", "ambush", "[stealth,harm,nodead] " } },
-	sos = { { "potion" }, { "cast", "evasion", "" }, { "cast", "gouge", H } },
+	sos = { { "cast", "evasion", "" }, { "potion" } },
 	free = { { "cast", "sprint", "" } },
 	hide = { { "cast", "stealth", "[nocombat,nostealth]" } },
 }
@@ -119,7 +123,7 @@ C.HUNTER = {
 	-- attacks: when the mob is on you, Ctrl+F. Mongoose Bite after a dodge
 	-- (skipped otherwise), then Raptor Strike.
 	behind = { { "cast", "mongoose", H }, { "cast", "raptor", H } },
-	sos = { { "potion" }, { "cast", "fd", "" } },
+	sos = { { "cast", "fd", "" }, { "potion" } },
 	free = { { "cast", "disengage", H } },
 }
 
@@ -145,7 +149,7 @@ C.PRIEST = {
 	heal = { { "cast", "flash", "[@player]" }, { "cast", "heal", "[@player]" }, { "cast", "lheal", "[@player]" } },
 	cc = { { "cast", "scream", "" } },
 	behind = { { "cast", "mb", H } },
-	sos = { { "potion" }, { "cast", "pws", "[@player]" }, { "cast", "scream", "" }, { "cast", "renew", "[@player]" } },
+	sos = { { "cast", "pws", "[@player]" }, { "potion" } },
 }
 
 C.WARLOCK = {
@@ -166,7 +170,7 @@ C.WARLOCK = {
 	heal = { { "cast", "drain", H } },
 	cc = { { "cast", "fear", H } },
 	behind = { { "cast", "shoot", H } },
-	sos = { { "potion" }, { "cast", "coil", H }, { "cast", "fear", H } },
+	sos = { { "cast", "fear", H }, { "potion" } },
 	free = { { "cast", "tap", "" } },
 }
 
@@ -189,7 +193,7 @@ C.PALADIN = {
 	heal = { { "cast", "fol", "[@player]" }, { "cast", "hl", "[@player]" } },
 	cc = { { "cast", "hoj", H } },
 	behind = { { "cast", "purify", "[@player]" } },
-	sos = { { "potion" }, { "cast", "ds", "" }, { "cast", "dp", "" }, { "cast", "loh", "[@player]" } },
+	sos = { { "cast", "ds", "" }, { "potion" } },
 }
 
 C.SHAMAN = {
@@ -210,6 +214,6 @@ C.SHAMAN = {
 	cc = { { "cast", "earthbind", "" } },
 	-- Stormstrike has a cooldown: off F, on Ctrl+F (a failed cast stops the macro)
 	behind = { { "cast", "stormstrike", H } },
-	sos = { { "potion" }, { "cast", "stoneclaw", "" }, { "cast", "hw", "[@player]" } },
+	sos = { { "cast", "hw", "[@player]" }, { "potion" } },
 	free = { { "cast", "ghost", "[nocombat]" } },
 }

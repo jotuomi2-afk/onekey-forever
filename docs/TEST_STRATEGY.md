@@ -70,7 +70,7 @@ Likelihood (L) and impact (I) are rated 1–3; their product sets the depth of t
 | RK13 | Supply-chain attack through CI actions or Python packages | 1 | 3 | REQ-13, pinned SHAs, hashed requirements |
 | RK14 | Automation creeps in (a button or timer acts without a press) | 1 | 3 | REQ-14, scan R1/R2 (tokenizer, `_G` lookups, XML scripts) |
 | RK15 | The "find a target" press also pulls, past the elite/+3 guard | 2 | 2 | REQ-21 | The mage pulls with the longest-range spell (Fireball), then slows with Frostbolt; cooldown spells sit on Shift+F and Ctrl+F | macro: mage opens |
-| REQ-22 | No fight macro has a spell with a cooldown or a range limit before another spell (the client stops a macro at the first failed cast) | macro: no class has a cooldown |
+| REQ-22 | No macro (F, G, the druid keys) tries anything that can fail (cooldown, range, target type, position, a potion) before another spell: the client stops a macro at the first failed cast | macro: nothing that can fail |
 | REQ-23 | The HUD tells a mage in melee to Frost Nova, then Ice Lance and step back | hud: mage hit in melee |
 | REQ-20 |
 | RK16 | The AFK alarm stays silent | 2 | 2 | REQ-16 |
@@ -106,7 +106,7 @@ point to several tests; names are matched on their beginning.
 | REQ-18 | After a /reload in combat the keys work once the fight ends | reload in combat: |
 | REQ-19 | Every class keeps its main spell in the fight macro | macro: every class |
 | REQ-21 | The mage pulls with the longest-range spell (Fireball), then slows with Frostbolt; cooldown spells sit on Shift+F and Ctrl+F | macro: mage opens |
-| REQ-22 | No fight macro has a spell with a cooldown or a range limit before another spell (the client stops a macro at the first failed cast) | macro: no class has a cooldown |
+| REQ-22 | No macro (F, G, the druid keys) tries anything that can fail (cooldown, range, target type, position, a potion) before another spell: the client stops a macro at the first failed cast | macro: nothing that can fail |
 | REQ-23 | The HUD tells a mage in melee to Frost Nova, then Ice Lance and step back | hud: mage hit in melee |
 | REQ-20 | With no enemy targeted, the key only targets; the next update checks the target before attacking | macro: every class; smoke: |
 

@@ -514,17 +514,15 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 	local c = {}
 	local bash = B and known.bash
 	local rest = items.food or items.water
-	if bash then c[#c + 1] = { ("/cast [form:%d,combat,harm,nodead] %s"):format(B, N.bash), 1 } end
 	if known.roots then
-		-- Hibernate first: it only takes on beasts and dragonkin, and on
-		-- anything else the client refuses it and goes on to the roots.
 		if bash then
 			c[#c + 1] = { ("/cancelform [nocombat][noform:%d]"):format(B), 1 }
-			if known.hibernate then c[#c + 1] = { ("/cast [noform:%d,harm,nodead] %s"):format(B, N.hibernate), 3 } end
+			-- Roots hold any mob. Hibernate works only on beasts and
+			-- dragonkin; on anything else it fails and would stop the macro
+			-- before the roots, so it is not here.
 			c[#c + 1] = { ("/cast [noform:%d,harm,nodead] %s"):format(B, N.roots), 1 }
 		else
 			c[#c + 1] = { "/cancelform", 1 }
-			if known.hibernate then c[#c + 1] = { "/cast [harm,nodead] " .. N.hibernate, 3 } end
 			c[#c + 1] = { "/cast [harm,nodead] " .. N.roots, 1 }
 		end
 	elseif rest then
@@ -532,28 +530,28 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 	end
 	if items.food then c[#c + 1] = { ("/use %s item:%d"):format(REST, items.food), 2 } end
 	if items.water then c[#c + 1] = { ("/use %s item:%d"):format(REST, items.water), 2 } end
+	-- Bash last: on cooldown it fails, and a failed cast stops the macro
+	if bash then c[#c + 1] = { ("/cast [form:%d,combat,harm,nodead] %s"):format(B, N.bash), 1 } end
 	if #c > 0 then out.cc = fit(c) end
 
-	-- The emergency key, to be pressed again and again. First press: the
-	-- healing potion (usable in form, no wait), Bash to stun, and out of the
-	-- form. Then Nature's Grasp, Rejuvenation on yourself, and back into the
-	-- form to run or tank in (travel, cat or bear).
-	-- A step that cannot be done (no rage, on cooldown) is skipped.
+	-- The emergency key, to be pressed again and again. The client stops a
+	-- macro at the first spell or item that fails, and a potion, Bash or
+	-- Nature's Grasp on cooldown fails, so none of them may come before the
+	-- heal: they did, and every press after the first did nothing (a death
+	-- in the log of 19.11.). Now: out of the form, Rejuvenation on yourself,
+	-- back into a form to run or tank (travel, cat or bear); the potion
+	-- comes last. It does not use the global cooldown, so it goes in on the
+	-- same press as the heal, and when it is on cooldown nothing is lost
+	-- after it. Bash stays on Alt+F.
 	local sos = {}
-	if items.potion then sos[#sos + 1] = { ("/use [combat] item:%d"):format(items.potion), 2 } end
-	if bash then sos[#sos + 1] = { ("/cast [form:%d,harm,nodead] %s"):format(B, N.bash), 3 } end
 	-- Leaving the form costs mana to get back into it: only when the mana
 	-- is proven to cover Rejuvenation and the form; otherwise the bear stays
-	-- (Bash, potion) and the heal key does the healing.
+	-- (and the potion) and the heal key does the healing.
 	local leave = room(mc.rejuv or 0) and (known.rejuv or known.ht)
 	if leave then sos[#sos + 1] = { "/cancelform [form]", 1 } end
-	-- Nature's Grasp has a cooldown, so it is a line of its own: inside the
-	-- sequence it would block the heals for as long as it is not ready.
-	if leave and known.grasp then sos[#sos + 1] = { "/cast [@player] " .. N.grasp, 2 } end
 	-- Quick and light: the instant Rejuvenation, then straight back into a
-	-- form (the bear mitigates the hits; travel or cat run, when known).
-	-- The slow heals (Regrowth, Healing Touch) are on the heal key. Without
-	-- Rejuvenation the old chain of heals stays.
+	-- form. The slow heals (Regrowth, Healing Touch) are on the heal key.
+	-- Without Rejuvenation the old chain of heals stays.
 	local steps = {}
 	if known.rejuv then
 		steps[1] = N.rejuv
@@ -571,11 +569,10 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 	if leave and #steps > 0 then
 		sos[#sos + 1] = { seq("[@player] ", "20", steps), 1 }
 	elseif B then
-		-- no room: stay a bear and blunt the hits (Bash above, then
-		-- Demoralizing Roar), or go back into it if the form is lost
-		if known.roar then sos[#sos + 1] = { ("/cast [form:%d] %s"):format(B, N.roar), 2 } end
+		-- no mana to leave: stay a bear, or go back into it if the form is lost
 		sos[#sos + 1] = { ("/cast [noform] %s"):format(bearName), 1 }
 	end
+	if items.potion then sos[#sos + 1] = { ("/use [combat] item:%d"):format(items.potion), 1 } end
 	out.sos = fit(sos)
 
 	-- Shift + emergency key: break free. Leaving a form removes roots and
