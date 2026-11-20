@@ -253,8 +253,11 @@ function GetSpellBookItemName(i)
 	if b then return b[1], "Rank " .. b[2], b[3] end
 end
 function GetActionInfo(slot)
-	if STUB.bar[slot] then return "spell", STUB.bar[slot] end
+	local v = STUB.bar[slot]
+	if type(v) == "string" then return "macro", 1 end
+	if v then return "spell", v end
 end
+function PickupMacro(name) if STUB.macros[name] then STUB.cursor = name end end
 function GetCursorInfo() return STUB.cursor and "spell" or nil end
 function ClearCursor() STUB.cursor = nil end
 function PickupSpell(id) STUB.cursor = id end

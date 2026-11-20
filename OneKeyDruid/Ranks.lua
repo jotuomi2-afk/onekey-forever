@@ -74,6 +74,34 @@ function R.Update()
 	return done
 end
 
+-- Prowl on the action bars becomes the "OKD Prowl" macro (cat form first,
+-- then Prowl), once per slot, out of combat, with an empty cursor. Pressing
+-- Prowl outside cat form did nothing (reported 20.11.).
+function R.SwapProwl(prowlName, macroName)
+	local db = OneKeyDruidDB
+	if not db or db.prowlkey == false or InCombatLockdown() or not PickupMacro then return 0 end
+	if GetCursorInfo and GetCursorInfo() then return 0 end
+	if not GetMacroIndexByName or GetMacroIndexByName(macroName) == 0 then return 0 end
+	db.prowlSwapped = db.prowlSwapped or {}
+	local byId = book()
+	local n = 0
+	for slot = 1, SLOTS do
+		local kind, id = GetActionInfo(slot)
+		if kind == "spell" and id and byId[id] and byId[id].name == prowlName and not db.prowlSwapped[slot] then
+			local ok = pcall(PickupMacro, macroName)
+			if ok and GetCursorInfo and GetCursorInfo() then
+				PlaceAction(slot)
+				ClearCursor()
+				db.prowlSwapped[slot] = true
+				n = n + 1
+			elseif ClearCursor then
+				ClearCursor()
+			end
+		end
+	end
+	return n
+end
+
 local function run(say)
 	local ok, done = pcall(R.Update)
 	-- an error between pickup and place would leave the spell on the

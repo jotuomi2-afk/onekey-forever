@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.30.0
+
+- Druid: pressing Prowl outside cat form now shifts into cat form first; the
+  next press prowls. The addon makes the macro "OKD Prowl" once and puts it
+  in place of Prowl on your action bars. This happens out of combat, once
+  per slot: if you put Prowl back by hand, it stays. `/okd prowlkey off`
+  leaves your bars alone. Pressing it again while you prowl does not end
+  the stealth.
+
 ## 0.29.6
 
 - Druid G: the heal comes first. In order: Rejuvenation together with the

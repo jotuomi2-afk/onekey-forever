@@ -16,7 +16,7 @@ local Logic = ns.Logic
 local _, CLASS = UnitClass("player")
 if CLASS ~= "DRUID" then return end
 
-local VERSION = "0.29.6"
+local VERSION = "0.30.0"
 local BUTTON = "OneKeyDruidButton"
 -- The buttons of the modifier keys.
 local NAMES = { heal = "OneKeyDruidHeal", cc = "OneKeyDruidStop", behind = "OneKeyDruidBehind",
@@ -574,10 +574,30 @@ local function items()
 		selfcast = cvar and cvar("autoSelfCast") and true or false }
 end
 
+-- The Prowl key: from any form, cat form first, then Prowl. Made once as
+-- the macro "OKD Prowl", and Prowl on the action bars is swapped for it
+-- (Ranks.lua). /okd prowlkey off keeps your bars as they are.
+local PROWL_MACRO = "OKD Prowl"
+local function prowlKey()
+	if locked() or db.prowlkey == false or not (known.prowl and known.cat) then return end
+	if not (GetMacroIndexByName and CreateMacro) then return end
+	if GetMacroIndexByName(PROWL_MACRO) == 0 then
+		local body = ("#showtooltip %s\n/cast [noform:%d] %s; [nostealth] %s"):format(
+			N.prowl, forms.C or 3, N.cat, N.prowl)
+		if not pcall(CreateMacro, PROWL_MACRO, "INV_MISC_QUESTIONMARK", body, true) then return end
+	end
+	local ok, n = pcall(ns.Ranks.SwapProwl, N.prowl, PROWL_MACRO)
+	if ok and n and n > 0 then
+		say(db.lang == "fi" and "Prowl toimintapalkissa: nyt kissaksi ja Prowl samalla napilla (/okd prowlkey off)"
+			or "Prowl on your bars now shifts to cat form first, then prowls (/okd prowlkey off)")
+	end
+end
+
 local function rebuild()
 	if locked() then return end
 	readSpells()
 	readForms()
+	prowlKey()
 	macros = Logic.BuildMacros(known, N, forms, Logic.Mode(db, known), db, items())
 	kids.heal:SetAttribute("macrotext", macros.heal or "")
 	kids.cc:SetAttribute("macrotext", macros.cc or "")
@@ -2233,6 +2253,10 @@ SlashCmdList.ONEKEYDRUID = function(msg)
 		say("text size " .. db.scale .. ".")
 	elseif cmd == "macros" then
 		makeMacros()
+	elseif cmd == "prowlkey" then
+		db.prowlkey = rest:lower() ~= "off"
+		say("prowl key " .. (db.prowlkey and "on" or "off") .. ".")
+		if db.prowlkey then prowlKey() end
 	elseif cmd == "status" then
 		status()
 	else

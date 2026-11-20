@@ -76,6 +76,7 @@ Likelihood (L) and impact (I) are rated 1–3; their product sets the depth of t
 | REQ-27 | From the log of 20.11.: Faerie Fire once per round at most (not every sequence), Ctrl+F follows the pull guard, half health after a corpse run makes F heal or rest | druid: log of 20.11. |
 | REQ-28 | No heal at full health before a pull: a heal needs at least 15 % health missing; buffs come first | logic: no heal at full health |
 | REQ-29 | The druid's G: Rejuvenation with the potion first, then Nature's Grasp (only when ready at the fight's start), then the bear; never a loop back onto a cooldown | druid: G is |
+| REQ-30 | Prowl pressed outside cat form shifts to cat first: Prowl on the bars becomes the OKD Prowl macro, once per slot, out of combat | druid: Prowl on the bar |
 | REQ-25 | The mage keeps the Frostbolt slow up: Fireball only opens | macro: mage opens |
 | REQ-23 | The HUD tells a mage in melee to Frost Nova, then Ice Lance and step back | hud: mage hit in melee |
 | REQ-20 |
@@ -118,6 +119,7 @@ point to several tests; names are matched on their beginning.
 | REQ-27 | From the log of 20.11.: Faerie Fire once per round at most (not every sequence), Ctrl+F follows the pull guard, half health after a corpse run makes F heal or rest | druid: log of 20.11. |
 | REQ-28 | No heal at full health before a pull: a heal needs at least 15 % health missing; buffs come first | logic: no heal at full health |
 | REQ-29 | The druid's G: Rejuvenation with the potion first, then Nature's Grasp (only when ready at the fight's start), then the bear; never a loop back onto a cooldown | druid: G is |
+| REQ-30 | Prowl pressed outside cat form shifts to cat first: Prowl on the bars becomes the OKD Prowl macro, once per slot, out of combat | druid: Prowl on the bar |
 | REQ-25 | The mage keeps the Frostbolt slow up: Fireball only opens | macro: mage opens |
 | REQ-23 | The HUD tells a mage in melee to Frost Nova, then Ice Lance and step back | hud: mage hit in melee |
 | REQ-20 | With no enemy targeted, the key only targets; the next update checks the target before attacking | macro: every class; smoke: |

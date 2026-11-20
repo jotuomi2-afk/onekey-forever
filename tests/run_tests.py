@@ -622,6 +622,37 @@ def main():
             p.append("next fight within a minute: G still has Grasp (it would stop the key)")
         return p
 
+    @S.test("druid: Prowl on the bar becomes cat form + Prowl, once, out of combat")
+    def _():
+        p = []
+        lua = new_lua()
+        set_class(lua, "DRUID", 11, 23, druid_spells(23))
+        lua.execute("STUB.buffs = {}")
+        # the spellbook and a bar with Prowl in slot 5
+        lua.execute("""STUB.book = {} local i = 0
+            for id, name in pairs(STUB.names) do i = i + 1 STUB.book[i] = { name, 1, id } end
+            STUB.bar[5] = 5215""")
+        ns, errs = load_addon(lua)
+        p += errs
+        fire, tick = lua.eval("STUB.fire"), lua.eval("STUB.tick")
+        for e in ("ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD"):
+            p += lua_list(fire(e, "OneKeyDruid"))
+        p += lua_list(tick(4, 0.25))
+        body = lua.eval('STUB.macros["OKD Prowl"]') or ""
+        if "/cast [noform:3] Cat Form; [nostealth] Prowl" not in body:
+            p.append("no OKD Prowl macro, or a wrong one: %r" % body)
+        if lua.eval("STUB.bar[5]") != "OKD Prowl":
+            p.append("Prowl on the bar was not swapped: %r" % lua.eval("STUB.bar[5]"))
+        for v in lua_list(lua.eval("STUB.violations")):
+            p.append("taint: " + v)
+        # put Prowl back by hand: the addon leaves it alone after that
+        lua.execute("STUB.bar[5] = 5215")
+        p += lua_list(fire("SPELLS_CHANGED"))
+        p += lua_list(tick(4, 0.25))
+        if lua.eval("STUB.bar[5]") != 5215:
+            p.append("the addon swapped Prowl again after the player put it back")
+        return p
+
     @S.test("logic: route and water advice")
     def _():
         lua = new_lua()
