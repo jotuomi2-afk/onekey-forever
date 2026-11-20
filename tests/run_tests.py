@@ -546,6 +546,32 @@ def main():
             p.append("after a corpse run (half health) F does not heal or rest: %r" % main[:80])
         return p
 
+    @S.test("logic: no heal at full health before a tough pull; buffs come first")
+    def _():
+        p = []
+        lua = new_lua()
+        ns, errs = load_addon(lua, ["Logic.lua"])
+        p += errs
+        D = lua.eval("""function(L, deficit, expect, motw)
+            local cfg = {}
+            for k, v in pairs(L.DEFAULTS) do cfg[k] = v end
+            local s = { cfg = cfg, known = { ht = true, regrowth = true, rejuv = true, motw = true, thorns = true },
+                buffs = { motw = motw, thorns = motw }, target = "hostile", mode = "cat",
+                deficit = deficit, maxhp = 1000, expect = expect, mana = nil, hp = nil, mana_est = 80 }
+            local a, b = L.Decide(s)
+            return tostring(a) .. ":" .. tostring(b)
+        end""")
+        r = D(ns.Logic, 0, 700, False)
+        if r.startswith("heal"):
+            p.append("full health, tough mob, no buffs: %s (should buff)" % r)
+        r = D(ns.Logic, 50, 700, True)
+        if r.startswith("heal"):
+            p.append("5 %% missing, tough mob: %s (should not heal)" % r)
+        r = D(ns.Logic, 400, 400, True)
+        if not r.startswith("heal"):
+            p.append("40 %% missing before a tough mob: %s (should heal)" % r)
+        return p
+
     @S.test("logic: route and water advice")
     def _():
         lua = new_lua()

@@ -142,7 +142,11 @@ function Logic.Decide(s)
 			-- threshold.
 			local missing = s.deficit / s.maxhp
 			local after = (s.deficit + (live and (s.expect or s.maxhp * 0.25) or 0)) / s.maxhp
-			if (live and after > 0.6) or (not live and missing > (100 - cfg.heal) / 100) then
+			-- Only with real health missing (15 %): a tough mob's usual cost
+			-- alone (over 60 % of your health) made the key heal at full
+			-- health before every pull, ahead of Thorns and Mark of the Wild
+			-- (reported 20.11.). A heal cannot fill more than the gap anyway.
+			if (live and after > 0.6 and missing >= 0.15) or (not live and missing > (100 - cfg.heal) / 100) then
 				-- a big gap takes the big heal
 				if missing > 0.3 or not k.regrowth then return "heal", "ht" end
 				return "heal", "regrowth"

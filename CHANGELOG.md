@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.29.3
+
+- Druid: F no longer heals at full health before a pull. When a mob type
+  has usually cost over 60 % of your health (a tough mob at +1 or +2
+  levels), F healed before every pull, even at full health, and only then
+  cast Thorns and Mark of the Wild. A heal before a pull now needs at
+  least 15 % of your health missing, so the buffs come first.
+
 ## 0.29.2
 
 From the log of 20.11. (three sessions, level 22-23, Ashenvale and
