@@ -494,6 +494,58 @@ def main():
             p.append("the back-to-caster hint stays too long")
         return p
 
+    @S.test("druid: log of 20.11. (Faerie Fire once, Ctrl+F guard, health after a death)")
+    def _():
+        p = []
+        lua = new_lua()
+        nsl, _ = load_addon(lua, ["Logic.lua"])
+        for level in (20, 23, 32, 40):
+            for sc in (True, False):
+                fight = druid_macros(lua, nsl, level, "cat", sc).fight
+                seqs = [l for l in fight.split("\n") if l.startswith("/castsequence [form:3]")]
+                if any("Faerie Fire" in l for l in seqs):
+                    p.append("level %d: Faerie Fire is in the cat sequence again (recast every round)" % level)
+                if "Faerie Fire" not in fight:
+                    p.append("level %d selfcast %s: Faerie Fire fell out of the cat macro" % (level, sc))
+                if "nocombat,harm] Wrath" not in fight:
+                    p.append("level %d selfcast %s: the Wrath pull fell out" % (level, sc))
+        # Ctrl+F follows the pull guard; health after a resurrection
+        lua = new_lua()
+        set_class(lua, "DRUID", 11, 23, druid_spells(23))
+        # buffed and in cat form: the key is down to targeting and fighting
+        lua.execute('STUB.buffs = { ["Mark of the Wild"] = true, ["Thorns"] = true } STUB.form = 3')
+        ns, errs = load_addon(lua)
+        p += errs
+        fire, tick = lua.eval("STUB.fire"), lua.eval("STUB.tick")
+        for e in ("ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD"):
+            p += lua_list(fire(e, "OneKeyDruid"))
+        p += lua_list(tick(4, 0.25))
+
+        def behind():
+            a = macro_attrs(lua)
+            return next((v for k, v in a.items() if "Behind" in k or "behind" in k), None)
+        before = behind()
+        if not before:
+            p.append("no Ctrl+F macro to start with")
+        lua.execute('STUB.targetName = "Taskmaster Whipfang" STUB.targetLevel = 22 STUB.targetClass = "rareelite"')
+        p += lua_list(fire("PLAYER_TARGET_CHANGED"))
+        p += lua_list(tick(4, 0.25))
+        if behind():
+            p.append("Ctrl+F still opens on a rare elite: %r (HUD %r)" % (behind(), ns.DruidHud()))
+        lua.execute('STUB.targetClass = "normal" STUB.targetName = "Venture Co. Operator" STUB.targetLevel = 21')
+        p += lua_list(fire("PLAYER_TARGET_CHANGED"))
+        p += lua_list(tick(4, 0.25))
+        if behind() != before:
+            p.append("Ctrl+F did not come back on a normal mob")
+        lua.execute("STUB.targetName = nil")
+        p += lua_list(fire("PLAYER_DEAD"))
+        p += lua_list(fire("PLAYER_UNGHOST"))
+        p += lua_list(tick(2, 0.25))
+        main = macro_attrs(lua).get("OneKeyDruidButton:macrotext", "")
+        if "Regrowth" not in main and "Healing Touch" not in main and "Rejuvenation" not in main and "item:" not in main:
+            p.append("after a corpse run (half health) F does not heal or rest: %r" % main[:80])
+        return p
+
     @S.test("logic: route and water advice")
     def _():
         lua = new_lua()

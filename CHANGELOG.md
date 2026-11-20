@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.29.2
+
+From the log of 20.11. (three sessions, level 22-23, Ashenvale and
+Stonetalon, three deaths):
+
+- Cat: Faerie Fire is no longer part of the Claw-Rip sequence, where it came
+  back every round (about 60 times in 29 fights), each time taking a global
+  cooldown away from Claw. It now comes after the sequence, so it is cast
+  only while the sequence waits for energy. Feral Faerie Fire costs no
+  energy, so this uses time the cat would otherwise stand idle. When space
+  runs out, the cat drops the start-attack line first, because Claw starts
+  the swing by itself.
+- Bear: Maul comes before Faerie Fire. On its cooldown (a new mob within
+  6 s), Faerie Fire would have stopped the Maul.
+- Ctrl+F (Shred/Ravage from behind) follows the pull guard. On an elite or
+  a mob three levels above you it does nothing, unless you have typed
+  `/okd brave on`. One death came from opening on Taskmaster Whipfang, a
+  rare elite, with Shred from stealth.
+- After a corpse run the addon counts you at half health, so F heals and
+  rests before the next pull. One death came from a pull right after a
+  resurrection, against three mobs.
+
 ## 0.29.1
 
 - Druid, rooted: the HUD shows "ROOTED: Shift+G breaks free".

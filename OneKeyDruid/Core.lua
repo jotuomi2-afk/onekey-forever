@@ -16,7 +16,7 @@ local Logic = ns.Logic
 local _, CLASS = UnitClass("player")
 if CLASS ~= "DRUID" then return end
 
-local VERSION = "0.29.1"
+local VERSION = "0.29.2"
 local BUTTON = "OneKeyDruidButton"
 -- The buttons of the modifier keys.
 local NAMES = { heal = "OneKeyDruidHeal", cc = "OneKeyDruidStop", behind = "OneKeyDruidBehind",
@@ -426,9 +426,21 @@ local function setHud(text)
 end
 
 -- Sets the key's macro (out of combat only).
+-- Ctrl+F (the "behind the mob" key: Ravage, Shred) follows the same
+-- pull guard as F: on an elite or a mob three levels over you it does
+-- nothing until /okd brave on (a death in the log of 20.11.: a rare elite
+-- opened with Shred from stealth).
+local behindHeld = false
+local function guardBehind(hold)
+	if locked() or not kids.behind or hold == behindHeld then return end
+	behindHeld = hold
+	kids.behind:SetAttribute("macrotext", hold and "" or (macros.behind or ""))
+end
+
 local function apply(text, label, what)
 	setHud(label)
 	current.what = what
+	guardBehind(what == "hold")
 	if locked() or text == current.text then return end
 	current.text = text
 	button:SetAttribute("macrotext", text)
@@ -569,7 +581,7 @@ local function rebuild()
 	macros = Logic.BuildMacros(known, N, forms, Logic.Mode(db, known), db, items())
 	kids.heal:SetAttribute("macrotext", macros.heal or "")
 	kids.cc:SetAttribute("macrotext", macros.cc or "")
-	kids.behind:SetAttribute("macrotext", macros.behind or "")
+	kids.behind:SetAttribute("macrotext", behindHeld and "" or (macros.behind or ""))
 	kids.sos:SetAttribute("macrotext", macros.sos or "")
 	kids.free:SetAttribute("macrotext", macros.free or "")
 	kids.hide:SetAttribute("macrotext", macros.hide or "")
@@ -1875,7 +1887,10 @@ logger:SetScript("OnEvent", function(_, event, a1, a2, a3)
 	elseif event == "PLAYER_ALIVE" or event == "PLAYER_UNGHOST" then
 		if lg.dead and not UnitIsDeadOrGhost("player") then
 			lg.dead = false
-			hpEst.frac = nil -- health after a death is not known
+			-- back from the dead with half your health (and the key heals
+			-- and rests before the next pull: a death in the log of 20.11.
+			-- came from a pull right after the corpse run)
+			hpEst.frac, hpEst.at = 0.5, GetTime()
 			logEvent("D-")
 		end
 	elseif event == "PLAYER_LEVEL_UP" then

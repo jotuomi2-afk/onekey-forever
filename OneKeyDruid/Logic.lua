@@ -375,7 +375,10 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 	local formName = F and (mode == "cat" and N.cat or bearName)
 	if F then
 		local inForm = ("[form:%d] "):format(F)
-		L[#L + 1] = { mode == "cat" and "/startattack [nostealth]" or "/startattack", 1 }
+		-- a cat's Claw starts the swing by itself, so for the cat this line is
+		-- the first to go when space runs out; Maul (queued on the next
+		-- swing) needs it, so the bear keeps it
+		L[#L + 1] = { mode == "cat" and "/startattack [nostealth]" or "/startattack", mode == "cat" and 4 or 1 }
 		-- Caster form. Out of combat: Wrath from range. Once the mob is
 		-- coming: Rejuvenation on yourself, Moonfire, then the form.
 		local hotOk = cfg.prehot and known.rejuv and room((mc.wrath or 0) + (mc.rejuv or 0) + (known.moonfire and mc.moonfire or 0))
@@ -416,11 +419,13 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 			-- mob) would keep Maul from ever being queued, so neither is on
 			-- F. A spell that cannot be used (no rage, not learned, a false
 			-- [condition]) is skipped and does not stop the macro.
-			-- Faerie Fire once, Demoralizing Roar (off by default: it costs
-			-- the first Maul), Maul.
-			if known.ff then L[#L + 1] = { once(inForm, N.ff), 2 } end
+			-- Demoralizing Roar (off by default: it costs the first Maul),
+			-- Maul (queued on the next swing, no global cooldown, so the press
+			-- goes on), then Faerie Fire once per target. Last, because on its
+			-- cooldown (a new mob within 6 s) it fails and would stop Maul.
 			if cfg.roar and known.roar then L[#L + 1] = { once(inForm, N.roar), 4 } end
 			if known.maul then L[#L + 1] = { "/cast " .. inForm .. "!" .. N.maul, 1 } end
+			if known.ff then L[#L + 1] = { once(inForm, N.ff), 2 } end
 		elseif known.claw then
 			-- Cat: a line whose [condition] is false, or whose spell cannot
 			-- be used (no energy), is skipped. A spell on cooldown or out
@@ -429,10 +434,14 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 			-- builder-finisher sequence, then Shifting Power.
 			local nos = ("[form:%d,nostealth] "):format(F)
 			if known.pounce then L[#L + 1] = { ("/cast [form:%d,stealth] %s"):format(F, M(N.pounce)), 6 } end
-			-- Faerie Fire opens the builder-finisher sequence: as its own line
-			-- it did not fit in the 255 characters and fell out of the macro
+			-- Faerie Fire is not in the sequence any more: there it came back
+			-- every round (twice a fight in the log of 20.11.), taking a global
+			-- cooldown from Claw each time. It is a line AFTER the sequence
+			-- instead: Faerie Fire (Feral) costs no energy, so it goes in only
+			-- while the sequence waits for energy (a spell without energy is
+			-- skipped, not stopped on), in time the cat would stand idle. On
+			-- its cooldown it fails, and nothing comes after it to stop.
 			local s = {}
-			if known.ff then s[#s + 1] = N.ff end
 			if known.rake then s[#s + 1] = N.rake end
 			for _ = 1, (known.rake or known.fb or known.rip) and 3 or 1 do s[#s + 1] = N.claw end
 			if known.fb then s[#s + 1] = N.fb elseif known.rip then s[#s + 1] = N.rip end
@@ -443,6 +452,7 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 				for i = 1, #s do if i ~= #s - 1 then short[#short + 1] = s[i] end end
 			end
 			L[#L + 1] = { seq(inForm, "target", s), 1, short and seq(inForm, "target", short), short and 3 }
+			if known.ff then L[#L + 1] = { "/cast " .. inForm .. M(N.ff), 3 } end
 			if cfg.shiftpower and known.shiftpower then L[#L + 1] = { "/cast " .. nos .. M(N.shiftpower), 8 } end
 		end
 	else

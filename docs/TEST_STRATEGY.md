@@ -73,6 +73,7 @@ Likelihood (L) and impact (I) are rated 1–3; their product sets the depth of t
 | REQ-22 | No macro (F, G, the druid keys) tries anything that can fail (cooldown, range, target type, position, a potion) before another spell: the client stops a macro at the first failed cast | macro: nothing that can fail |
 | REQ-24 | The rogue chains its stuns: Cheap Shot, Kidney Shot, Gouge, inside one sequence | macro: rogue chains |
 | REQ-26 | Rooted, the druid breaks free with Shift+G in any form (the same form, mana permitting); from caster form the HUD offers Ctrl+G back | druid: rooted |
+| REQ-27 | From the log of 20.11.: Faerie Fire once per round at most (not every sequence), Ctrl+F follows the pull guard, half health after a corpse run makes F heal or rest | druid: log of 20.11. |
 | REQ-25 | The mage keeps the Frostbolt slow up: Fireball only opens | macro: mage opens |
 | REQ-23 | The HUD tells a mage in melee to Frost Nova, then Ice Lance and step back | hud: mage hit in melee |
 | REQ-20 |
@@ -112,6 +113,7 @@ point to several tests; names are matched on their beginning.
 | REQ-22 | No macro (F, G, the druid keys) tries anything that can fail (cooldown, range, target type, position, a potion) before another spell: the client stops a macro at the first failed cast | macro: nothing that can fail |
 | REQ-24 | The rogue chains its stuns: Cheap Shot, Kidney Shot, Gouge, inside one sequence | macro: rogue chains |
 | REQ-26 | Rooted, the druid breaks free with Shift+G in any form (the same form, mana permitting); from caster form the HUD offers Ctrl+G back | druid: rooted |
+| REQ-27 | From the log of 20.11.: Faerie Fire once per round at most (not every sequence), Ctrl+F follows the pull guard, half health after a corpse run makes F heal or rest | druid: log of 20.11. |
 | REQ-25 | The mage keeps the Frostbolt slow up: Fireball only opens | macro: mage opens |
 | REQ-23 | The HUD tells a mage in melee to Frost Nova, then Ice Lance and step back | hud: mage hit in melee |
 | REQ-20 | With no enemy targeted, the key only targets; the next update checks the target before attacking | macro: every class; smoke: |
