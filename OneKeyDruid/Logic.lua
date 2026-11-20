@@ -557,37 +557,53 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 	-- comes last. It does not use the global cooldown, so it goes in on the
 	-- same press as the heal, and when it is on cooldown nothing is lost
 	-- after it. Bash stays on Alt+F.
-	local sos = {}
+	local sos, graspLine = {}, nil
 	-- Leaving the form costs mana to get back into it: only when the mana
 	-- is proven to cover Rejuvenation and the form; otherwise the bear stays
 	-- (and the potion) and the heal key does the healing.
 	local leave = room(mc.rejuv or 0) and (known.rejuv or known.ht)
-	if leave then sos[#sos + 1] = { "/cancelform [form]", 1 } end
-	-- Quick and light: the instant Rejuvenation, then straight back into a
-	-- form. The slow heals (Regrowth, Healing Touch) are on the heal key.
-	-- Without Rejuvenation the old chain of heals stays.
+	-- One pass, not a loop: Nature's Grasp (once a fight, only when it is
+	-- ready as the fight starts: Core picks out.sosGrasp then), Rejuvenation
+	-- on yourself, then the BEAR (more health and armour when they are on
+	-- you; a cat or travel form only without one), then nothing more but the
+	-- potion until 20 s without a press or the end of the fight. A loop
+	-- came back to Nature's Grasp on its cooldown, and a failed cast stops
+	-- the macro. Only a cat leaves its form here: from the bear,
+	-- Rejuvenation leaves it by itself, and a later press must not drop
+	-- the bear again. The potion is last: it goes in on the press after
+	-- Nature's Grasp, with the heal (it does not use the global cooldown).
+	if leave then sos[#sos + 1] = { ("/cancelform [form:%d]"):format(C or 3), 1 } end
 	local steps = {}
 	if known.rejuv then
 		steps[1] = N.rejuv
 	else
 		if known.regrowth then steps[#steps + 1] = N.regrowth end
-		if known.ht then
-			steps[#steps + 1] = N.ht
-			steps[#steps + 1] = N.ht
-		end
+		if known.ht then steps[#steps + 1] = N.ht end
 	end
 	if #steps > 0 then
-		local run = (known.travel and N.travel) or (known.cat and N.cat) or (B and bearName) or nil
-		if run then steps[#steps + 1] = run end
+		local stand = (B and bearName) or (known.cat and N.cat) or (known.travel and N.travel) or nil
+		if stand then steps[#steps + 1] = stand end
+		steps[#steps + 1] = "null"
 	end
 	if leave and #steps > 0 then
-		sos[#sos + 1] = { seq("[@player] ", "20", steps), 1 }
+		if known.grasp then graspLine = { ("/castsequence reset=combat %s, null"):format(N.grasp), 1 } end
+		sos[#sos + 1] = { ("/castsequence [@player] reset=20/combat %s"):format(table.concat(steps, ", ")), 1 }
 	elseif B then
 		-- no mana to leave: stay a bear, or go back into it if the form is lost
 		sos[#sos + 1] = { ("/cast [noform] %s"):format(bearName), 1 }
 	end
 	if items.potion then sos[#sos + 1] = { ("/use [combat] item:%d"):format(items.potion), 1 } end
-	out.sos = fit(sos)
+	local plain = {}
+	for i = 1, #sos do plain[i] = { sos[i][1], sos[i][2] } end
+	out.sos = fit(plain)
+	if graspLine then
+		local with = {}
+		for i = 1, #sos do
+			with[#with + 1] = { sos[i][1], sos[i][2] }
+			if i == 1 then with[#with + 1] = graspLine end
+		end
+		out.sosGrasp = fit(with)
+	end
 
 	-- Shift + emergency key: break free. Entering a form removes roots and
 	-- slows. In a form, "!" shifts straight back into the same form (a

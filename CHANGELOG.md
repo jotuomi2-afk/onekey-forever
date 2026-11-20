@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.29.4
+
+- Druid G (the emergency key), reworked after "no Nature's Grasp and no
+  bear with two mobs on me". Press it repeatedly:
+  1. Nature's Grasp: the next mob to hit you is rooted. Once per fight,
+     and only when it is ready as the fight starts; the key is set then.
+  2. Rejuvenation on yourself, plus the potion.
+  3. Bear Form: more health and armour while they are on you. The old key
+     went into cat or travel form instead.
+  4. After that, only the potion, until 20 s without a press or the end
+     of the fight.
+  The old key looped back to the start, where a spell on cooldown stops
+  the whole macro. From cat form the key leaves the form first; from
+  bear form Rejuvenation leaves it by itself, so a later press does not
+  drop the bear again.
+- The simulated client keeps spell cooldowns.
+
 ## 0.29.3
 
 - Druid: F no longer heals at full health before a pull. When a mob type

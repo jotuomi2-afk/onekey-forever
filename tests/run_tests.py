@@ -572,6 +572,47 @@ def main():
             p.append("40 %% missing before a tough mob: %s (should heal)" % r)
         return p
 
+    @S.test("druid: G is Nature's Grasp (when ready), Rejuvenation, the bear, then the potion")
+    def _():
+        p = []
+        lua = new_lua()
+        nsl, _ = load_addon(lua, ["Logic.lua"])
+        o = druid_macros(lua, nsl, 23, "cat")
+        g, plain = o.sosGrasp or "", o.sos or ""
+        lines = g.split("\n")
+        want = ["/cancelform [form:3]", "/castsequence reset=combat Nature's Grasp, null",
+                "/castsequence [@player] reset=20/combat Rejuvenation, Bear Form, null", "/use [combat] item:118"]
+        if lines != want:
+            p.append("G with Grasp is %r" % lines)
+        if "Nature's Grasp" in plain or "Bear Form, null" not in plain:
+            p.append("G without Grasp is %r" % plain)
+        # Core: the fight start picks the version
+        lua = new_lua()
+        set_class(lua, "DRUID", 11, 23, druid_spells(23))
+        lua.execute('STUB.buffs = { ["Mark of the Wild"] = true, ["Thorns"] = true } STUB.form = 3')
+        ns, errs = load_addon(lua)
+        p += errs
+        fire, tick = lua.eval("STUB.fire"), lua.eval("STUB.tick")
+        for e in ("ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD"):
+            p += lua_list(fire(e, "OneKeyDruid"))
+        p += lua_list(tick(4, 0.25))
+
+        def sos():
+            a = macro_attrs(lua)
+            return next((v for k, v in a.items() if "Sos" in k or "SOS" in k or "sos" in k), "")
+        p += lua_list(fire("PLAYER_REGEN_DISABLED"))
+        if "Nature's Grasp" not in sos():
+            p.append("fight start, Grasp ready: G lacks it: %r" % sos())
+        lua.execute("STUB.combat = true")
+        p += lua_list(lua.eval("STUB.castDone")(16689))
+        lua.execute("STUB.combat = false")
+        p += lua_list(fire("PLAYER_REGEN_ENABLED"))
+        p += lua_list(tick(4, 0.25))
+        p += lua_list(fire("PLAYER_REGEN_DISABLED"))
+        if "Nature's Grasp" in sos():
+            p.append("next fight within a minute: G still has Grasp (it would stop the key)")
+        return p
+
     @S.test("logic: route and water advice")
     def _():
         lua = new_lua()

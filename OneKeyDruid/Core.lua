@@ -16,7 +16,7 @@ local Logic = ns.Logic
 local _, CLASS = UnitClass("player")
 if CLASS ~= "DRUID" then return end
 
-local VERSION = "0.29.3"
+local VERSION = "0.29.4"
 local BUTTON = "OneKeyDruidButton"
 -- The buttons of the modifier keys.
 local NAMES = { heal = "OneKeyDruidHeal", cc = "OneKeyDruidStop", behind = "OneKeyDruidBehind",
@@ -582,7 +582,7 @@ local function rebuild()
 	kids.heal:SetAttribute("macrotext", macros.heal or "")
 	kids.cc:SetAttribute("macrotext", macros.cc or "")
 	kids.behind:SetAttribute("macrotext", behindHeld and "" or (macros.behind or ""))
-	kids.sos:SetAttribute("macrotext", macros.sos or "")
+	kids.sos:SetAttribute("macrotext", macros.sosGrasp or macros.sos or "")
 	kids.free:SetAttribute("macrotext", macros.free or "")
 	kids.hide:SetAttribute("macrotext", macros.hide or "")
 	current.text = nil
@@ -1162,8 +1162,32 @@ local function startAlarm()
 	alarmTick()
 end
 
+-- Nature's Grasp ready? From the client's cooldown when it is plain, else
+-- from our own record of the last cast (a minute).
+local graspAt = 0
+local function graspReady()
+	if not known.grasp then return false end
+	if C_Spell and C_Spell.GetSpellCooldown and N.grasp then
+		local ok, cd = pcall(C_Spell.GetSpellCooldown, N.grasp)
+		if ok and type(cd) == "table" and not secret(cd.startTime) and not secret(cd.duration)
+			and type(cd.startTime) == "number" and type(cd.duration) == "number" then
+			return cd.duration <= 1.5 or cd.startTime + cd.duration <= GetTime()
+		end
+	end
+	return GetTime() - graspAt >= 60
+end
+
+-- The emergency key for this fight, set as it starts (it cannot change once
+-- the fight is on): with Nature's Grasp only when it is ready.
+local function pickSos()
+	if locked() or not kids.sos then return end
+	local text = (macros.sosGrasp and graspReady()) and macros.sosGrasp or macros.sos or ""
+	kids.sos:SetAttribute("macrotext", text)
+end
+
 local function enterCombat()
 	live.hits, live.at = 0, GetTime()
+	pickSos()
 	startAlarm()
 	live.times, live.start, live.lastKill = {}, GetTime(), nil
 	combatHud()
@@ -1911,6 +1935,7 @@ logger:SetScript("OnEvent", function(_, event, a1, a2, a3)
 			if name and not secret(name) then
 				logEvent("A", name)
 				if name == N.roar and lg.inFight then lg.roared = true end
+				if name == N.grasp then graspAt = GetTime() end
 				if name == N.ht or name == N.regrowth then lg.paying = false end
 				if (name == N.ht or name == N.regrowth or name == N.rejuv) and not locked() and hpEst.frac then
 					-- a heal out of combat: take its tooltip amount off the estimate

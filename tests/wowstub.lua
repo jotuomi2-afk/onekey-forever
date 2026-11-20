@@ -223,7 +223,14 @@ C_Spell = {
 	IsSpellUsable = function() return true, false end,
 	IsSpellPassive = function(id) return id == 16864 end,
 	PickupSpell = function(id) STUB.cursor = id end,
-	GetSpellCooldown = function() return { startTime = 0, duration = 0, isEnabled = true } end,
+	-- cooldowns as the client keeps them: STUB.cooldown[name] = seconds
+	-- starts one when the spell is cast (STUB.castDone)
+	GetSpellCooldown = function(x)
+		local name = type(x) == "number" and STUB.names and STUB.names[x] or x
+		local c = STUB.cds and STUB.cds[name]
+		if c and STUB.now < c.start + c.dur then return { startTime = c.start, duration = c.dur, isEnabled = true } end
+		return { startTime = 0, duration = 0, isEnabled = true }
+	end,
 }
 function GetSpellCooldown() return 0, 0, 1 end
 C_UnitAuras = {
@@ -308,6 +315,14 @@ C_Minimap = {
 C_NamePlate = { GetNamePlates = function() return {} end }
 -- timers are real: STUB.tick runs every callback that is due
 STUB.timers = {}
+STUB.cds = {}
+STUB.cooldown = { ["Nature's Grasp"] = 60, ["Frost Nova"] = 25, ["Ice Lance"] = 8, ["Kidney Shot"] = 20, ["Gouge"] = 10 }
+-- the client fires UNIT_SPELLCAST_SUCCEEDED and starts the spell's cooldown
+function STUB.castDone(spellID)
+	local name = STUB.names and STUB.names[spellID]
+	if name and STUB.cooldown[name] then STUB.cds[name] = { start = STUB.now, dur = STUB.cooldown[name] } end
+	return STUB.fire("UNIT_SPELLCAST_SUCCEEDED", "player", "cast", spellID)
+end
 C_Timer = {
 	After = function(sec, fn)
 		if type(sec) ~= "number" or type(fn) ~= "function" then error("C_Timer.After: bad arguments", 2) end
