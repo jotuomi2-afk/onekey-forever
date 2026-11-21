@@ -16,7 +16,7 @@ if CLASS == "DRUID" then return end
 local CL = ns.CLASSES and ns.CLASSES[CLASS]
 local Logic = ns.Logic
 
-local VERSION = "0.31.1"
+local VERSION = "0.31.2"
 local PREFIX = "|cff7fd4ffOneKey|r "
 local LIMIT = 255
 local NAMES = { fight = "OneKeyMain", heal = "OneKeyHeal", cc = "OneKeyAlt", behind = "OneKeyCtrl",

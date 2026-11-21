@@ -176,7 +176,7 @@ def druid_fight(lua, ns, level, mode, selfcast=True):
     return druid_macros(lua, ns, level, mode, selfcast).fight
 
 
-def druid_macros(lua, ns, level, mode, selfcast=True):
+def druid_macros(lua, ns, level, mode, selfcast=True, mana=None):
     """The druid macros at a level, with every spell and talent known
     (Feral Charge included), as Logic.BuildMacros makes them."""
     N = lua.eval("""{bear="Bear Form",cat="Cat Form",ht="Healing Touch",rejuv="Rejuvenation",regrowth="Regrowth",
@@ -199,7 +199,8 @@ def druid_macros(lua, ns, level, mode, selfcast=True):
         cfg[k] = ns.Logic.DEFAULTS[k]
     cfg["enrage"] = True
     o = ns.Logic.BuildMacros(kn, N, lua.eval("{B=1,A=2,C=3}"), mode, cfg,
-                             lua.eval("{selfcast=%s,potion=118,food=4536,water=159}" % ("true" if selfcast else "false")))
+                             lua.eval("{selfcast=%s,potion=118,food=4536,water=159,mana=%s}" % (
+                                 "true" if selfcast else "false", mana or "nil")))
     return o
 
 
@@ -620,6 +621,27 @@ def main():
         p += lua_list(fire("PLAYER_REGEN_DISABLED"))
         if "Nature's Grasp" in sos():
             p.append("next fight within a minute: G still has Grasp (it would stop the key)")
+        return p
+
+    @S.test("druid: G fits the mana left after the pull (death in the log of 21.11.)")
+    def _():
+        p = []
+        lua = new_lua()
+        nsl, _ = load_addon(lua, ["Logic.lua"])
+        # level 24 costs as the client gives them; 700 mana at most
+        costs = "form=180,cat=180,bear=180,rejuv=105,wrath=55,moonfire=75,grasp=50,ff=60"
+        poor = "{cost={%s},est=700,max=700}" % costs
+        o = druid_macros(lua, nsl, 24, "cat", mana=poor)
+        if o.sosGrasp:
+            p.append("Nature's Grasp in G when the pull and G cost more than the mana: %r" % o.sosGrasp)
+        if "/cancelform" in (o.sos or ""):
+            p.append("G leaves cat form with no mana for the bear after: %r" % o.sos)
+        if "/cast [form:3][noform] Bear Form" not in (o.sos or ""):
+            p.append("a cat with no mana to spare does not go straight into the bear: %r" % o.sos)
+        rich = "{cost={%s},est=2000,max=2000}" % costs
+        o = druid_macros(lua, nsl, 24, "cat", mana=rich)
+        if not o.sosGrasp or "/cancelform" not in (o.sos or ""):
+            p.append("with mana enough G should heal and Grasp: %r / %r" % (o.sos, o.sosGrasp))
         return p
 
     @S.test("druid: Prowl on the bar becomes cat form + Prowl, once, out of combat")

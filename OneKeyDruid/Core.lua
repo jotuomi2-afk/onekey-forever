@@ -16,7 +16,7 @@ local Logic = ns.Logic
 local _, CLASS = UnitClass("player")
 if CLASS ~= "DRUID" then return end
 
-local VERSION = "0.31.1"
+local VERSION = "0.31.2"
 local BUTTON = "OneKeyDruidButton"
 -- The buttons of the modifier keys.
 local NAMES = { heal = "OneKeyDruidHeal", cc = "OneKeyDruidStop", behind = "OneKeyDruidBehind",
@@ -580,6 +580,10 @@ local function manaInfo()
 	if Logic.Mode(db, known) == "cat" and known.cat then formName = N.cat end
 	m.cost.form = manaCost(formName)
 	m.cost.rejuv, m.cost.moonfire, m.cost.wrath = manaCost(N.rejuv), manaCost(N.moonfire), manaCost(N.wrath)
+	-- for the emergency key's budget: the bear it ends in, Nature's Grasp,
+	-- the cat form and Faerie Fire the pull spends on the way
+	m.cost.bear = manaCost(known.direbear and N.direbear or N.bear)
+	m.cost.cat, m.cost.grasp, m.cost.ff = manaCost(N.cat), manaCost(N.grasp), manaCost(N.ff)
 	m.flags = {}
 	for _, name in ipairs({ N.ht, N.regrowth, N.rejuv, N.moonfire, N.wrath, formName }) do
 		local cost, ok = manaCost(name), manaEnough(name)
@@ -588,6 +592,8 @@ local function manaInfo()
 		if cost and ok == false and (not m.ub or cost < m.ub) then m.ub = cost end
 	end
 	m.est = manaEstimate(m)
+	local max = UnitPowerMax and UnitPowerMax("player", 0)
+	if not secret(max) and type(max) == "number" and max > 0 then m.max = max end
 	return m
 end
 

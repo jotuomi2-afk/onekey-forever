@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.31.2
+
+- Druid, G (from the log of 21.11.): the death came when G left cat form
+  with two mobs on, healed, cast Nature's Grasp, and then could not afford
+  Bear Form: the pull (Wrath twice, Rejuvenation, Moonfire, cat form,
+  Faerie Fire) had spent the mana. Eight seconds in caster form, and dead.
+  - G is set when the fight starts, so it now counts the pull's mana too.
+    It leaves cat form to heal only when the pull, Rejuvenation and the bear
+    all fit in your mana; Nature's Grasp only when it fits as well.
+  - Otherwise G takes a cat straight into the bear (one shift) and the
+    potion; heal with Shift+F.
+
 ## 0.31.1
 
 - Druid: Prowl on the action bars now really becomes the OKD Prowl macro.

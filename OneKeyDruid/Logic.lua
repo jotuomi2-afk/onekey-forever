@@ -566,7 +566,34 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 	-- Leaving the form costs mana to get back into it: only when the mana
 	-- is proven to cover Rejuvenation and the form; otherwise the bear stays
 	-- (and the potion) and the heal key does the healing.
+	--
+	-- The key is set as the fight starts and cannot change in it, so the
+	-- budget counts what the pull will spend first (Wrath twice, the
+	-- Rejuvenation and Moonfire before the form, the form, Faerie Fire)
+	-- and then Rejuvenation, Nature's Grasp and the bear. In the log of
+	-- 21.11. the pull had spent the mana: G left cat form, healed, cast
+	-- Nature's Grasp, and the bear failed for mana; eight seconds in caster
+	-- form with two mobs on, and a death.
+	local function afford(total)
+		local m = items.mana
+		if not m or not m.cost.form then return true end -- no readable costs
+		-- the estimate only when low mana is proven; else the most there can be
+		local have = (m.ub and m.est) or m.max
+		if not have then return true end
+		return have >= total
+	end
+	local bearCost = mc.bear or mc.form or 0
+	local opener = 0
+	if F then
+		opener = (mode == "cat" and (mc.cat or mc.form) or bearCost) + (known.ff and mc.ff or 0)
+		if cfg.pull and known.wrath then
+			opener = opener + 2 * (mc.wrath or 0) + (cfg.prehot and known.rejuv and mc.rejuv or 0)
+				+ (known.moonfire and mc.moonfire or 0)
+		end
+	end
 	local leave = room(mc.rejuv or 0) and (known.rejuv or known.ht)
+		and afford(opener + (mc.rejuv or 0) + bearCost)
+	local graspOk = afford(opener + (mc.rejuv or 0) + (mc.grasp or 0) + bearCost)
 	-- One pass, not a loop: Rejuvenation on yourself (and the potion), then
 	-- Nature's Grasp (once a fight, only when it is ready as the fight
 	-- starts: Core picks out.sosGrasp then), then the BEAR (more health and armour when they are on
@@ -592,7 +619,7 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 	end
 	if leave and #steps > 0 then
 		local plainSeq = ("/castsequence [@player] reset=20/combat %s"):format(table.concat(steps, ", "))
-		if known.grasp then
+		if known.grasp and graspOk then
 			-- the heal (and the potion) on the first press, Nature's Grasp on
 			-- the second: near death the heal cannot wait a global cooldown
 			-- (a death in the log of 20.11. came with Grasp first)
@@ -605,8 +632,10 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 		end
 		sos[#sos + 1] = { plainSeq, 1, nil, nil, grasp = graspLine }
 	elseif B then
-		-- no mana to leave: stay a bear, or go back into it if the form is lost
-		sos[#sos + 1] = { ("/cast [noform] %s"):format(bearName), 1 }
+		-- no mana to leave: stay a bear, a cat goes straight into the bear
+		-- (one shift, more armour and health), or back into it from caster
+		local cat = C and ("[form:%d]"):format(C) or ""
+		sos[#sos + 1] = { ("/cast %s[noform] %s"):format(cat, bearName), 1 }
 	end
 	if items.potion then sos[#sos + 1] = { ("/use [combat] item:%d"):format(items.potion), 1 } end
 	local plain, with = {}, {}
