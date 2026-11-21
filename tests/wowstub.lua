@@ -186,8 +186,9 @@ function GetSubZoneText() return "" end
 function GetMoney() return 10000 end
 function GetInventoryItemDurability() return 50, 100 end
 function GetCVarBool() return false end
-function SetCVar() end
-function GetCVar() return "0" end
+STUB.cvars = { Sound_EnableErrorSpeech = "1", Sound_EnableSoundWhenGameIsInBG = "0" }
+function SetCVar(k, v) STUB.cvars[k] = tostring(v) end
+function GetCVar(k) return STUB.cvars[k] end
 STUB.macros = {}
 function GetMacroIndexByName(n) if STUB.macros[n] then STUB.macroIdx = n return 1 end return 0 end
 function GetMacroInfo(i) local n = STUB.macroIdx return n, 1, STUB.macros[n] end
@@ -230,6 +231,8 @@ C_Spell = {
 	IsSpellUsable = function() return true, false end,
 	IsSpellPassive = function(id) return id == 16864 end,
 	PickupSpell = function(id) STUB.cursor = id end,
+	-- range: STUB.inRange[spell name] = true / false (nil: no answer)
+	IsSpellInRange = function(name) return STUB.inRange and STUB.inRange[name] end,
 	-- cooldowns as the client keeps them: STUB.cooldown[name] = seconds
 	-- starts one when the spell is cast (STUB.castDone)
 	GetSpellCooldown = function(x)

@@ -16,7 +16,7 @@ if CLASS == "DRUID" then return end
 local CL = ns.CLASSES and ns.CLASSES[CLASS]
 local Logic = ns.Logic
 
-local VERSION = "0.30.3"
+local VERSION = "0.30.4"
 local PREFIX = "|cff7fd4ffOneKey|r "
 local LIMIT = 255
 local NAMES = { fight = "OneKeyMain", heal = "OneKeyHeal", cc = "OneKeyAlt", behind = "OneKeyCtrl",
@@ -248,14 +248,14 @@ local TEXT = {
 		cFight = "%s: fight", cMany = "%d enemies: press %s or run", run = "RUN AWAY!  %s",
 		low = "LOW HEALTH   press %s", drinkHint = "Low mana: Alt+%s to eat and drink",
 		afk = "Going AFK? Ctrl+%s: hide", noClass = "no list for this class yet",
-		aNova = "IN MELEE: Shift+%s  %s", aLance = "FROZEN: Shift+%s  %s, then step back and %s",
+		aMelee = "IN MELEE: Ctrl+%s  %s, then step back and %s", aNova = "IN MELEE: Shift+%s  %s", aLance = "FROZEN: Shift+%s  %s, then step back and %s",
 		aBack = "FROZEN: step back, %s" },
 	fi = { target = "%s: etsi kohde", fight = "%s: hyökkää", buff = "%s: buffaa (%s)", conjure = "%s: loihdi (%s)",
 		hold = "ÄLÄ VEDÄ: liian vahva (%s). /okd brave on", dead = "Olet kuollut", mounted = "Ratsailla",
 		cFight = "%s: taistele", cMany = "%d vihollista: paina %s tai pakene", run = "PAKENE!  %s",
 		low = "VÄHÄN HP:TA   paina %s", drinkHint = "Mana vähissä: Alt+%s syö ja juo",
 		afk = "Menossa AFK? Ctrl+%s: piiloon", noClass = "tälle luokalle ei vielä ole listaa",
-		aNova = "LÄHITAISTELU: Shift+%s  %s", aLance = "JÄÄSSÄ: Shift+%s  %s, sitten taakse ja %s",
+		aMelee = "LÄHITAISTELU: Ctrl+%s  %s, sitten taakse ja %s", aNova = "LÄHITAISTELU: Shift+%s  %s", aLance = "JÄÄSSÄ: Shift+%s  %s, sitten taakse ja %s",
 		aBack = "JÄÄSSÄ: peräänny, %s" },
 }
 local function tr(key, ...)
@@ -460,10 +460,28 @@ local function noteCast(spellID)
 	end
 end
 
+-- Is the target within melee reach? The client's range check for a melee
+-- spell, when it gives a plain answer; otherwise a hit taken in the last
+-- 2.5 s. Text only: the key cannot change in combat.
+local function inMelee(spellKey, now)
+	if C_Spell and C_Spell.IsSpellInRange and N[spellKey] then
+		local ok, r = pcall(C_Spell.IsSpellInRange, N[spellKey], "target")
+		if ok and not secret(r) and r ~= nil then return r == true or r == 1 end
+	end
+	for i = #live.times, 1, -1 do
+		if now - live.times[i] <= 2.5 then return true end
+	end
+	return false
+end
+
 local function alertText(now)
+	local key = db.key or "F"
+	local H = CL and CL.meleeHint
+	if H and known[H.spell] and inMelee(H.spell, now) then
+		return tr("aMelee", key, N[H.spell], key)
+	end
 	local A = CL and CL.alert
 	if not A or not known[A.freeze] then return nil end
-	local key = db.key or "F"
 	local frozenAt = lastCast[A.freeze]
 	if frozenAt and now - frozenAt < 8 then
 		if A.lance and known[A.lance] and cooldownLeft(A.lance, now) == 0 then
@@ -694,6 +712,17 @@ driver:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		if C_Timer and C_Timer.After then C_Timer.After(3, trackGathering) end
 		-- the alarm must be heard with the game in the background; the old
 		-- setting is kept and comes back with /okd alarm off
+		-- One key pressed again and again meets "not ready yet" and "target
+		-- too close" all the time, and the game says each one out loud. The
+		-- spoken error is off while the addon runs (the red text stays);
+		-- /okd errorvoice on brings it back as it was.
+		if db.errorvoice ~= true and SetCVar and GetCVar then
+			local was = GetCVar("Sound_EnableErrorSpeech")
+			if was ~= "0" then
+				db.errorVoiceWas = was or "1"
+				pcall(SetCVar, "Sound_EnableErrorSpeech", "0")
+			end
+		end
 		if db.alarm ~= false and SetCVar and GetCVar then
 			local was = GetCVar("Sound_EnableSoundWhenGameIsInBG")
 			if was ~= "1" then
@@ -783,6 +812,17 @@ SlashCmdList.ONEKEYDRUID = function(msg)
 	elseif cmd == "brave" then
 		db.brave = rest:lower() == "on"
 		say(db.brave and "the key pulls anything." or "the key will not pull mobs 3+ levels over you, elites or skulls.")
+	elseif cmd == "errorvoice" then
+		db.errorvoice = rest:lower() == "on"
+		if SetCVar then
+			if db.errorvoice then
+				pcall(SetCVar, "Sound_EnableErrorSpeech", db.errorVoiceWas or "1")
+				db.errorVoiceWas = nil
+			else
+				pcall(SetCVar, "Sound_EnableErrorSpeech", "0")
+			end
+		end
+		say("error voice " .. (db.errorvoice and "on" or "off") .. ".")
 	elseif cmd == "alarm" then
 		db.alarm = rest:lower() ~= "off"
 		if not db.alarm and db.bgSoundWas and SetCVar then

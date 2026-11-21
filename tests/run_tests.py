@@ -700,6 +700,47 @@ def main():
             p.append("taint: " + v)
         return p
 
+    @S.test("hunter: in melee the HUD says Ctrl+F; Ctrl+F is Wing Clip, Mongoose, Raptor; no error voice")
+    def _():
+        p = []
+        probe, _ = load_addon(new_lua(), ["Classes.lua"])
+        CL = probe.CLASSES["HUNTER"]
+        spells = {v[1]: v[2] for v in CL.spells.values()}
+        lua = new_lua()
+        set_class(lua, "HUNTER", 3, 20, spells)
+        lua.execute("STUB.buffs = {}")
+        ns, errs = load_addon(lua)
+        p += errs
+        fire, tick, slash = lua.eval("STUB.fire"), lua.eval("STUB.tick"), lua.eval("STUB.slash")
+        for e in ("ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD"):
+            p += lua_list(fire(e, "OneKeyDruid"))
+        p += lua_list(tick(4, 0.25))
+        behind = ns.OneKeyMacros.behind or ""
+        acts = [l for l in behind.split("\n") if l.startswith("/cast")]
+        if len(acts) < 3 or "Wing Clip, null" not in acts[0] or "Raptor Strike" not in acts[-1]:
+            p.append("Ctrl+F is %r" % behind)
+        if lua.eval("STUB.cvars.Sound_EnableErrorSpeech") != "0":
+            p.append("the spoken error stays on")
+        lua.execute('STUB.targetName = "Venture Co. Operator" STUB.targetLevel = 20')
+        p += lua_list(fire("PLAYER_TARGET_CHANGED"))
+        p += lua_list(fire("PLAYER_REGEN_DISABLED"))
+        lua.execute('STUB.combat = true STUB.inRange = { ["Raptor Strike"] = false }')
+        p += lua_list(tick(2, 0.25))
+        if ns.OneKeyAlert():
+            p.append("a melee hint at range: %r" % ns.OneKeyAlert())
+        lua.execute('STUB.inRange = { ["Raptor Strike"] = true }')
+        p += lua_list(tick(2, 0.25))
+        if "Ctrl+F" not in (ns.OneKeyAlert() or ""):
+            p.append("in melee the HUD says %r" % ns.OneKeyAlert())
+        lua.execute("STUB.combat = false")
+        p += lua_list(fire("PLAYER_REGEN_ENABLED"))
+        e = slash("errorvoice on")
+        if e:
+            p.append(e)
+        if lua.eval("STUB.cvars.Sound_EnableErrorSpeech") != "1":
+            p.append("/okd errorvoice on did not bring the voice back")
+        return p
+
     @S.test("logic: route and water advice")
     def _():
         lua = new_lua()

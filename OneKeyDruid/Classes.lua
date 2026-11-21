@@ -138,10 +138,13 @@ C.HUNTER = {
 	heal = { { "cast", "mend", "[@pet,exists,nodead]" } },
 	cc = { { "cast", "conc", H }, { "cast", "wing", H } },
 	-- The melee key. Shots fail inside their minimum range and a failed
-	-- cast stops the macro, so F (ranged) cannot also hold the melee
-	-- attacks: when the mob is on you, Ctrl+F. Mongoose Bite after a dodge
-	-- (skipped otherwise), then Raptor Strike.
-	behind = { { "cast", "mongoose", H }, { "cast", "raptor", H } },
+	-- cast stops the macro, and a macro cannot tell the range, so F (ranged)
+	-- cannot also hold the melee attacks: when the mob is on you, the HUD
+	-- says Ctrl+F. Wing Clip once (it slows the mob, so you can step back
+	-- and shoot), Mongoose Bite after a dodge (skipped otherwise), Raptor
+	-- Strike last (on its cooldown it fails, and nothing is after it).
+	behind = { { "once", "wing", H }, { "cast", "mongoose", H }, { "cast", "raptor", H } },
+	meleeHint = { spell = "raptor" },
 	sos = { { "cast", "fd", "" }, { "potion" } },
 	free = { { "cast", "disengage", H } },
 }

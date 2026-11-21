@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.30.4
+
+- Hunter, in melee: when the mob is on you, a large HUD line says "IN
+  MELEE: Ctrl+F Raptor Strike, then step back and F".
+  - F cannot switch to melee by itself: a macro cannot see the range, and
+    the game stops it on "target too close".
+  - Ctrl+F is now Wing Clip (once per target, to slow the mob so you can
+    step back), Mongoose Bite after a dodge, then Raptor Strike.
+- Every class: the game's spoken error ("not ready yet", "target too
+  close") is off while the addon runs. One key pressed again and again set
+  it off all the time. The red text stays. `/okd errorvoice on` brings the
+  voice back as it was.
+
 ## 0.30.3
 
 - Druid: the OKD Prowl macro prowls again.
