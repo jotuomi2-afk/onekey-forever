@@ -1148,6 +1148,33 @@ def main():
                 p.append("Ctrl+F burst lost Immolate")
         return p
 
+    @S.test("priest: Shadow Word: Pain once, then the wand; Smite only with no wand")
+    def _():
+        p = []
+        probe, _ = load_addon(new_lua(), ["Classes.lua"])
+        spells = {v[1]: v[2] for v in probe.CLASSES["PRIEST"].spells.values()}
+        for wand in (True, False):
+            lua = new_lua()
+            set_class(lua, "PRIEST", 5, 24, spells)
+            lua.execute("STUB.buffs = {} STUB.wand = %s" % ("true" if wand else "false"))
+            ns, errs = load_addon(lua)
+            p += errs
+            for e in ("ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD"):
+                p += lua_list(lua.eval("STUB.fire")(e, "OneKeyDruid"))
+            p += lua_list(lua.eval("STUB.tick")(4, 0.25))
+            f = ns.OneKeyMacros.fight or ""
+            acts = [l for l in f.split("\n") if l.startswith(("/cast", "/use"))]
+            if not acts or "Shadow Word: Pain, null" not in acts[0]:
+                p.append("wand=%s: Shadow Word: Pain not first, once: %r" % (wand, f))
+            last = acts[-1] if acts else ""
+            if wand and ("!Shoot" not in last or "Smite" in f or "Mind Flay" in f):
+                p.append("with a wand the filler must be the wand: %r" % f)
+            if not wand and ("Smite" not in f or "Shoot" in f):
+                p.append("with no wand Smite is the filler: %r" % f)
+            if f.count("Shoot") > 1:
+                p.append("the wand twice: %r" % f)
+        return p
+
     @S.test("log: every class writes the session log the analyzer reads (no player names)")
     def _():
         p = []

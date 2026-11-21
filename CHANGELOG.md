@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.32.0
+
+- Priest, F: Shadow Word: Pain goes on once per target, then the wand
+  shoots until the mob dies. Before, Mind Flay or Smite was the last spell
+  and the wand line after it was never reached: a spell with no mana stops
+  the macro instead of being skipped, so the priest ran dry. With no wand
+  on, Mind Flay and Smite are the filler as before; Mind Blast stays on
+  Ctrl+F. (The same fix the warlock got in 0.31.0.)
+
 ## 0.31.3
 
 - Druid, G: when the mana is too short for the heal and the bear, G drinks

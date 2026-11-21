@@ -37,7 +37,8 @@ C.MAGE = {
 	-- The client stops a macro at the first spell that fails (on cooldown,
 	-- out of range), so F holds only spells without a cooldown: Fireball
 	-- pulls from the longest range (35 yd; Frostbolt 30, Fire Blast 20).
-	-- Out of mana the spells are skipped and the wand shoots.
+	-- (A spell with no mana stops the macro too, so the wand line the engine
+	-- adds after Frostbolt shoots only when Frostbolt is not learned yet.)
 	-- Frostbolt keeps the mob slowed the whole fight: Fireball only opens
 	-- (once per target), every press after that is Frostbolt, whose slow
 	-- lasts longer than its cast, so it never runs out. Before Frostbolt is
@@ -162,12 +163,18 @@ C.PRIEST = {
 	-- Mind Blast has a cooldown, and the client stops a macro at the first
 	-- spell that fails, so it is on Ctrl+F, not F.
 	pull = {},
+	-- Levelling the priest way: Shadow Word: Pain once per target, then the
+	-- wand, which costs no mana. Mind Flay and Smite are the filler only
+	-- with no wand on: as the last line the wand was never reached (a spell
+	-- with no mana stops the macro; it is not skipped), so the mana ran dry.
 	fight = {
 		-- [nochanneling]: a press during Mind Flay must not cut it short
 		{ "once", "swp", "[harm,nodead,nochanneling] " },
-		{ "cast", "flay", "[harm,nodead,nochanneling] " },
-		{ "cast", "smite", "[harm,nodead,nochanneling] " },
+		{ "cast", "flay", "[harm,nodead,nochanneling] ", without = "wand" },
+		{ "cast", "smite", "[harm,nodead,nochanneling] ", without = "wand" },
+		{ "cast", "shoot", "[harm,nodead,nochanneling] ", bang = true, need = "wand" },
 	},
+	wandFiller = true,
 	heal = { { "cast", "flash", "[@player]" }, { "cast", "heal", "[@player]" }, { "cast", "lheal", "[@player]" } },
 	cc = { { "cast", "scream", "" } },
 	behind = { { "cast", "mb", H } },
