@@ -20,23 +20,68 @@ local function rankOf(sub)
 	return tonumber(sub:match("(%d+)")) or 0
 end
 
+-- one spellbook entry: name, rank text, spell id. The old globals first,
+-- then C_SpellBook, which newer clients have instead (Forever has one or
+-- the other; with neither found, nothing was ever upgraded or swapped).
+local function bookEntry(i)
+	if GetSpellBookItemName then
+		local ok, name, sub, id = pcall(GetSpellBookItemName, i, BOOKTYPE_SPELL or "spell")
+		if ok and name and id then return name, sub, id end
+	end
+	local SB = C_SpellBook
+	if SB and SB.GetSpellBookItemName and SB.GetSpellBookItemInfo then
+		local bank = Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player or 0
+		local ok, name, sub = pcall(SB.GetSpellBookItemName, i, bank)
+		local ok2, info = pcall(SB.GetSpellBookItemInfo, i, bank)
+		local id = ok2 and type(info) == "table" and (info.spellID or info.actionID)
+		if ok and name and id then return name, sub, id end
+	end
+end
+
+local function bookRanges()
+	local out = {}
+	if GetNumSpellTabs and GetSpellTabInfo then
+		for t = 1, GetNumSpellTabs() or 0 do
+			local _, _, offset, n = GetSpellTabInfo(t)
+			out[#out + 1] = { offset or 0, n or 0 }
+		end
+	elseif C_SpellBook and C_SpellBook.GetNumSpellBookSkillLines and C_SpellBook.GetSpellBookSkillLineInfo then
+		for t = 1, C_SpellBook.GetNumSpellBookSkillLines() or 0 do
+			local ok, info = pcall(C_SpellBook.GetSpellBookSkillLineInfo, t)
+			if ok and type(info) == "table" then out[#out + 1] = { info.itemIndexOffset or 0, info.numSpellBookItems or 0 } end
+		end
+	end
+	return out
+end
+
 -- every spell in the spellbook: id -> { name, rank }, and the best rank by name
 local function book()
 	local byId, best = {}, {}
-	local tabs = GetNumSpellTabs and GetNumSpellTabs() or 0
-	for t = 1, tabs do
-		local _, _, offset, n = GetSpellTabInfo(t)
-		for i = (offset or 0) + 1, (offset or 0) + (n or 0) do
-			local ok, name, sub, id = pcall(GetSpellBookItemName, i, BOOKTYPE_SPELL or "spell")
-			if ok and name and id then
-				local r = rankOf(sub)
-				byId[id] = { name = name, rank = r }
+	for _, r in ipairs(bookRanges()) do
+		for i = r[1] + 1, r[1] + r[2] do
+			local name, sub, id = bookEntry(i)
+			if name and id then
+				local rk = rankOf(sub)
+				byId[id] = { name = name, rank = rk }
 				local b = best[name]
-				if r > 0 and (not b or r > b.rank) then best[name] = { rank = r, id = id } end
+				if rk > 0 and (not b or rk > b.rank) then best[name] = { rank = rk, id = id } end
 			end
 		end
 	end
 	return byId, best
+end
+
+-- the name of the spell an action slot holds, whatever the spellbook says
+local function actionSpellName(id, byId)
+	if byId[id] then return byId[id].name end
+	if C_Spell and C_Spell.GetSpellName then
+		local ok, n = pcall(C_Spell.GetSpellName, id)
+		if ok and type(n) == "string" then return n end
+	end
+	if GetSpellInfo then
+		local ok, n = pcall(GetSpellInfo, id)
+		if ok and type(n) == "string" then return n end
+	end
 end
 
 local function pickup(id)
@@ -87,7 +132,7 @@ function R.SwapProwl(prowlName, macroName)
 	local n = 0
 	for slot = 1, SLOTS do
 		local kind, id = GetActionInfo(slot)
-		if kind == "spell" and id and byId[id] and byId[id].name == prowlName and not db.prowlSwapped[slot] then
+		if kind == "spell" and id and not db.prowlSwapped[slot] and actionSpellName(id, byId) == prowlName then
 			local ok = pcall(PickupMacro, macroName)
 			if ok and GetCursorInfo and GetCursorInfo() then
 				PlaceAction(slot)

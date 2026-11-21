@@ -660,6 +660,44 @@ def main():
             p.append("the addon swapped Prowl again after the player put it back")
         return p
 
+    @S.test("druid: Prowl is swapped on a client without the old spellbook functions (21.11.)")
+    def _():
+        p = []
+        lua = new_lua()
+        set_class(lua, "DRUID", 11, 24, druid_spells(24))
+        # the newer client: no GetSpellBookItemName / GetNumSpellTabs, only
+        # C_SpellBook; and a second time with no spellbook at all
+        lua.execute("""STUB.buffs = {} STUB.bar[5] = 5215
+            GetSpellBookItemName, GetNumSpellTabs, GetSpellTabInfo = nil, nil, nil
+            local ids = {} for id in pairs(STUB.names) do ids[#ids + 1] = id end
+            C_SpellBook = {
+              GetNumSpellBookSkillLines = function() return 1 end,
+              GetSpellBookSkillLineInfo = function() return { itemIndexOffset = 0, numSpellBookItems = #ids } end,
+              GetSpellBookItemName = function(i) return STUB.names[ids[i]], "Rank 1" end,
+              GetSpellBookItemInfo = function(i) return { spellID = ids[i] } end }""")
+        ns, errs = load_addon(lua)
+        p += errs
+        fire, tick = lua.eval("STUB.fire"), lua.eval("STUB.tick")
+        for e in ("ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD"):
+            p += lua_list(fire(e, "OneKeyDruid"))
+        p += lua_list(tick(4, 0.25))
+        if lua.eval("STUB.bar[5]") != "OKD Prowl":
+            p.append("C_SpellBook client: Prowl not swapped: %r" % lua.eval("STUB.bar[5]"))
+        lua2 = new_lua()
+        set_class(lua2, "DRUID", 11, 24, druid_spells(24))
+        lua2.execute("STUB.buffs = {} STUB.bar[7] = 5215 GetSpellBookItemName, GetNumSpellTabs = nil, nil C_SpellBook = nil")
+        ns2, errs = load_addon(lua2)
+        p += errs
+        for e in ("ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD"):
+            p += lua_list(lua2.eval("STUB.fire")(e, "OneKeyDruid"))
+        p += lua_list(lua2.eval("STUB.tick")(4, 0.25))
+        if lua2.eval("STUB.bar[7]") != "OKD Prowl":
+            p.append("no spellbook API: Prowl not swapped by its name: %r" % lua2.eval("STUB.bar[7]"))
+        e = lua2.eval("STUB.slash")("prowlkey on")
+        if e:
+            p.append("/okd prowlkey on: " + e)
+        return p
+
     @S.test("druid: in water F holds Aquatic Form, on land the fighting form again")
     def _():
         p = []

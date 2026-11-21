@@ -16,7 +16,7 @@ local Logic = ns.Logic
 local _, CLASS = UnitClass("player")
 if CLASS ~= "DRUID" then return end
 
-local VERSION = "0.31.0"
+local VERSION = "0.31.1"
 local BUTTON = "OneKeyDruidButton"
 -- The buttons of the modifier keys.
 local NAMES = { heal = "OneKeyDruidHeal", cc = "OneKeyDruidStop", behind = "OneKeyDruidBehind",
@@ -601,12 +601,14 @@ end
 -- the macro "OKD Prowl", and Prowl on the action bars is swapped for it
 -- (Ranks.lua). /okd prowlkey off keeps your bars as they are.
 local PROWL_MACRO = "OKD Prowl"
-local function prowlKey()
-	if locked() or db.prowlkey == false or not (known.prowl and known.cat) then return end
-	if not (GetMacroIndexByName and CreateMacro) then return end
+local function prowlKey(report)
+	local function why(en, fi) if report then say(db.lang == "fi" and fi or en) end end
+	if locked() or db.prowlkey == false then return end
+	if not (known.prowl and known.cat) then why("Prowl or Cat Form not learned.", "Prowl tai Cat Form ei opittu.") return end
+	if not (GetMacroIndexByName and CreateMacro) then why("this client has no macro API.", "ei makro-rajapintaa.") return end
 	-- the real stance number of cat form, never a guess: a guessed 3 made
 	-- the macro switch cat form off and on instead of prowling (20.11.)
-	if not forms.C then return end
+	if not forms.C then why("cat form not found among your forms yet; try again in a moment.", "kissamuotoa ei vielä löydy; yritä hetken päästä.") return end
 	local body = ("#showtooltip %s\n/cast [noform:%d] %s; [nostealth] %s"):format(
 		N.prowl, forms.C, N.cat, N.prowl)
 	local idx = GetMacroIndexByName(PROWL_MACRO)
@@ -619,8 +621,18 @@ local function prowlKey()
 	end
 	local ok, n = pcall(ns.Ranks.SwapProwl, N.prowl, PROWL_MACRO)
 	if ok and n and n > 0 then
-		say(db.lang == "fi" and "Prowl toimintapalkissa: nyt kissaksi ja Prowl samalla napilla (/okd prowlkey off)"
-			or "Prowl on your bars now shifts to cat form first, then prowls (/okd prowlkey off)")
+		say(db.lang == "fi" and "Prowl toimintapalkissa: 1. painallus kissaksi, 2. painallus Prowl (/okd prowlkey off)"
+			or "Prowl on your bars: first press shifts to cat form, the second prowls (/okd prowlkey off)")
+	elseif report then
+		local swapped = 0
+		for _ in pairs(db.prowlSwapped or {}) do swapped = swapped + 1 end
+		if swapped > 0 then
+			why(("Prowl is the OKD Prowl macro on %d button(s)."):format(swapped),
+				("Prowl on OKD Prowl -makro %d napissa."):format(swapped))
+		else
+			why("no Prowl spell found on your bars: open /macro and drag OKD Prowl onto the bar.",
+				"toimintapalkista ei löytynyt Prowlia: avaa /macro ja vedä OKD Prowl palkkiin.")
+		end
 	end
 end
 
@@ -2309,7 +2321,7 @@ SlashCmdList.ONEKEYDRUID = function(msg)
 	elseif cmd == "prowlkey" then
 		db.prowlkey = rest:lower() ~= "off"
 		say("prowl key " .. (db.prowlkey and "on" or "off") .. ".")
-		if db.prowlkey then prowlKey() end
+		if db.prowlkey then prowlKey(true) end
 	elseif cmd == "status" then
 		status()
 	else

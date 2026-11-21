@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.31.1
+
+- Druid: Prowl on the action bars now really becomes the OKD Prowl macro.
+  The swap looked Prowl up in the spellbook through functions this client
+  does not have, so it never found it (and rank upgrades never ran either).
+  It now reads the spellbook through C_SpellBook too, and knows Prowl on a
+  bar by its name.
+  - First press in caster form: cat form. Second press: Prowl. (The game
+    cannot do both on one press: the form changes only after the press.)
+  - `/okd prowlkey on` says what it did, or that Prowl was not found on the
+    bars (then drag OKD Prowl from /macro onto the bar).
+
 ## 0.31.0
 
 - Warlock, F: the pet goes in, then Corruption, Bane of Agony and Siphon
