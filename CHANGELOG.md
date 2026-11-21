@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.32.1
+
+From the log of 21.11. evening (a death at a gnoll camp: a Wrath pull,
+seven gnolls on, 35 hits in 42 seconds):
+
+- Druid, F: before a pull the HUD counts the other living enemies within
+  Wrath's range (from their nameplates). Two or three: an orange "careful,
+  N more mobs close". Four or more: "DO NOT PULL", and F does not pull, as
+  for an elite. `/okd brave on` lets you pull anyway.
+- Druid, G in bear form stays in the bear and drinks the potion: leaving
+  the form near death dropped its armour, and Rejuvenation and Nature's
+  Grasp came too late. From cat or caster form G heals as before.
+
 ## 0.32.0
 
 - Priest, F: Shadow Word: Pain goes on once per target, then the wand

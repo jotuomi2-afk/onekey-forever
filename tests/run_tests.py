@@ -590,7 +590,7 @@ def main():
         g, plain = o.sosGrasp or "", o.sos or ""
         lines = g.split("\n")
         want = ["/cancelform [form:3]",
-                "/castsequence [@player] reset=20/combat Rejuvenation, Nature's Grasp, Bear Form, null",
+                "/castsequence [@player,noform:1] reset=20/combat Rejuvenation, Nature's Grasp, Bear Form, null",
                 "/use [combat] item:118"]
         if lines != want:
             p.append("G with Grasp is %r" % lines)
@@ -621,6 +621,43 @@ def main():
         p += lua_list(fire("PLAYER_REGEN_DISABLED"))
         if "Nature's Grasp" in sos():
             p.append("next fight within a minute: G still has Grasp (it would stop the key)")
+        return p
+
+    @S.test("druid: a camp of enemies near the target holds the pull key (death of 21.11. evening)")
+    def _():
+        p = []
+        lua = new_lua()
+        set_class(lua, "DRUID", 11, 25, druid_spells(25))
+        lua.execute("""STUB.buffs = { ["Mark of the Wild"] = true, ["Thorns"] = true }
+            STUB.plates = 0
+            C_NamePlate.GetNamePlates = function()
+              local t = {} for i = 1, STUB.plates do t[i] = { namePlateUnitToken = "nameplate" .. i } end return t end
+            local ca, ul = UnitCanAttack, UnitLevel
+            UnitCanAttack = function(a, b) if tostring(b):find("^nameplate") then return true end return ca(a, b) end
+            UnitLevel = function(u) if tostring(u):find("^nameplate") then return 23 end return ul(u) end
+            local ir = C_Spell.IsSpellInRange
+            C_Spell.IsSpellInRange = function(s, u) if tostring(u):find("^nameplate") then return true end return ir(s, u) end""")
+        ns, errs = load_addon(lua)
+        p += errs
+        fire, tick = lua.eval("STUB.fire"), lua.eval("STUB.tick")
+        for e in ("ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD"):
+            p += lua_list(fire(e, "OneKeyDruid"))
+        p += lua_list(tick(4, 0.25))
+        lua.execute('STUB.targetName = "Mosshide Trapper" STUB.targetLevel = 23')
+        for plates, want in ((7, "DO NOT PULL: 7 more"), (2, "careful, 2 more"), (0, None)):
+            lua.execute("STUB.plates = %d" % plates)
+            p += lua_list(fire("PLAYER_TARGET_CHANGED"))
+            p += lua_list(tick(1, 0.25))
+            label = str(ns.DruidHud() or "")
+            if want and want not in label:
+                p.append("%d enemies close: label %r, want %r" % (plates, label, want))
+            if not want and ("more mobs" in label or "PULL" in label):
+                p.append("no camp, still a warning: %r" % label)
+        lua.execute("OneKeyDruidDB.brave = true STUB.plates = 7")
+        p += lua_list(fire("PLAYER_TARGET_CHANGED"))
+        p += lua_list(tick(1, 0.25))
+        if "DO NOT PULL" in str(ns.DruidHud() or ""):
+            p.append("/okd brave on still holds the key at a camp")
         return p
 
     @S.test("druid: G fits the mana left after the pull (death in the log of 21.11.)")

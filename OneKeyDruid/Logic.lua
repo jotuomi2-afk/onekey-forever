@@ -617,8 +617,13 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 		if stand then steps[#steps + 1] = stand end
 		steps[#steps + 1] = "null"
 	end
+	-- A bear stays a bear: leaving the form near death drops its armour,
+	-- and the heal comes too slowly (the death in the log of 21.11. evening:
+	-- seven gnolls on a bear, G cast Rejuvenation and Nature's Grasp out of
+	-- form, dead two seconds later). In bear form G is the potion only.
+	local stay = B and ("[@player,noform:%d]"):format(B) or "[@player]"
 	if leave and #steps > 0 then
-		local plainSeq = ("/castsequence [@player] reset=20/combat %s"):format(table.concat(steps, ", "))
+		local plainSeq = ("/castsequence %s reset=20/combat %s"):format(stay, table.concat(steps, ", "))
 		if known.grasp and graspOk then
 			-- the heal (and the potion) on the first press, Nature's Grasp on
 			-- the second: near death the heal cannot wait a global cooldown
@@ -628,7 +633,7 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 				g[#g + 1] = v
 				if i == 1 then g[#g + 1] = N.grasp end
 			end
-			graspLine = ("/castsequence [@player] reset=20/combat %s"):format(table.concat(g, ", "))
+			graspLine = ("/castsequence %s reset=20/combat %s"):format(stay, table.concat(g, ", "))
 		end
 		sos[#sos + 1] = { plainSeq, 1, nil, nil, grasp = graspLine }
 	elseif B then

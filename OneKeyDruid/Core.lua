@@ -16,7 +16,7 @@ local Logic = ns.Logic
 local _, CLASS = UnitClass("player")
 if CLASS ~= "DRUID" then return end
 
-local VERSION = "0.32.0"
+local VERSION = "0.32.1"
 local BUTTON = "OneKeyDruidButton"
 -- The buttons of the modifier keys.
 local NAMES = { heal = "OneKeyDruidHeal", cc = "OneKeyDruidStop", behind = "OneKeyDruidBehind",
@@ -385,7 +385,7 @@ local TEXT = {
 		cMany = "%d enemies: press %s or run", mHeal = "Shift held: healing", mStop = "Alt held: stop the mob",
 		mRest = "Alt held: eat and drink", mLeave = "Ctrl held: leave the form", mBehind = "Ctrl held: leave form / attack from behind",
 		low = "LOW HEALTH   press %s", lowNoSos = "LOW HEALTH   Shift+%s", healHint = "Heal: Shift+%s", drinkHint = "Low mana: Alt+%s to drink",
-		enemies = "%d ENEMIES", run = "RUN AWAY!  %s", catProwl = "%s: Prowl", swim = "%s: %s", swimming = "in the water", toBear = "bear: Shift+%s", catOpen = "%s: Pounce/Claw · behind the mob: Ctrl+%s Ravage/Shred", hold = "DO NOT PULL: too strong (%s). /okd brave on",
+		enemies = "%d ENEMIES", run = "RUN AWAY!  %s", catProwl = "%s: Prowl", swim = "%s: %s", swimming = "in the water", toBear = "bear: Shift+%s", catOpen = "%s: Pounce/Claw · behind the mob: Ctrl+%s Ravage/Shred", hold = "DO NOT PULL: too strong (%s). /okd brave on", camp = "DO NOT PULL: %d more mobs close. /okd brave on", crowd = "%s: careful, %d more mobs close",
 		afk = "Going AFK? Ctrl+%s: Shadowmeld", mHide = "Ctrl held: hide (Shadowmeld)",
 	},
 	fi = {
@@ -399,7 +399,7 @@ local TEXT = {
 		cMany = "%d vihollista: paina %s tai pakene", mHeal = "Shift pohjassa: parannat", mStop = "Alt pohjassa: pysäytä kohde",
 		mRest = "Alt pohjassa: syö ja juo", mLeave = "Ctrl pohjassa: muodosta pois", mBehind = "Ctrl pohjassa: muodosta pois / lyö takaa",
 		low = "VÄHÄN HP:TA   paina %s", lowNoSos = "VÄHÄN HP:TA   Shift+%s", healHint = "Paranna: Shift+%s", drinkHint = "Mana vähissä: Alt+%s juo",
-		enemies = "%d VIHOLLISTA", run = "PAKENE!  %s", catProwl = "%s: hiivi (Prowl)", swim = "%s: %s", swimming = "vedessä", toBear = "karhuksi: Shift+%s", catOpen = "%s: Pounce/Claw · mobin takana: Ctrl+%s Ravage/Shred", hold = "ÄLÄ VEDÄ: liian vahva (%s). /okd brave on",
+		enemies = "%d VIHOLLISTA", run = "PAKENE!  %s", catProwl = "%s: hiivi (Prowl)", swim = "%s: %s", swimming = "vedessä", toBear = "karhuksi: Shift+%s", catOpen = "%s: Pounce/Claw · mobin takana: Ctrl+%s Ravage/Shred", hold = "ÄLÄ VEDÄ: liian vahva (%s). /okd brave on", camp = "ÄLÄ VEDÄ: %d muuta mobia lähellä. /okd brave on", crowd = "%s: varo, %d muuta mobia lähellä",
 		afk = "Menossa AFK? Ctrl+%s: Shadowmeld", mHide = "Ctrl pohjassa: piiloon (Shadowmeld)",
 	},
 }
@@ -817,6 +817,35 @@ local function attackers()
 	return n
 end
 
+-- Before a pull: other living enemies within Wrath's range besides the
+-- target (a camp). Out of combat only; anything secret is not counted.
+local function crowd()
+	if not (C_NamePlate and C_NamePlate.GetNamePlates and C_Spell and C_Spell.IsSpellInRange and N.wrath) then return 0 end
+	local ok, list = pcall(C_NamePlate.GetNamePlates)
+	if not ok or type(list) ~= "table" then return 0 end
+	local mine = UnitLevel("player")
+	if secret(mine) or type(mine) ~= "number" then return 0 end
+	local n = 0
+	for _, plate in ipairs(list) do
+		local okU, unit = pcall(function()
+			return plate.namePlateUnitToken or (plate.UnitFrame and plate.UnitFrame.unit)
+		end)
+		if okU and type(unit) == "string" then
+			local ok2, hostile, dead, isTarget, lvl, near = pcall(function()
+				return UnitCanAttack("player", unit), UnitIsDead(unit), UnitIsUnit(unit, "target"),
+					UnitLevel(unit), C_Spell.IsSpellInRange(N.wrath, unit)
+			end)
+			if ok2 and not (secret(hostile) or secret(dead) or secret(isTarget) or secret(lvl) or secret(near))
+				and hostile and not dead and not isTarget and near
+				and type(lvl) == "number" and (lvl <= 0 or lvl >= mine - 6) then
+				n = n + 1
+			end
+		end
+	end
+	return n
+end
+ns.DruidCrowd = crowd -- read by the tests
+
 local adds = { n = 0, at = 0, warned = false }
 
 -- name#level, and #level for any mob of that level
@@ -1191,6 +1220,16 @@ local function update()
 				end
 			end
 			if action ~= "hold" then label = tr(red and "danger" or "fight", key) end
+			-- a camp: four more enemies close holds the key, two warn
+			if action ~= "hold" and not UnitAffectingCombat("player") then
+				local more = crowd()
+				if more >= 4 and not db.brave then
+					action = "hold"
+					label = "|cffff3030" .. tr("camp", more) .. "|r"
+				elseif more >= 2 then
+					label = "|cffffa020" .. tr("crowd", key, more) .. "|r"
+				end
+			end
 			-- a mob known to have little health: spells, no form
 			local name = UnitName("target")
 			local m = db.nuke and macros.nuke and s.form == "none" and not secret(name) and not secret(lvl) and name

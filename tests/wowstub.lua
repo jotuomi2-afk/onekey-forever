@@ -145,6 +145,7 @@ function UnitName(u) if u == "target" then return STUB.targetName end return "Te
 function UnitIsPlayer(u) return u == "target" and STUB.targetIsPlayer == true end
 function UnitExists(u) if u == "target" then return STUB.targetName ~= nil end return u == "player" end
 function UnitIsDead() return false end
+function UnitIsUnit(a, b) return a == b end
 function UnitIsDeadOrGhost() return false end
 function UnitCanAttack(a, b) return b == "target" and STUB.targetName ~= nil end
 function UnitIsFriend() return false end
