@@ -68,7 +68,7 @@ python3 tools/build.py            # all of the above, then dist/OneKeyForever-<v
 
 How the tests and the security checks fit together, and the Claude agents and
 skills that run them: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
-Releasing: [docs/RELEASE.md](docs/RELEASE.md).
+Releasing: [docs/RELEASE.md](docs/RELEASE.md); CurseForge: [docs/curseforge/](docs/curseforge/).
 
 ## Licence
 

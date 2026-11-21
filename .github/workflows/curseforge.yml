@@ -1,0 +1,95 @@
+name: curseforge
+
+# When a GitHub release is published (by a person, from the draft the
+# release workflow made), the same tested zip goes to CurseForge. Nothing
+# is rebuilt here, and nothing runs until the owner has set:
+#   Settings → Secrets and variables → Actions
+#     secret   CF_API_KEY        (authors.curseforge.com → API Tokens)
+#     variable CF_PROJECT_ID     (the number on the CurseForge project page)
+#     variable CF_GAME_VERSION   (the Forever version name as CurseForge
+#                                 lists it; a run without it prints the list)
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to upload, e.g. v0.32.0"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: release
+    env:
+      CF_API_KEY: ${{ secrets.CF_API_KEY }}
+      CF_PROJECT_ID: ${{ vars.CF_PROJECT_ID }}
+      CF_GAME_VERSION: ${{ vars.CF_GAME_VERSION }}
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      REPO: ${{ github.repository }}
+      PRERELEASE: ${{ github.event.release.prerelease || false }}
+    steps:
+      - name: Settings present
+        run: |
+          if [ -z "$CF_API_KEY" ] || [ -z "$CF_PROJECT_ID" ]; then
+            echo "CF_API_KEY or CF_PROJECT_ID not set: nothing to upload."; exit 0
+          fi
+          echo "ready=1" >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        if: env.ready == '1'
+        with:
+          persist-credentials: false
+      - name: Fetch the released zip and check its SHA-256
+        if: env.ready == '1'
+        run: |
+          case "$TAG" in v[0-9]*.[0-9]*.[0-9]*) ;; *) echo "bad tag $TAG"; exit 1;; esac
+          v="${TAG#v}"
+          base="https://github.com/$REPO/releases/download/$TAG"
+          curl -fsSL -o "OneKeyForever-$v.zip" "$base/OneKeyForever-$v.zip"
+          curl -fsSL -o "OneKeyForever-$v.zip.sha256" "$base/OneKeyForever-$v.zip.sha256"
+          sha256sum -c "OneKeyForever-$v.zip.sha256"
+          awk -v v="$v" '$0 ~ "^## "v {f=1; next} /^## / && f {exit} f' CHANGELOG.md > notes.md
+          test -s notes.md || echo "OneKey Forever $v" > notes.md
+          echo "ZIP=OneKeyForever-$v.zip" >> "$GITHUB_ENV"
+          echo "VERSION=$v" >> "$GITHUB_ENV"
+      - name: Upload to CurseForge
+        if: env.ready == '1'
+        run: |
+          python3 -I - <<'PY'
+          import json, os, subprocess, sys, urllib.request
+          key = os.environ["CF_API_KEY"]
+          req = urllib.request.Request("https://wow.curseforge.com/api/game/versions",
+                                       headers={"X-Api-Token": key})
+          versions = json.load(urllib.request.urlopen(req, timeout=30))
+          want = os.environ.get("CF_GAME_VERSION", "").strip()
+          ids = [v["id"] for v in versions if want and v.get("name") == want]
+          if not ids:
+              print("Set the variable CF_GAME_VERSION to the Forever version's name. Names CurseForge knows:")
+              for v in versions:
+                  print(" ", v.get("name"), "(type", v.get("gameVersionTypeID"), ")")
+              sys.exit(1)
+          meta = {
+              "changelog": open("notes.md", encoding="utf-8").read(),
+              "changelogType": "markdown",
+              "displayName": "OneKey Forever " + os.environ["VERSION"],
+              "gameVersions": ids[:1],
+              "releaseType": "beta" if os.environ.get("PRERELEASE") == "true" else "release",
+          }
+          with open("meta.json", "w", encoding="utf-8") as f:
+              json.dump(meta, f)
+          project = os.environ["CF_PROJECT_ID"]
+          if not project.isdigit():
+              sys.exit("CF_PROJECT_ID must be the project number")
+          out = subprocess.run(
+              ["curl", "-fsS", "-H", "X-Api-Token: " + key,
+               "-F", "metadata=<meta.json;type=application/json",
+               "-F", "file=@" + os.environ["ZIP"],
+               "https://wow.curseforge.com/api/projects/%s/upload-file" % project],
+              capture_output=True, text=True)
+          print(out.stdout or out.stderr)
+          sys.exit(out.returncode)
+          PY
