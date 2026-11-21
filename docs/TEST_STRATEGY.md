@@ -79,6 +79,8 @@ Likelihood (L) and impact (I) are rated 1–3; their product sets the depth of t
 | REQ-30 | Prowl pressed outside cat form shifts to cat first: Prowl on the bars becomes the OKD Prowl macro, once per slot, out of combat | druid: Prowl on the bar |
 | REQ-31 | Out of combat, in water F holds Aquatic Form, and on land again the fighting form | druid: in water |
 | REQ-32 | Hunter: in melee the HUD points to Ctrl+F (Wing Clip, Mongoose Bite, Raptor Strike); the spoken error is off (restorable) | hunter: in melee |
+| REQ-33 | Warlock: F puts Corruption, Bane of Agony and Siphon Life on once per target, then wands (Shadow Bolt only with no wand); no F line cuts Drain Life short | warlock: DoTs once |
+| REQ-34 | Every class writes the session log (S, T, C+, P, A, C-, X, D, L, Z) that tools/analyze_log.py reads; other players are written as "player"; /okd log on/off/clear | log: every class |
 | REQ-25 | The mage keeps the Frostbolt slow up: Fireball only opens | macro: mage opens |
 | REQ-23 | The HUD tells a mage in melee to Frost Nova, then Ice Lance and step back | hud: mage hit in melee |
 | REQ-20 |
@@ -124,6 +126,8 @@ point to several tests; names are matched on their beginning.
 | REQ-30 | Prowl pressed outside cat form shifts to cat first: Prowl on the bars becomes the OKD Prowl macro, once per slot, out of combat | druid: Prowl on the bar |
 | REQ-31 | Out of combat, in water F holds Aquatic Form, and on land again the fighting form | druid: in water |
 | REQ-32 | Hunter: in melee the HUD points to Ctrl+F (Wing Clip, Mongoose Bite, Raptor Strike); the spoken error is off (restorable) | hunter: in melee |
+| REQ-33 | Warlock: F puts Corruption, Bane of Agony and Siphon Life on once per target, then wands (Shadow Bolt only with no wand); no F line cuts Drain Life short | warlock: DoTs once |
+| REQ-34 | Every class writes the session log (S, T, C+, P, A, C-, X, D, L, Z) that tools/analyze_log.py reads; other players are written as "player"; /okd log on/off/clear | log: every class |
 | REQ-25 | The mage keeps the Frostbolt slow up: Fireball only opens | macro: mage opens |
 | REQ-23 | The HUD tells a mage in melee to Frost Nova, then Ice Lance and step back | hud: mage hit in melee |
 | REQ-20 | With no enemy targeted, the key only targets; the next update checks the target before attacking | macro: every class; smoke: |

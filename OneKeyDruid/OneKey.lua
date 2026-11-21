@@ -16,7 +16,7 @@ if CLASS == "DRUID" then return end
 local CL = ns.CLASSES and ns.CLASSES[CLASS]
 local Logic = ns.Logic
 
-local VERSION = "0.30.4"
+local VERSION = "0.31.0"
 local PREFIX = "|cff7fd4ffOneKey|r "
 local LIMIT = 255
 local NAMES = { fight = "OneKeyMain", heal = "OneKeyHeal", cc = "OneKeyAlt", behind = "OneKeyCtrl",
@@ -34,6 +34,7 @@ local current = { text = nil }
 local clicks = {}
 local live = { start = 0, times = {} }
 local adds = { n = 0, at = 0, warned = false }
+local logEvent -- the session log, further down
 
 local function say(msg) print(PREFIX .. msg) end
 local function secret(v) return v ~= nil and issecretvalue ~= nil and issecretvalue(v) and true or false end
@@ -78,6 +79,12 @@ local function readSpells()
 	for key, s in pairs(CL.spells) do
 		local name = spellName(s[1]) or s[2]
 		N[key], known[key] = name, isKnown(s[1], name) or nil
+	end
+	-- a wand in the ranged slot (for classes whose filler is the wand)
+	known.wand = nil
+	if CL.wand and IsEquippedItemType then
+		local ok, w = pcall(IsEquippedItemType, "Wands")
+		if ok and w and not secret(w) then known.wand = true end
 	end
 end
 
@@ -167,6 +174,8 @@ local function line(e)
 		if #list == 0 then return nil end
 		if #list == 1 and e.once then return ("/castsequence %sreset=target %s, null"):format(e[3] or "", list[1]) end
 		if #list == 1 then return ("/cast %s%s"):format(e[3] or "", list[1]) end
+		-- stop: once through per target, then the line is passed over
+		if e.stop then list[#list + 1] = "null" end
 		return ("/castsequence %sreset=%s %s"):format(e[3] or "", e[4] or "target", table.concat(list, ", "))
 	end
 end
@@ -209,7 +218,7 @@ local function rebuild()
 	for _, e in ipairs(CL.fight or {}) do all[#all + 1] = e end
 	-- with nothing learned that hits, the wand or the white swing does it
 	macros.fight = build(all, head)
-	if CL.wand and known.shoot and not CL.melee then
+	if CL.wand and known.shoot and not CL.melee and not CL.wandFiller then
 		-- out of mana the spells above are skipped (not stopped on) and the
 		-- wand shoots; "!" keeps a second press from turning it off
 		macros.fight = fit({ { macros.fight, 1 }, { ("/cast [harm,nodead,nochanneling] !%s"):format(N.shoot), 2 } })
@@ -269,6 +278,8 @@ local function apply(text, label)
 	if hud then hud.text:SetText(label or "") end
 	if locked() or text == current.text then return end
 	current.text = text
+	current.what = "out"
+	for k, v in pairs(macros) do if v == text then current.what = k end end
 	buttons.fight:SetAttribute("macrotext", text or "")
 end
 
@@ -593,7 +604,13 @@ local function secureButton(name)
 		b:SetAttribute("type", "macro")
 		b:SetAttribute("macrotext", "")
 	end
-	b:HookScript("PreClick", function() clicks[#clicks + 1] = GetTime() if #clicks > 12 then table.remove(clicks, 1) end end)
+	local what
+	for k, v in pairs(NAMES) do if v == name then what = k end end
+	b:HookScript("PreClick", function(_, _, down)
+		clicks[#clicks + 1] = GetTime() if #clicks > 12 then table.remove(clicks, 1) end
+		-- a key held down clicks on both down and up; count one press
+		if logEvent and down ~= false then logEvent("P", (what == "fight" and not locked()) and (current.what or "out") or what) end
+	end)
 	return b
 end
 
@@ -612,6 +629,111 @@ local function bindKey()
 	end
 end
 
+
+---------------------------------------------------------------------------
+-- Session log (same lines as the druid's, so tools/analyze_log.py reads it)
+---------------------------------------------------------------------------
+-- "seconds|code|fields": S start (epoch, level, xp, xp max, rested, zone),
+-- C+ fight starts (target name, level, classification), C- fight ends
+-- (seconds, xp, hits taken, most attackers), X xp (amount, kill|other),
+-- A own spell cast, P key presses (key, count), D+/D- died/alive,
+-- L level up, Z zone. Secret values are written as "?"; other players'
+-- names as "player". /okd log on|off|clear.
+
+local LOG_MAX = 8000
+local lg = { t0 = 0, n = 0 }
+
+local function plain(v)
+	if v == nil or secret(v) then return "?" end
+	return tostring(v)
+end
+
+local function flushPresses()
+	if not lg.pressWhat then return end
+	local lines = db.lines
+	lines[#lines + 1] = ("%.1f|P|%s|%d"):format(lg.pressAt - lg.t0, lg.pressWhat, lg.pressCount)
+	lg.pressWhat, lg.pressCount = nil, 0
+end
+
+logEvent = function(code, ...)
+	if not db or not db.log or not db.lines or lg.t0 == 0 then return end
+	if code == "P" then
+		local what = ...
+		if lg.pressWhat ~= what then
+			flushPresses()
+			lg.pressWhat, lg.pressCount, lg.pressAt = what, 0, GetTime()
+		end
+		lg.pressCount = lg.pressCount + 1
+		return
+	end
+	flushPresses()
+	local t = { ("%.1f"):format(GetTime() - lg.t0), code }
+	for i = 1, select("#", ...) do t[#t + 1] = (plain((select(i, ...))):gsub("|", "/")) end
+	local lines = db.lines
+	lines[#lines + 1] = table.concat(t, "|")
+	if #lines > LOG_MAX then
+		local keep = {}
+		for i = math.floor(LOG_MAX / 5) + 1, #lines do keep[#keep + 1] = lines[i] end
+		db.lines = keep
+	end
+end
+
+local function xpNow()
+	local x, m = UnitXP and UnitXP("player"), UnitXPMax and UnitXPMax("player")
+	if secret(x) or secret(m) then return nil end
+	return x, m
+end
+
+local function logXp()
+	local x, m = xpNow()
+	if not x then return end
+	if lg.xp then
+		local gain = x - lg.xp
+		if gain < 0 then gain = (lg.xpMax or 0) - lg.xp + x end
+		if gain > 0 then
+			if lg.inFight then lg.fightXp = lg.fightXp + gain end
+			logEvent("X", gain, (lg.inFight or GetTime() - (lg.fightEnd or -9) < 3) and "kill" or "other", lg.lastName, lg.lastLevel)
+		end
+	end
+	lg.xp, lg.xpMax = x, m
+end
+
+local function logTarget()
+	if targetKind() ~= "hostile" then return nil end
+	local name, lvl = UnitName("target"), UnitLevel("target")
+	local class = UnitClassification and UnitClassification("target")
+	local isPlayer = UnitIsPlayer and UnitIsPlayer("target")
+	if isPlayer and not secret(isPlayer) then name = "player" end
+	return plain(name), plain(lvl), plain(class)
+end
+
+local function logStart()
+	db.lines = db.lines or {}
+	lg.t0 = GetTime()
+	lg.xp, lg.xpMax = xpNow()
+	logEvent("S", time and time() or 0, UnitLevel("player"), lg.xp, lg.xpMax,
+		GetXPExhaustion and GetXPExhaustion() or 0, GetRealZoneText and GetRealZoneText() or "?", CLASS)
+end
+
+local function logCombat(on)
+	if on then
+		local name, lvl, class = logTarget()
+		if name then lg.lastName, lg.lastLevel = name, lvl end
+		lg.inFight, lg.fightAt, lg.fightXp, lg.hits, lg.most = true, GetTime(), 0, 0, 0
+		logEvent("C+", name, lvl, class)
+	elseif lg.inFight then
+		lg.inFight, lg.fightEnd = false, GetTime()
+		logEvent("C-", ("%.1f"):format(GetTime() - lg.fightAt), lg.fightXp, lg.hits, lg.most)
+	end
+end
+
+local function logCast(spellID)
+	if secret(spellID) or type(spellID) ~= "number" or not (C_Spell and C_Spell.GetSpellName) then return end
+	local ok, name = pcall(C_Spell.GetSpellName, spellID)
+	if ok and name and not secret(name) then logEvent("A", name) end
+end
+ns.OneKeyLog = function() return db and db.lines end -- read by the tests
+
 ---------------------------------------------------------------------------
 -- Loop, alarm, events
 ---------------------------------------------------------------------------
@@ -629,6 +751,7 @@ local function alarmTick()
 end
 
 local function enterCombat()
+	logCombat(true)
 	live.start, live.times = GetTime(), {}
 	adds.warned = false
 	if db.alarm ~= false and not alarm.on and GetTime() - (clicks[#clicks] or 0) >= 30 then
@@ -651,6 +774,7 @@ local function update()
 		local now = GetTime()
 		if now - adds.at >= 0.5 then
 			adds.at, adds.n = now, attackers()
+			if lg.inFight and adds.n > lg.most then lg.most = adds.n end
 			if adds.n >= 2 and not adds.warned then
 				adds.warned = true
 				if db.sound ~= false and PlaySound then pcall(PlaySound, 8959) end
@@ -702,6 +826,8 @@ driver:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		-- English by default; 0.29 moves every character to it once
 		-- (Finnish: /okd lang fi)
 		if db.lang == nil or (db.langSet or 0) < 29 then db.lang, db.langSet = "en", 29 end
+		-- the session log is on unless turned off (/okd log off)
+		if db.log == nil then db.log = true end
 	elseif event == "PLAYER_LOGIN" then
 		if not CL then say(tr("noClass")) return end
 		buttons.fight = secureButton(NAMES.fight)
@@ -709,6 +835,7 @@ driver:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		createHud()
 		bindKey()
 		ready = true
+		if db.log then logStart() end
 		if C_Timer and C_Timer.After then C_Timer.After(3, trackGathering) end
 		-- the alarm must be heard with the game in the background; the old
 		-- setting is kept and comes back with /okd alarm off
@@ -737,6 +864,7 @@ driver:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 	elseif event == "PLAYER_REGEN_DISABLED" then
 		enterCombat()
 	elseif event == "PLAYER_REGEN_ENABLED" then
+		logCombat(false)
 		current.text = nil
 		adds.n = 0
 		if #secureLater > 0 then
@@ -746,10 +874,13 @@ driver:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		end
 		bindKey()
 	elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
-		if arg1 == "player" then noteCast(arg3) end
+		if arg1 == "player" then noteCast(arg3) logCast(arg3) end
 	elseif event == "UNIT_COMBAT" then
 		-- only damage taken counts as a hit (not heals, dodges or misses)
-		if arg1 == "player" and arg2 == "WOUND" then live.times[#live.times + 1] = GetTime() end
+		if arg1 == "player" and arg2 == "WOUND" then
+			live.times[#live.times + 1] = GetTime()
+			if lg.inFight then lg.hits = lg.hits + 1 end
+		end
 	elseif event == "BAG_UPDATE_DELAYED" then
 		bagsDirty = true
 	elseif event == "MERCHANT_SHOW" then
@@ -759,15 +890,29 @@ driver:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		end
 		if not potion then need[#need + 1] = "Healing Potion" end
 		if #need > 0 then say((db.lang == "fi" and "osta: " or "buy: ") .. table.concat(need, " · ")) end
+	elseif event == "PLAYER_XP_UPDATE" then
+		logXp()
+	elseif event == "PLAYER_DEAD" then
+		logEvent("D+", lg.lastName, lg.lastLevel)
+	elseif event == "ZONE_CHANGED_NEW_AREA" then
+		logEvent("Z", GetRealZoneText and GetRealZoneText() or "?")
+	elseif event == "PLAYER_TARGET_CHANGED" then
+		if not locked() then
+			local name, lvl, class = logTarget()
+			if name then lg.lastName, lg.lastLevel = name, lvl logEvent("T", name, lvl, class) end
+		end
 	elseif event == "PLAYER_UNGHOST" or event == "PLAYER_ALIVE" then
+		if not UnitIsDeadOrGhost("player") then logEvent("D-") end
 		if C_Timer and C_Timer.After then C_Timer.After(2, trackGathering) end
 	else
+		if event == "PLAYER_LEVEL_UP" then logEvent("L", arg1) end
 		dirty = true
 	end
 end)
 for _, e in ipairs({ "ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED",
 	"BAG_UPDATE_DELAYED", "SPELLS_CHANGED", "PLAYER_LEVEL_UP", "PLAYER_ENTERING_WORLD", "MERCHANT_SHOW",
-	"PLAYER_UNGHOST", "PLAYER_ALIVE", "QUEST_LOG_UPDATE" }) do
+	"PLAYER_UNGHOST", "PLAYER_ALIVE", "QUEST_LOG_UPDATE", "PLAYER_XP_UPDATE", "PLAYER_DEAD",
+	"ZONE_CHANGED_NEW_AREA", "PLAYER_TARGET_CHANGED", "PLAYER_EQUIPMENT_CHANGED" }) do
 	pcall(driver.RegisterEvent, driver, e)
 end
 pcall(driver.RegisterUnitEvent, driver, "UNIT_COMBAT", "player")
@@ -844,6 +989,10 @@ SlashCmdList.ONEKEYDRUID = function(msg)
 		local advice, fit = Logic.Route(lvl, zone)
 		say(("level %d in %s. %s"):format(lvl, zone, advice or "This zone still fits."))
 		for _, z in ipairs(fit) do say(("  %s (%d-%d)"):format(z[3], z[1], z[2])) end
+	elseif cmd == "log" and (rest == "on" or rest == "off" or rest == "clear") then
+		if rest == "clear" then db.lines = {} else db.log = rest == "on" end
+		if db.log then logStart() end
+		say("session log " .. (db.log and "on" or "off") .. ".")
 	elseif cmd == "ranks" then
 		if ns.Ranks then ns.Ranks.Slash(rest, say) end
 	elseif cmd == "status" then
@@ -854,6 +1003,6 @@ SlashCmdList.ONEKEYDRUID = function(msg)
 	else
 		say(VERSION .. " — " .. CLASS:lower())
 		print("  bind KEY · sos KEY|off · lang en|fi · brave on|off · alarm on|off · herbs on|off")
-		print("  quests · go · where · status · ranks [on|off]")
+		print("  quests · go · where · status · ranks [on|off] · log on|off|clear")
 	end
 end

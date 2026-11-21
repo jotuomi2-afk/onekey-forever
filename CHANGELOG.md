@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.31.0
+
+- Warlock, F: the pet goes in, then Corruption, Bane of Agony and Siphon
+  Life (when learned) go on once per target, and then the wand shoots until
+  the mob dies. Before, Shadow Bolt was the filler: it spent all the mana,
+  and the wand line after it was never reached.
+  - With no wand on, Shadow Bolt is the filler as before.
+  - No line of F cuts Drain Life (Shift+F) short.
+  - Ctrl+F: Immolate once, then Shadow Bolt, for a mob that must die fast.
+- Every class now writes the session log, like the druid (on by default,
+  `/okd log on|off|clear`): fights, casts, key presses, experience, deaths,
+  level-ups, zones. `tools/analyze_log.py` reads it. Other players are
+  written as "player".
+
 ## 0.30.4
 
 - Hunter, in melee: when the mob is on you, a large HUD line says "IN

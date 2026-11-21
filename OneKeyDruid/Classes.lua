@@ -174,24 +174,35 @@ C.PRIEST = {
 	sos = { { "cast", "pws", "[@player]" }, { "potion" } },
 }
 
+local HC = "[harm,nodead,nochanneling] "
 C.WARLOCK = {
 	melee = false, wand = true, pet = true,
 	spells = {
 		sb = { 686, "Shadow Bolt" }, immolate = { 348, "Immolate" }, corruption = { 172, "Corruption" },
-		agony = { 980, "Curse of Agony" }, drain = { 689, "Drain Life" }, tap = { 1454, "Life Tap" },
+		-- Forever calls it Bane of Agony; the name comes from the id
+		agony = { 980, "Curse of Agony" }, siphon = { 18265, "Siphon Life" },
+		drain = { 689, "Drain Life" }, tap = { 1454, "Life Tap" },
 		skin = { 687, "Demon Skin" }, armor = { 706, "Demon Armor" }, fear = { 5782, "Fear" },
 		coil = { 6789, "Death Coil" }, shoot = { 5019, "Shoot" }, health = { 755, "Health Funnel" },
 	},
 	buffs = { { "armor", "skin" } },
 	pull = {},
+	-- Levelling the affliction way: the pet in, each damage over time once
+	-- per target, then the wand, which costs no mana, until the mob dies.
+	-- Shadow Bolt is the filler only with no wand on. "wand" is known when
+	-- a wand is equipped (OneKey.lua).
+	-- [nochanneling]: a press during Drain Life does not cut it short.
 	fight = {
 		{ "raw", "/petattack [harm,nodead]" },
-		{ "once", "corruption", H }, { "once", "agony", H }, { "once", "immolate", H },
-		{ "cast", "sb", H },
+		{ "seq", { "corruption", "agony", "siphon" }, HC, "target", once = true, stop = true },
+		{ "cast", "sb", HC, without = "wand" },
+		{ "cast", "shoot", HC, bang = true, need = "wand" },
 	},
+	wandFiller = true,
 	heal = { { "cast", "drain", H } },
 	cc = { { "cast", "fear", H } },
-	behind = { { "cast", "shoot", H } },
+	-- Ctrl: burst for a mob that must die fast: Immolate once, Shadow Bolt
+	behind = { { "once", "immolate", H }, { "cast", "sb", H } },
 	sos = { { "cast", "fear", H }, { "potion" } },
 	free = { { "cast", "tap", "" } },
 }

@@ -1015,6 +1015,90 @@ def main():
                 p.append("%s: with no target the key does more than target: %r" % (cls.lower(), main[:60]))
         return p
 
+    @S.test("warlock: DoTs once, then the wand; Shadow Bolt only with no wand; a press keeps Drain Life")
+    def _():
+        p = []
+        probe, _ = load_addon(new_lua(), ["Classes.lua"])
+        spells = {v[1]: v[2] for v in probe.CLASSES["WARLOCK"].spells.values()}
+        for wand in (True, False):
+            lua = new_lua()
+            set_class(lua, "WARLOCK", 9, 30, spells)
+            lua.execute("STUB.buffs = {} STUB.wand = %s" % ("true" if wand else "false"))
+            ns, errs = load_addon(lua)
+            p += errs
+            fire = lua.eval("STUB.fire")
+            for e in ("ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD"):
+                p += lua_list(fire(e, "OneKeyDruid"))
+            p += lua_list(lua.eval("STUB.tick")(4, 0.25))
+            f = ns.OneKeyMacros.fight or ""
+            acts = [l for l in f.split("\n") if l.startswith(("/cast", "/use"))]
+            for dot in ("Corruption", "Curse of Agony", "Siphon Life"):
+                if not any(dot in l and l.startswith("/castsequence") and l.endswith("null") for l in acts):
+                    p.append("wand=%s: %s is not cast once per target: %r" % (wand, dot, f))
+            if "Immolate" in f:
+                p.append("Immolate costs too much mana for F: %r" % f)
+            last = acts[-1] if acts else ""
+            if wand and ("!Shoot" not in last or "Shadow Bolt" in f):
+                p.append("with a wand the filler must be the wand, last: %r" % f)
+            if not wand and ("Shadow Bolt" not in last or "Shoot" in f):
+                p.append("with no wand the filler must be Shadow Bolt: %r" % f)
+            for l in acts:
+                if "nochanneling" not in l:
+                    p.append("%r would cut Drain Life short" % l)
+            if "Drain Life" not in (ns.OneKeyMacros.heal or "") or "Life Tap" not in (ns.OneKeyMacros.free or ""):
+                p.append("Drain Life on Shift+F and Life Tap on Shift+G expected")
+            if "Immolate" not in (ns.OneKeyMacros.behind or ""):
+                p.append("Ctrl+F burst lost Immolate")
+        return p
+
+    @S.test("log: every class writes the session log the analyzer reads (no player names)")
+    def _():
+        p = []
+        probe, _ = load_addon(new_lua(), ["Classes.lua"])
+        spells = {v[1]: v[2] for v in probe.CLASSES["WARLOCK"].spells.values()}
+        lua = new_lua()
+        set_class(lua, "WARLOCK", 9, 20, spells)
+        lua.execute("STUB.buffs = {}")
+        ns, errs = load_addon(lua)
+        p += errs
+        fire, tick, click = lua.eval("STUB.fire"), lua.eval("STUB.tick"), lua.eval("STUB.click")
+        for e in ("ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD"):
+            p += lua_list(fire(e, "OneKeyDruid"))
+        p += lua_list(tick(4, 0.25))
+        lua.execute('STUB.targetName = "Defias Pillager" STUB.targetLevel = 20')
+        p += lua_list(fire("PLAYER_TARGET_CHANGED"))
+        p += lua_list(fire("PLAYER_REGEN_DISABLED"))
+        lua.execute("STUB.combat = true")
+        for _ in range(3):
+            p += lua_list(click("OneKeyMain", True))
+        p += lua_list(lua.eval("STUB.castDone")(172))
+        p += lua_list(fire("UNIT_COMBAT", "player", "WOUND", "", 10, 1))
+        p += lua_list(tick(8, 0.25))
+        lua.execute("STUB.combat = false")
+        p += lua_list(fire("PLAYER_REGEN_ENABLED"))
+        p += lua_list(fire("PLAYER_LEVEL_UP", 21))
+        lines = lua_list(ns.OneKeyLog())
+        codes = [l.split("|")[1] for l in lines]
+        for c in ("S", "T", "C+", "P", "A", "C-", "L"):
+            if c not in codes:
+                p.append("no %s line in %r" % (c, lines))
+        if not any(l.split("|")[1:3] == ["P", "fight"] and l.endswith("|3") for l in lines):
+            p.append("three fight presses not one P line: %r" % lines)
+        if not any(l.split("|")[1:3] == ["A", "Corruption"] for l in lines):
+            p.append("the cast is not logged: %r" % lines)
+        cm = [l for l in lines if "|C-|" in l]
+        if cm and cm[0].split("|")[4] != "1":
+            p.append("the hit is not counted: %r" % cm)
+        # another player as the target: the name stays out
+        lua.execute('STUB.targetIsPlayer = true STUB.targetName = "Someone"')
+        p += lua_list(fire("PLAYER_TARGET_CHANGED"))
+        if any("Someone" in l for l in lua_list(ns.OneKeyLog())):
+            p.append("a player's name in the log")
+        e = lua.eval("STUB.slash")("log off")
+        if e or lua.eval("OneKeyDruidDB.log"):
+            p.append("/okd log off: %r" % e)
+        return p
+
     @S.test("ranks: a new rank replaces the old one on the bars, never in combat, only once")
     def _():
         p = []

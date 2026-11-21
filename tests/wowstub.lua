@@ -142,6 +142,7 @@ function UnitRace(u) return STUB.race, STUB.race, STUB.raceId end
 function UnitFactionGroup() return STUB.faction end
 function UnitLevel(u) if u == "player" then return STUB.level end return STUB.targetLevel or STUB.level end
 function UnitName(u) if u == "target" then return STUB.targetName end return "Tester" end
+function UnitIsPlayer(u) return u == "target" and STUB.targetIsPlayer == true end
 function UnitExists(u) if u == "target" then return STUB.targetName ~= nil end return u == "player" end
 function UnitIsDead() return false end
 function UnitIsDeadOrGhost() return false end
@@ -185,6 +186,7 @@ function GetZoneText() return STUB.zone end
 function GetSubZoneText() return "" end
 function GetMoney() return 10000 end
 function GetInventoryItemDurability() return 50, 100 end
+function IsEquippedItemType(t) return t == "Wands" and STUB.wand ~= false end
 function GetCVarBool() return false end
 STUB.cvars = { Sound_EnableErrorSpeech = "1", Sound_EnableSoundWhenGameIsInBG = "0" }
 function SetCVar(k, v) STUB.cvars[k] = tostring(v) end
@@ -326,6 +328,18 @@ C_Minimap = {
 	SetTracking = function() end,
 }
 C_NamePlate = { GetNamePlates = function() return {} end }
+-- a key press on a named secure button: its PreClick scripts run
+function STUB.click(name, down)
+	local errs = {}
+	for _, s in ipairs(STUB.scripts) do
+		if s.event == "PreClick" and rawget(s.frame, "_name") == name then
+			local ok, e = pcall(s.fn, s.frame, "LeftButton", down)
+			if not ok then errs[#errs + 1] = tostring(e) end
+		end
+	end
+	return errs
+end
+
 -- timers are real: STUB.tick runs every callback that is due
 STUB.timers = {}
 STUB.cds = {}
