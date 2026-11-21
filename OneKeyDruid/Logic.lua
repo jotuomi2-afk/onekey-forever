@@ -562,7 +562,7 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 	-- comes last. It does not use the global cooldown, so it goes in on the
 	-- same press as the heal, and when it is on cooldown nothing is lost
 	-- after it. Bash stays on Alt+F.
-	local sos, graspLine = {}, nil
+	local sos, graspLine, manaFirst = {}, nil, false
 	-- Leaving the form costs mana to get back into it: only when the mana
 	-- is proven to cover Rejuvenation and the form; otherwise the bear stays
 	-- (and the potion) and the heal key does the healing.
@@ -633,11 +633,22 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 		sos[#sos + 1] = { plainSeq, 1, nil, nil, grasp = graspLine }
 	elseif B then
 		-- no mana to leave: stay a bear, a cat goes straight into the bear
-		-- (one shift, more armour and health), or back into it from caster
+		-- (one shift, more armour and health), or back into it from caster.
+		-- Short of mana, a mana potion comes first, once (it does not use the
+		-- global cooldown, so the bear follows on the same press): without
+		-- mana the bear fails, and a failed cast stops the macro.
 		local cat = C and ("[form:%d]"):format(C) or ""
+		if items.manaPotion then
+			-- once a fight: on later presses the potion is on its cooldown,
+			-- and a failed use would stop the bear behind it
+			sos[#sos + 1] = { ("/castsequence [combat] reset=combat item:%d, null"):format(items.manaPotion), 1 }
+			manaFirst = true
+		end
 		sos[#sos + 1] = { ("/cast %s[noform] %s"):format(cat, bearName), 1 }
 	end
-	if items.potion then sos[#sos + 1] = { ("/use [combat] item:%d"):format(items.potion), 1 } end
+	-- the healing potion last; potions share a cooldown, so not after a
+	-- mana potion (Core leaves out a potion still cooling as a fight starts)
+	if items.potion and not manaFirst then sos[#sos + 1] = { ("/use [combat] item:%d"):format(items.potion), 1 } end
 	local plain, with = {}, {}
 	for i = 1, #sos do
 		plain[i] = { sos[i][1], sos[i][2] }

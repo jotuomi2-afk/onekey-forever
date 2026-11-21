@@ -176,7 +176,7 @@ def druid_fight(lua, ns, level, mode, selfcast=True):
     return druid_macros(lua, ns, level, mode, selfcast).fight
 
 
-def druid_macros(lua, ns, level, mode, selfcast=True, mana=None):
+def druid_macros(lua, ns, level, mode, selfcast=True, mana=None, extra=""):
     """The druid macros at a level, with every spell and talent known
     (Feral Charge included), as Logic.BuildMacros makes them."""
     N = lua.eval("""{bear="Bear Form",cat="Cat Form",ht="Healing Touch",rejuv="Rejuvenation",regrowth="Regrowth",
@@ -199,8 +199,8 @@ def druid_macros(lua, ns, level, mode, selfcast=True, mana=None):
         cfg[k] = ns.Logic.DEFAULTS[k]
     cfg["enrage"] = True
     o = ns.Logic.BuildMacros(kn, N, lua.eval("{B=1,A=2,C=3}"), mode, cfg,
-                             lua.eval("{selfcast=%s,potion=118,food=4536,water=159,mana=%s}" % (
-                                 "true" if selfcast else "false", mana or "nil")))
+                             lua.eval("{selfcast=%s,potion=118,food=4536,water=159,mana=%s,%s}" % (
+                                 "true" if selfcast else "false", mana or "nil", extra)))
     return o
 
 
@@ -638,10 +638,47 @@ def main():
             p.append("G leaves cat form with no mana for the bear after: %r" % o.sos)
         if "/cast [form:3][noform] Bear Form" not in (o.sos or ""):
             p.append("a cat with no mana to spare does not go straight into the bear: %r" % o.sos)
+        # short of mana with a mana potion: the potion once, then the bear,
+        # and no healing potion behind it (they share a cooldown)
+        o = druid_macros(lua, nsl, 24, "cat", mana=poor, extra="manaPotion=3827")
+        want = ["/castsequence [combat] reset=combat item:3827, null", "/cast [form:3][noform] Bear Form"]
+        if (o.sos or "").split("\n") != want:
+            p.append("G short of mana with a mana potion is %r" % o.sos)
         rich = "{cost={%s},est=2000,max=2000}" % costs
         o = druid_macros(lua, nsl, 24, "cat", mana=rich)
         if not o.sosGrasp or "/cancelform" not in (o.sos or ""):
             p.append("with mana enough G should heal and Grasp: %r / %r" % (o.sos, o.sosGrasp))
+        return p
+
+    @S.test("druid: a potion still cooling when the fight starts is left out of G")
+    def _():
+        p = []
+        lua = new_lua()
+        set_class(lua, "DRUID", 11, 23, druid_spells(23))
+        lua.execute("""STUB.buffs = { ["Mark of the Wild"] = true, ["Thorns"] = true } STUB.form = 3
+            C_Container.GetContainerNumSlots = function(b) return b == 0 and 1 or 0 end
+            C_Container.GetContainerItemID = function() return 929 end
+            C_Item.GetItemSpell = function() return "Healing Potion" end
+            C_Item.GetItemInfo = function() return "Healing Potion", nil, nil, nil, 12 end""")
+        ns, errs = load_addon(lua)
+        p += errs
+        fire, tick = lua.eval("STUB.fire"), lua.eval("STUB.tick")
+        for e in ("ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "BAG_UPDATE_DELAYED"):
+            p += lua_list(fire(e, "OneKeyDruid"))
+        p += lua_list(tick(6, 0.25))
+
+        def sos():
+            return next((v for k, v in macro_attrs(lua).items() if "os" in k.lower() and "sos" in k.lower()), "")
+        p += lua_list(fire("PLAYER_REGEN_DISABLED"))
+        if "item:929" not in sos():
+            p.append("a ready potion is not in G: %r" % sos())
+        lua.execute("STUB.combat = false")
+        p += lua_list(fire("PLAYER_REGEN_ENABLED"))
+        p += lua_list(tick(2, 0.25))
+        lua.execute("GetItemCooldown = function() return STUB.now - 10, 120, 1 end C_Container.GetItemCooldown = GetItemCooldown")
+        p += lua_list(fire("PLAYER_REGEN_DISABLED"))
+        if "item:929" in sos():
+            p.append("a potion on its cooldown is still in G: %r" % sos())
         return p
 
     @S.test("druid: Prowl on the bar becomes cat form + Prowl, once, out of combat")

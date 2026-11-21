@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.31.3
+
+- Druid, G: when the mana is too short for the heal and the bear, G drinks
+  a mana potion (if you carry one) once in the fight, then takes the bear
+  on the same press. A macro cannot read your mana; this is the fight-start
+  budget of 0.31.2. No healing potion follows it (potions share a cooldown).
+- A potion still on its cooldown as a fight starts is left out of G: a
+  failed use stops the macro, and the bear behind it never came.
+
 ## 0.31.2
 
 - Druid, G (from the log of 21.11.): the death came when G left cat form

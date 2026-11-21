@@ -16,7 +16,7 @@ local Logic = ns.Logic
 local _, CLASS = UnitClass("player")
 if CLASS ~= "DRUID" then return end
 
-local VERSION = "0.31.2"
+local VERSION = "0.31.3"
 local BUTTON = "OneKeyDruidButton"
 -- The buttons of the modifier keys.
 local NAMES = { heal = "OneKeyDruidHeal", cc = "OneKeyDruidStop", behind = "OneKeyDruidBehind",
@@ -48,8 +48,9 @@ local db
 local N, known, forms = {}, {}, {}
 local macros = { fight = "" }
 local foodName, drinkName = "Food", "Drink"
-local food, water, potion
+local food, water, potion, manaPotion
 local potionNames = { ["Healing Potion"] = true }  -- the names a healing potion's use effect goes by
+local manaNames = { ["Restore Mana"] = true }       -- and a mana potion's
 local button, hud
 local kids = {}        -- the modifier keys' buttons, by NAMES key
 local clicks = {}      -- the last presses, for /okd status
@@ -136,6 +137,11 @@ local function readSpells()
 	for _, id in ipairs({ 439, 440, 441, 2024, 4042, 17534 }) do
 		local n = spellName(id)
 		if n then potionNames[n] = true end
+	end
+	manaNames = { ["Restore Mana"] = true }
+	for _, id in ipairs({ 437, 438, 2023, 11903, 17530, 17531 }) do
+		local n = spellName(id)
+		if n then manaNames[n] = true end
 	end
 	foodName = spellName(FOOD_SPELL) or "Food"
 	drinkName = spellName(DRINK_SPELL) or "Drink"
@@ -224,7 +230,8 @@ end
 -- required level. A setting (/okd food, /okd water) wins while it is in the bags.
 local meat = nil -- raw meat to cook: { name, n }
 local function scanBags()
-	food, water, potion, meat = nil, nil, nil, nil
+	food, water, potion, meat, manaPotion = nil, nil, nil, nil, nil
+	local bestMana = -1
 	local C = C_Container
 	if not (C and C.GetContainerNumSlots and C.GetContainerItemID) then return end
 	local itemSpell = (C_Item and C_Item.GetItemSpell) or GetItemSpell
@@ -249,6 +256,10 @@ local function scanBags()
 					local need = itemInfo and select(5, itemInfo(id)) or 0
 					need = need or 0
 					if need <= level and need > bestPotion then potion, bestPotion = id, need end
+				elseif spell and manaNames[spell] then
+					local need = itemInfo and select(5, itemInfo(id)) or 0
+					need = need or 0
+					if need <= level and need > bestMana then manaPotion, bestMana = id, need end
 				elseif spell == foodName or spell == drinkName or id == db.food or id == db.water then
 					local need = itemInfo and select(5, itemInfo(id)) or 0
 					need = need or 0
@@ -599,7 +610,7 @@ end
 
 local function items()
 	local cvar = (C_CVar and C_CVar.GetCVarBool) or GetCVarBool
-	return { food = food, water = water, potion = potion, mana = db.manasafe ~= false and manaInfo() or nil,
+	return { food = food, water = water, potion = potion, manaPotion = manaPotion, mana = db.manasafe ~= false and manaInfo() or nil,
 		selfcast = cvar and cvar("autoSelfCast") and true or false }
 end
 
@@ -1120,10 +1131,10 @@ local function update()
 	if locked() then combatHud() return end
 	hideRun()
 	if bagsDirty then
-		local f, w, p = food, water, potion
+		local f, w, p, mp = food, water, potion, manaPotion
 		scanBags()
 		bagsDirty = false
-		if f ~= food or w ~= water or p ~= potion then dirty = true end
+		if f ~= food or w ~= water or p ~= potion or mp ~= manaPotion then dirty = true end
 	end
 	-- what mana is proven to cover changes the macros: rebuild when it does
 	manaStep()
@@ -1259,9 +1270,30 @@ end
 
 -- The emergency key for this fight, set as it starts (it cannot change once
 -- the fight is on): with Nature's Grasp only when it is ready.
+-- A potion still on its cooldown would fail, and a failed use stops the
+-- macro: its line is left out of the emergency key for this fight.
+local function potionCooling(id)
+	local f = (C_Container and C_Container.GetItemCooldown) or GetItemCooldown
+	if not f then return false end
+	local ok, start, dur = pcall(f, id)
+	if not ok or secret(start) or secret(dur) or type(start) ~= "number" or type(dur) ~= "number" then return false end
+	return start > 0 and start + dur - GetTime() > 3
+end
+
+local function withoutCooling(text)
+	local out = {}
+	for l in (text .. "\n"):gmatch("(.-)\n") do
+		local id = tonumber(l:match("^/use %[combat%] item:(%d+)$")
+			or l:match("^/castsequence %[combat%] reset=combat item:(%d+), null$") or "")
+		if not (id and potionCooling(id)) then out[#out + 1] = l end
+	end
+	return table.concat(out, "\n")
+end
+
 local function pickSos()
 	if locked() or not kids.sos then return end
 	local text = (macros.sosGrasp and graspReady()) and macros.sosGrasp or macros.sos or ""
+	text = withoutCooling(text)
 	kids.sos:SetAttribute("macrotext", text)
 end
 
