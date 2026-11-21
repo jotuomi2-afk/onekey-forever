@@ -1,0 +1,18 @@
+name: Feedback or idea
+description: What works, what does not feel right, a rotation idea for your class.
+labels: [feedback]
+body:
+  - type: dropdown
+    id: class
+    attributes:
+      label: Class
+      options: [Druid, Mage, Warrior, Rogue, Hunter, Priest, Warlock, Paladin, Shaman, Any]
+  - type: textarea
+    id: text
+    attributes:
+      label: Your feedback
+      description: |
+        Ideas that need the addon to act without a key press (auto-casting, moving,
+        timers that act) cannot be done: the game and its terms of service forbid them.
+    validations:
+      required: true

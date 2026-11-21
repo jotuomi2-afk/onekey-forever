@@ -26,7 +26,7 @@ update from an older version.
 | Shift+F | heal yourself | the class's defensive spell (mage: Frost Nova) |
 | Alt+F | Bash / roots; out of combat eat and drink | crowd control; out of combat eat and drink |
 | Ctrl+F | leave form; as a cat: Shred from behind | wand or the class's extra spell |
-| G | emergency: Rejuvenation, back into form, potion | one emergency spell, then the potion |
+| G | emergency: Rejuvenation, then the bear, potion; short of mana a mana potion and straight into the bear | one emergency spell, then the potion |
 | Shift+G | cat ↔ bear (also breaks roots) | get away (mage: Blink) |
 | Ctrl+G | hide before going away (Shadowmeld) | Stealth / Shadowmeld |
 
@@ -46,7 +46,15 @@ update from an older version.
 
 `/okd` lists them all. The most used: `bind KEY`, `status`, `quests`, `go`,
 `skip`, `where`, `mode cat|bear|auto`, `brave on|off`, `prowl on|off`,
-`alarm on|off`, `herbs on|off`, `lang en|fi` (English by default).
+`alarm on|off`, `herbs on|off`, `log on|off|clear`, `lang en|fi` (English by default).
+
+## Feedback and bugs
+
+Open an issue: [bug report or feedback](../../issues/new/choose). A few
+lines of the session log around the problem help most: it is written to
+`WTF/Account/<ACCOUNT>/<server>/<character>/SavedVariables/OneKeyDruid.lua`
+on `/reload` or logout, and keeps other players' names out. Security
+problems: privately, see [SECURITY.md](SECURITY.md).
 
 ## For developers
 

@@ -1,0 +1,53 @@
+name: Bug report
+description: Something the key did wrong, a Lua error, or a death the addon should have prevented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks! Please do not paste other players' names or your account name.
+        The addon's own session log already writes other players as "player".
+  - type: input
+    id: version
+    attributes:
+      label: Addon version
+      description: "/okd status shows it (e.g. 0.31.3)"
+    validations:
+      required: true
+  - type: dropdown
+    id: class
+    attributes:
+      label: Class
+      options: [Druid, Mage, Warrior, Rogue, Hunter, Priest, Warlock, Paladin, Shaman]
+    validations:
+      required: true
+  - type: input
+    id: level
+    attributes:
+      label: Character level and form or spec
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+      description: Which key (F, Shift+F, G, ...), what it did, and what it should have done.
+    validations:
+      required: true
+  - type: textarea
+    id: macro
+    attributes:
+      label: "/okd status output (optional)"
+      description: The macro text the keys hold right now.
+      render: text
+  - type: textarea
+    id: log
+    attributes:
+      label: Session log lines around the problem (optional)
+      description: |
+        The log is in WTF/Account/<ACCOUNT>/<server>/<character>/SavedVariables/OneKeyDruid.lua,
+        written on /reload or logout. Copy the lines from the fight (C+ ... C-), not the whole file.
+      render: text
+  - type: textarea
+    id: error
+    attributes:
+      label: Lua error text (optional)
+      render: text
