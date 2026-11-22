@@ -1009,7 +1009,7 @@ def main():
                 errs.append("the alarm went quiet before the fight ended")
             return errs
 
-    def mage_session(level, extra=()):
+    def mage_session(level, extra=(), drop=()):
         probe, _ = load_addon(new_lua(), ["Classes.lua"])
         CL = probe.CLASSES["MAGE"]
         allspells = {v[1]: (v[2], k) for k, v in CL.spells.items()}
@@ -1017,6 +1017,8 @@ def main():
                    "missiles": 8, "poly": 8, "nova": 10, "shoot": 1, "blink": 20, "cone": 26}
         for k in extra:
             trained[k] = 1
+        for k in drop:
+            trained.pop(k, None)
         spells = {sid: name for sid, (name, k) in allspells.items() if trained.get(k, 99) <= level}
         lua = new_lua()
         set_class(lua, "MAGE", 8, level, spells)
@@ -1028,40 +1030,143 @@ def main():
         errs += lua_list(tick(2, 0.25))
         return lua, ns, errs, fire, tick
 
-    @S.test("macro: mage opens with the longest range (Fireball), then the Frostbolt slow")
+    @S.test("macro: mage opens with Fireball below level 15 and with Frostbolt from 15; no cooldown on F")
     def _():
         p = []
-        for level in (1, 4, 6, 10, 20, 26, 40):
+        for level in (1, 4, 6, 10, 14, 15, 20, 26, 40):
             lua, ns, errs, fire, tick = mage_session(level, ("icelance",) if level >= 20 else ())
             p += errs
             M = ns.OneKeyMacros
             fight, heal, behind = M.fight or "", M.heal or "", M.behind or ""
             casts = [l for l in fight.split("\n") if l.startswith("/cast")]
-            if not casts or "Fireball" not in casts[0]:
-                p.append("level %d: the first spell is not Fireball: %r" % (level, casts[:1]))
-            if level >= 4:
+            if level < 4:
+                if not casts or "Fireball" not in casts[0]:
+                    p.append("level %d: Fireball is not the filler before Frostbolt: %r" % (level, casts[:1]))
+            elif level < 15:
                 # Fireball once per target, then only Frostbolt: the slow never lapses
-                if "reset=target Fireball, null" not in fight:
+                if "reset=target Fireball, null" not in fight or "Fireball" not in casts[0]:
                     p.append("level %d: Fireball is not a once-per-target opener: %r" % (level, fight))
                 after = casts[1:]
                 if not after or "Frostbolt" not in after[0]:
                     p.append("level %d: Frostbolt is not the filler after the opener: %r" % (level, fight))
                 if any("Fireball" in l for l in after):
                     p.append("level %d: Fireball is cast again mid-fight (the slow can lapse)" % level)
-            for cd in ("Fire Blast", "Frost Nova", "Cone of Cold", "Ice Lance"):
+            else:
+                # the guides' frost opener: Frostbolt from the first press
+                if "Fireball" in fight:
+                    p.append("level %d: Fireball is still on F: %r" % (level, fight))
+                if not casts or "Frostbolt" not in casts[0]:
+                    p.append("level %d: the first spell is not Frostbolt: %r" % (level, casts[:1]))
+            for cd in ("Fire Blast", "Frost Nova", "Cone of Cold", "Ice Lance", "Ice Barrier"):
                 if cd in fight:
                     p.append("level %d: %s (a cooldown) is on F and can stop the macro" % (level, cd))
-            if level >= 10 and "Frost Nova" not in heal:
-                p.append("level %d: Shift+F has no Frost Nova: %r" % (level, heal))
-            if level >= 20 and "Frost Nova, Ice Lance" not in heal:
-                p.append("level %d: Shift+F does not follow Nova with Ice Lance: %r" % (level, heal))
+            if level >= 10 and not heal.startswith("/castsequence reset=10/combat Frost Nova, Frostbolt"):
+                p.append("level %d: Shift+F is not Frost Nova, then Frostbolt, starting over after 10 s: %r" % (level, heal))
+            if level >= 20 and not heal.endswith("Frost Nova, Frostbolt, Ice Lance"):
+                p.append("level %d: Shift+F does not end Nova, Frostbolt with Ice Lance: %r" % (level, heal))
             if level >= 6 and "Fire Blast" not in behind:
                 p.append("level %d: Ctrl+F has no Fire Blast: %r" % (level, behind))
             if "!Shoot" not in fight:
                 p.append("level %d: no wand fallback on F" % level)
-            for k in ("fight", "heal", "behind"):
+            for k in ("fight", "heal", "behind", "hide"):
                 if len(M[k] or "") > MACRO_LIMIT:
                     p.append("level %d %s: %d chars" % (level, k, len(M[k])))
+        return p
+
+    @S.test("mage: Ice Barrier before the pull, once; a press that fails does not hold the key")
+    def _():
+        p = []
+        lua, ns, errs, fire, tick = mage_session(40, ("icelance", "barrier", "icearmor", "magearmor"), drop=("water", "food"))
+        p += errs
+        lua.execute('STUB.buffs = { ["Arcane Intellect"] = true, ["Ice Armor"] = true }')
+        lua.execute('STUB.cooldown["Ice Barrier"] = 30')
+        lua.execute('STUB.targetName = "Dustwind Harpy" STUB.targetLevel = 40')
+        main = lambda: macro_attrs(lua).get("OneKeyMain:macrotext", "")
+        # Ice Armor is the armour kept up, not Mage Armor
+        p += lua_list(tick(4, 0.25))
+        if "Mage Armor" in main():
+            p.append("F asks for Mage Armor with Ice Armor up: %r" % main())
+        if main() != "/cast [@player] Ice Barrier":
+            p.append("with an enemy picked and no barrier, F is not Ice Barrier: %r" % main())
+        if (ns.OneKeyMacros.hide or "") != "/cast Ice Barrier":
+            p.append("Ctrl+G is not Ice Barrier: %r" % ns.OneKeyMacros.hide)
+        # the cast goes through: the buff is up, the key attacks
+        p += lua_list(lua.eval("STUB.click")("OneKeyMain", True))
+        lua.execute('STUB.buffs["Ice Barrier"] = true')
+        p += lua_list(lua.eval("STUB.castDone")(11426))
+        p += lua_list(tick(4, 0.25))
+        if "Frostbolt" not in main():
+            p.append("with the barrier up F does not attack: %r" % main())
+        # the shield is gone and still cooling: no barrier line, the key attacks
+        lua.execute('STUB.buffs["Ice Barrier"] = nil')
+        p += lua_list(tick(4, 0.25))
+        if "Frostbolt" not in main():
+            p.append("with Ice Barrier on cooldown F does not attack: %r" % main())
+        # cooldown over, but the press does nothing (no mana): one try, then attack
+        p += lua_list(tick(140, 0.25))
+        if main() != "/cast [@player] Ice Barrier":
+            p.append("after the cooldown F is not Ice Barrier again: %r" % main())
+        p += lua_list(lua.eval("STUB.click")("OneKeyMain", True))
+        p += lua_list(tick(12, 0.25))
+        if "Frostbolt" not in main():
+            p.append("a barrier press that failed holds the key: %r" % main())
+        # a new target: one more try
+        p += lua_list(fire("PLAYER_TARGET_CHANGED"))
+        p += lua_list(tick(2, 0.25))
+        if main() != "/cast [@player] Ice Barrier":
+            p.append("a new target does not get a new try: %r" % main())
+        return p
+
+    @S.test("hud: mage with five Frostbolts in is told to Cone of Cold (level 35), and to renew Ice Barrier")
+    def _():
+        p = []
+        for level in (30, 35):
+            lua, ns, errs, fire, tick = mage_session(level, ("icelance",))
+            p += errs
+            lua.execute('STUB.cooldown["Cone of Cold"] = 10')
+            p += lua_list(fire("PLAYER_REGEN_DISABLED"))
+            lua.execute("STUB.combat = true")
+            done = lua.eval("STUB.castDone")
+            for i in range(4):
+                p += lua_list(done(116))
+                p += lua_list(tick(8, 0.25))
+            if ns.OneKeyAlert():
+                p.append("level %d: a hint after four Frostbolts: %r" % (level, ns.OneKeyAlert()))
+            p += lua_list(done(116))
+            p += lua_list(tick(2, 0.25))
+            a = ns.OneKeyAlert() or ""
+            if level < 35:
+                if a:
+                    p.append("level %d: a Cone of Cold hint before Winter's Chill: %r" % (level, a))
+                continue
+            if "Cone of Cold" not in a or "Ctrl+F" not in a:
+                p.append("no Cone of Cold hint at five casts: %r" % a)
+            p += lua_list(done(120))
+            p += lua_list(tick(2, 0.25))
+            if ns.OneKeyAlert():
+                p.append("the hint stays after Cone of Cold: %r" % ns.OneKeyAlert())
+            # /okd cone off
+            for i in range(5):
+                p += lua_list(done(116))
+            lua.eval("STUB.slash")("cone off")
+            p += lua_list(tick(50, 0.25))
+            if ns.OneKeyAlert():
+                p.append("a hint with /okd cone off: %r" % ns.OneKeyAlert())
+        # Frigid Power lasts a minute: a hint to cast Ice Barrier again
+        lua, ns, errs, fire, tick = mage_session(40, ("icelance", "barrier"))
+        p += errs
+        lua.execute('STUB.buffs["Ice Barrier"] = true STUB.cooldown["Ice Barrier"] = 30')
+        p += lua_list(lua.eval("STUB.castDone")(11426))
+        p += lua_list(tick(4, 0.25))
+        p += lua_list(fire("PLAYER_REGEN_DISABLED"))
+        lua.execute("STUB.combat = true")
+        p += lua_list(tick(80, 0.25))
+        if ns.OneKeyAlert():
+            p.append("an Ice Barrier hint 20 s after the cast: %r" % ns.OneKeyAlert())
+        p += lua_list(tick(160, 0.25))
+        a = ns.OneKeyAlert() or ""
+        if "Ice Barrier" not in a or "Ctrl+G" not in a:
+            p.append("no Ice Barrier hint a minute after the cast: %r" % a)
         return p
 
     @S.test("macro: rogue chains the stuns (Cheap Shot, Kidney Shot, Gouge)")

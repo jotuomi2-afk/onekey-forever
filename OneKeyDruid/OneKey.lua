@@ -16,7 +16,7 @@ if CLASS == "DRUID" then return end
 local CL = ns.CLASSES and ns.CLASSES[CLASS]
 local Logic = ns.Logic
 
-local VERSION = "0.32.4"
+local VERSION = "0.33.0"
 local PREFIX = "|cff7fd4ffOneKey|r "
 local LIMIT = 255
 local NAMES = { fight = "OneKeyMain", heal = "OneKeyHeal", cc = "OneKeyAlt", behind = "OneKeyCtrl",
@@ -156,6 +156,12 @@ local function line(e)
 	-- chains that change shape as the class learns spells
 	if e.need and not known[e.need] then return nil end
 	if e.without and known[e.without] then return nil end
+	if e.below or e.from then
+		local lvl = UnitLevel("player")
+		if secret(lvl) or type(lvl) ~= "number" then lvl = 1 end
+		if e.below and lvl >= e.below then return nil end
+		if e.from and lvl < e.from then return nil end
+	end
 	local kind = e[1]
 	if kind == "potion" then
 		return potion and ("/use [combat] item:%d"):format(potion) or nil
@@ -257,15 +263,17 @@ local TEXT = {
 		cFight = "%s: fight", cMany = "%d enemies: press %s or run", run = "RUN AWAY!  %s",
 		low = "LOW HEALTH   press %s", drinkHint = "Low mana: Alt+%s to eat and drink",
 		afk = "Going AFK? Ctrl+%s: hide", noClass = "no list for this class yet",
-		aMelee = "IN MELEE: Ctrl+%s  %s, then step back and %s", aNova = "IN MELEE: Shift+%s  %s", aLance = "FROZEN: Shift+%s  %s, then step back and %s",
-		aBack = "FROZEN: step back, %s" },
+		aMelee = "IN MELEE: Ctrl+%s  %s, then step back and %s", aNova = "IN MELEE: Shift+%s  %s", aLance = "FROZEN: step back, Shift+%s x2  %s + %s",
+		aBack = "FROZEN: step back, %s", aCone = "WINTER'S CHILL x%d: close in, Ctrl+%s until %s",
+		aShield = "%s: Ctrl+%s" },
 	fi = { target = "%s: etsi kohde", fight = "%s: hyökkää", buff = "%s: buffaa (%s)", conjure = "%s: loihdi (%s)",
 		hold = "ÄLÄ VEDÄ: liian vahva (%s). /okd brave on", dead = "Olet kuollut", mounted = "Ratsailla",
 		cFight = "%s: taistele", cMany = "%d vihollista: paina %s tai pakene", run = "PAKENE!  %s",
 		low = "VÄHÄN HP:TA   paina %s", drinkHint = "Mana vähissä: Alt+%s syö ja juo",
 		afk = "Menossa AFK? Ctrl+%s: piiloon", noClass = "tälle luokalle ei vielä ole listaa",
-		aMelee = "LÄHITAISTELU: Ctrl+%s  %s, sitten taakse ja %s", aNova = "LÄHITAISTELU: Shift+%s  %s", aLance = "JÄÄSSÄ: Shift+%s  %s, sitten taakse ja %s",
-		aBack = "JÄÄSSÄ: peräänny, %s" },
+		aMelee = "LÄHITAISTELU: Ctrl+%s  %s, sitten taakse ja %s", aNova = "LÄHITAISTELU: Shift+%s  %s", aLance = "JÄÄSSÄ: peräänny, Shift+%s x2  %s + %s",
+		aBack = "JÄÄSSÄ: peräänny, %s", aCone = "WINTER'S CHILL x%d: lähelle, Ctrl+%s kunnes %s",
+		aShield = "%s: Ctrl+%s" },
 }
 local function tr(key, ...)
 	local t = TEXT[db and db.lang] or TEXT.en
@@ -295,6 +303,23 @@ local function missingBuff()
 	end
 end
 
+-- The class's shield before the pull (mage: Ice Barrier). A press that
+-- does not bring the buff (no mana, a silence) must not hold the key: after
+-- one try the key attacks, until the target changes or a fight ends.
+local shield = { offered = 0, skip = false }
+local cooldownLeft
+
+local function wantShield(now)
+	local k = CL.shield
+	if not k or not known[k] or shield.skip then return false end
+	if hasBuff(N[k]) then shield.offered = 0 return false end
+	if cooldownLeft(k, now) > 0 then return false end
+	if shield.offered == 0 then shield.offered = now end
+	local press = clicks[#clicks] or 0
+	if press > shield.offered and now - press > 2 then shield.skip = true return false end
+	return true
+end
+
 local function decide()
 	local key = db.key or "F"
 	if UnitIsDeadOrGhost("player") then return "", tr("dead") end
@@ -319,6 +344,9 @@ local function decide()
 			if diff >= 3 or class == "elite" or class == "rareelite" or class == "worldboss" then
 				return "", "|cffff3030" .. tr("hold", diff < 99 and ("+" .. diff) or "??") .. "|r"
 			end
+		end
+		if wantShield(GetTime()) then
+			return "/cast [@player] " .. N[CL.shield], tr("buff", key, N[CL.shield])
 		end
 		return macros.fight, tr("fight", key)
 	end
@@ -422,7 +450,7 @@ local function setNote()
 				if advice then text = (text and (text .. "  ") or "") .. "|cff80ff80" .. advice .. "|r" end
 			end
 			local lastC = clicks[#clicks]
-			if macros.hide and macros.hide ~= "" and lastC and GetTime() - lastC > 90 then
+			if macros.hide and macros.hide ~= "" and not CL.hideIsSpell and lastC and GetTime() - lastC > 90 then
 				text = (text and (text .. "  ") or "") .. "|cffffd060" .. tr("afk", db.sos or "G") .. "|r"
 			end
 			if ns.QH and ns.QH.Refresh and db.quests ~= false then
@@ -441,7 +469,8 @@ end
 -- client gives macros no such conditions, and the macro is locked in
 -- combat), so the HUD tells which key to press. It only shows text.
 local lastCast = {}
-local function cooldownLeft(key, now)
+local chill = { n = 0, at = 0 }
+cooldownLeft = function(key, now)
 	local name = N[key]
 	if not name then return 99 end
 	if C_Spell and C_Spell.GetSpellCooldown then
@@ -466,9 +495,31 @@ local function noteCast(spellID)
 		if ok and not secret(n) then name = n end
 	end
 	if not name then return end
+	local now = GetTime()
+	local W = CL.alert and CL.alert.chill
 	for key, n in pairs(N) do
-		if n == name then lastCast[key] = GetTime() end
+		if n == name then
+			lastCast[key] = now
+			if W then
+				if key == W.spend then chill.n = 0 end
+				for _, b in ipairs(W.build) do
+					if key == b then chill.n, chill.at = math.min(W.stacks, chill.n + 1), now end
+				end
+			end
+		end
 	end
+end
+
+-- Winter's Chill is on the target and secret in combat, so the stacks are
+-- counted from the player's own casts (a resist is not seen). They go with
+-- the target, the fight, or 15 s without a new one.
+local function chillStacks(now)
+	local W = CL.alert and CL.alert.chill
+	if not W or db.cone == false or not known[W.spend] then return 0 end
+	local lvl = UnitLevel("player")
+	if secret(lvl) or type(lvl) ~= "number" or lvl < W.level then return 0 end
+	if now - chill.at > 15 then chill.n = 0 end
+	return chill.n
 end
 
 -- Is the target within melee reach? The client's range check for a melee
@@ -496,7 +547,7 @@ local function alertText(now)
 	local frozenAt = lastCast[A.freeze]
 	if frozenAt and now - frozenAt < 8 then
 		if A.lance and known[A.lance] and cooldownLeft(A.lance, now) == 0 then
-			return tr("aLance", key, N[A.lance], key)
+			return tr("aLance", key, N[A.bolt] or "", N[A.lance])
 		end
 		return tr("aBack", key)
 	end
@@ -505,6 +556,16 @@ local function alertText(now)
 		if now - live.times[i] <= 2.5 then hit = true break end
 	end
 	if hit and cooldownLeft(A.freeze, now) == 0 then return tr("aNova", key, N[A.freeze]) end
+	local W = A.chill
+	if W and chillStacks(now) >= W.stacks and cooldownLeft(W.spend, now) == 0 then
+		return tr("aCone", W.stacks, key, N[W.spend])
+	end
+	local S = A.shield
+	if S and db.sos and known[S.spell] and macros.hide and macros.hide:find(N[S.spell], 1, true)
+		and cooldownLeft(S.spell, now) == 0 and now - (lastCast[S.spell] or -999) >= S.every
+		and now - live.start >= 3 then
+		return tr("aShield", N[S.spell], db.sos)
+	end
 	return nil
 end
 local shownAlert
@@ -870,6 +931,7 @@ driver:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		logCombat(false)
 		current.text = nil
 		adds.n = 0
+		chill.n, shield.skip, shield.offered = 0, false, 0
 		if #secureLater > 0 then
 			for _, b in ipairs(secureLater) do b:SetAttribute("type", "macro") end
 			secureLater = {}
@@ -900,6 +962,7 @@ driver:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 	elseif event == "ZONE_CHANGED_NEW_AREA" then
 		logEvent("Z", GetRealZoneText and GetRealZoneText() or "?")
 	elseif event == "PLAYER_TARGET_CHANGED" then
+		chill.n, shield.skip, shield.offered = 0, false, 0
 		if not locked() then
 			local name, lvl, class = logTarget()
 			if name then lg.lastName, lg.lastLevel = name, lvl logEvent("T", name, lvl, class) end
@@ -977,6 +1040,9 @@ SlashCmdList.ONEKEYDRUID = function(msg)
 			pcall(SetCVar, "Sound_EnableSoundWhenGameIsInBG", db.bgSoundWas)
 			db.bgSoundWas = nil
 		end
+	elseif cmd == "cone" then
+		db.cone = rest:lower() ~= "off"
+		say("Cone of Cold hint " .. (db.cone and "on" or "off") .. ".")
 	elseif cmd == "herbs" then
 		db.herbs = rest:lower() ~= "off"
 		trackGathering()
@@ -1005,7 +1071,7 @@ SlashCmdList.ONEKEYDRUID = function(msg)
 		end
 	else
 		say(VERSION .. " — " .. CLASS:lower())
-		print("  bind KEY · sos KEY|off · lang en|fi · brave on|off · alarm on|off · herbs on|off")
+		print("  bind KEY · sos KEY|off · lang en|fi · brave on|off · alarm on|off · herbs on|off · cone on|off")
 		print("  quests · go · where · status · ranks [on|off] · log on|off|clear")
 	end
 end

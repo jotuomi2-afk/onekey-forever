@@ -23,12 +23,12 @@ update from an older version.
 | Key | Druid | Other classes |
 |---|---|---|
 | F | buffs, cures, pulls (Wrath, or Prowl and Shred/Ravage as a cat), fights as bear or cat | buffs, conjures, pulls and fights from the class list |
-| Shift+F | heal yourself | the class's defensive spell (mage: Frost Nova) |
+| Shift+F | heal yourself | the class's defensive spell (mage: Frost Nova, Frostbolt, Ice Lance) |
 | Alt+F | Bash / roots; out of combat eat and drink | crowd control; out of combat eat and drink |
 | Ctrl+F | leave form; as a cat: Shred from behind | wand or the class's extra spell |
 | G | emergency: Rejuvenation, then the bear, potion; short of mana a mana potion and straight into the bear | one emergency spell, then the potion |
 | Shift+G | cat ↔ bear (also breaks roots) | get away (mage: Blink) |
-| Ctrl+G | hide before going away (Shadowmeld) | Stealth / Shadowmeld |
+| Ctrl+G | hide before going away (Shadowmeld) | Stealth / Shadowmeld (mage: Ice Barrier) |
 
 ## On screen
 

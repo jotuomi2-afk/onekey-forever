@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.33.0
+
+Frost mage, set against the WoW Forever guides (Icy Veins, Wowhead, Method,
+Warcraft Tavern; read 22.11.2026). Their priority at level 60: Ice Barrier
+up, Cone of Cold at five stacks of Winter's Chill, Ice Lance on a frozen
+target or with Fingers of Frost, Frostbolt for everything else.
+
+- F from level 15: Frostbolt from the first press. It is the faster cast,
+  the mob is slowed from the first hit, and every hit can freeze it
+  (Frostbite), give Fingers of Frost and build Winter's Chill. Below
+  level 15 Fireball still opens once per target, as before.
+- F before a pull, level 40: with an enemy picked, Ice Barrier first when
+  it is not up and not on cooldown; the next press attacks. Its Frigid
+  Power buff adds damage for a minute. A press that does not bring the
+  shield (no mana) is tried once, then the key attacks.
+- Ctrl+G: Ice Barrier in a fight. The HUD asks for it a minute after the
+  last cast ("Ice Barrier: Ctrl+G").
+- Shift+F: Frost Nova, then Frostbolt, then Ice Lance, so that both land on
+  the frozen mob (Shatter). It was Nova, Ice Lance. The HUD says "FROZEN:
+  step back, Shift+F x2". Left alone for 10 seconds the sequence starts
+  over, so the next Nova is the first press again (before, the key could
+  be left waiting on Ice Lance).
+- Winter's Chill, level 35: the HUD counts your Frostbolt and Ice Lance
+  casts on the target and at five asks for Cone of Cold ("WINTER'S CHILL
+  x5: close in, Ctrl+F until Cone of Cold"). The stacks themselves are
+  secret in combat, so a resisted cast is counted too. `/okd cone off`
+  turns the hint off (for a build without the talent).
+- Ice Armor (or Frost Armor) is the armour F keeps up, before Mage Armor:
+  alone in the world the armour and the chill on attackers are worth more.
+- Not done, because the addon cannot see it: Fingers of Frost and Frostbite
+  procs are auras, and auras are secret in combat. When the game lights up
+  Ice Lance at range, press Ice Lance on your own action bar right after
+  a Frostbolt (Shift+F would start with Frost Nova).
+
 ## 0.32.4
 
 - Druid, F (reported 22.11.: "F turns me from cat into caster form now

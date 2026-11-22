@@ -69,7 +69,7 @@ Likelihood (L) and impact (I) are rated 1–3; their product sets the depth of t
 | RK12 | Junk slash input crashes the addon | 2 | 1 | REQ-12 |
 | RK13 | Supply-chain attack through CI actions or Python packages | 1 | 3 | REQ-13, pinned SHAs, hashed requirements |
 | RK14 | Automation creeps in (a button or timer acts without a press) | 1 | 3 | REQ-14, scan R1/R2 (tokenizer, `_G` lookups, XML scripts) |
-| RK15 | The "find a target" press also pulls, past the elite/+3 guard | 2 | 2 | REQ-21 | The mage pulls with the longest-range spell (Fireball), then slows with Frostbolt; cooldown spells sit on Shift+F and Ctrl+F | macro: mage opens |
+| RK15 | The "find a target" press also pulls, past the elite/+3 guard | 2 | 2 | REQ-21 | The mage pulls with Fireball (the longest range) below level 15 and with Frostbolt from 15, as the Forever frost guides do; cooldown spells sit on Shift+F and Ctrl+F | macro: mage opens |
 | REQ-22 | No macro (F, G, the druid keys) tries anything that can fail (cooldown, range, target type, position, a potion) before another spell: the client stops a macro at the first failed cast | macro: nothing that can fail |
 | REQ-24 | The rogue chains its stuns: Cheap Shot, Kidney Shot, Gouge, inside one sequence | macro: rogue chains |
 | REQ-26 | Rooted, the druid breaks free with Shift+G in any form (cat and bear swap: Forever has no powershift); from caster form the HUD offers Ctrl+G back | druid: rooted |
@@ -88,7 +88,9 @@ Likelihood (L) and impact (I) are rated 1–3; their product sets the depth of t
 | REQ-39 | Druid cat F: Rip is the first finisher, Ferocious Bite the second once learned, with three Claws before the Bite; F stays within 255 characters | druid: cat finishers are Rip first |
 | REQ-40 | Warrior: F holds no spell that is usable only now and then (Overpower, Execute); they have Ctrl+F and Shift+F | warrior: F is Rend once |
 | REQ-41 | Druid F out of combat: in cat or bear form with a target it does not leave the form to renew a Mark with time left; a party member in range without Mark of the Wild gets it ([@partyN]) | logic: a cat with a target keeps its form |
-| REQ-25 | The mage keeps the Frostbolt slow up: Fireball only opens | macro: mage opens |
+| REQ-25 | The mage keeps the Frostbolt slow up: Fireball only opens, and only below level 15. Shift+F is Frost Nova, Frostbolt, Ice Lance, and starts over after 10 s | macro: mage opens |
+| REQ-42 | Mage: out of combat with an enemy picked F casts Ice Barrier first when it is not up and not on cooldown; a press that does not bring the buff does not hold the key; Ice Armor comes before Mage Armor; Ctrl+G is Ice Barrier | mage: Ice Barrier before the pull |
+| REQ-43 | Mage HUD: five Frostbolt or Ice Lance casts on a target ask for Cone of Cold (Winter's Chill, level 35; /okd cone off); a minute after Ice Barrier it asks for it again | hud: mage with five Frostbolts |
 | REQ-23 | The HUD tells a mage in melee to Frost Nova, then Ice Lance and step back | hud: mage hit in melee |
 | REQ-20 |
 | RK16 | The AFK alarm stays silent | 2 | 2 | REQ-16 |
@@ -123,7 +125,7 @@ point to several tests; names are matched on their beginning.
 | REQ-17 | /okd bind and /okd sos take only real keys, and never each other's key | keys: |
 | REQ-18 | After a /reload in combat the keys work once the fight ends | reload in combat: |
 | REQ-19 | Every class keeps its main spell in the fight macro | macro: every class |
-| REQ-21 | The mage pulls with the longest-range spell (Fireball), then slows with Frostbolt; cooldown spells sit on Shift+F and Ctrl+F | macro: mage opens |
+| REQ-21 | The mage pulls with Fireball (the longest range) below level 15 and with Frostbolt from 15, as the Forever frost guides do; cooldown spells sit on Shift+F and Ctrl+F | macro: mage opens |
 | REQ-22 | No macro (F, G, the druid keys) tries anything that can fail (cooldown, range, target type, position, a potion) before another spell: the client stops a macro at the first failed cast | macro: nothing that can fail |
 | REQ-24 | The rogue chains its stuns: Cheap Shot, Kidney Shot, Gouge, inside one sequence | macro: rogue chains |
 | REQ-26 | Rooted, the druid breaks free with Shift+G in any form (cat and bear swap: Forever has no powershift); from caster form the HUD offers Ctrl+G back | druid: rooted |
@@ -142,7 +144,9 @@ point to several tests; names are matched on their beginning.
 | REQ-39 | Druid cat F: Rip is the first finisher, Ferocious Bite the second once learned, with three Claws before the Bite; F stays within 255 characters | druid: cat finishers are Rip first |
 | REQ-40 | Warrior: F holds no spell that is usable only now and then (Overpower, Execute); they have Ctrl+F and Shift+F | warrior: F is Rend once |
 | REQ-41 | Druid F out of combat: in cat or bear form with a target it does not leave the form to renew a Mark with time left; a party member in range without Mark of the Wild gets it ([@partyN]) | logic: a cat with a target keeps its form |
-| REQ-25 | The mage keeps the Frostbolt slow up: Fireball only opens | macro: mage opens |
+| REQ-25 | The mage keeps the Frostbolt slow up: Fireball only opens, and only below level 15. Shift+F is Frost Nova, Frostbolt, Ice Lance, and starts over after 10 s | macro: mage opens |
+| REQ-42 | Mage: out of combat with an enemy picked F casts Ice Barrier first when it is not up and not on cooldown; a press that does not bring the buff does not hold the key; Ice Armor comes before Mage Armor; Ctrl+G is Ice Barrier | mage: Ice Barrier before the pull |
+| REQ-43 | Mage HUD: five Frostbolt or Ice Lance casts on a target ask for Cone of Cold (Winter's Chill, level 35; /okd cone off); a minute after Ice Barrier it asks for it again | hud: mage with five Frostbolts |
 | REQ-23 | The HUD tells a mage in melee to Frost Nova, then Ice Lance and step back | hud: mage hit in melee |
 | REQ-20 | With no enemy targeted, the key only targets; the next update checks the target before attacking | macro: every class; smoke: |
 

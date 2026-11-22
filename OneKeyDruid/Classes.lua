@@ -8,6 +8,8 @@
 --   { "once", "spell", "[conditions] " }          once per target
 --   { "seq",  { "spell", ... }, "[conditions] ", reset }
 --   { "raw",  "text", needs = { "spell", ... } }  as it is
+-- need / without = "spell": the line only when the spell is (not) learned;
+-- below / from = level: only under, or from, that character level.
 -- The key's own buttons: fight (F), heal (Shift+F), cc (Alt+F),
 -- behind (Ctrl+F), sos (G), free (Shift+G), hide (Ctrl+G).
 
@@ -33,32 +35,54 @@ C.MAGE = {
 		water = { 5504, "Conjure Water" }, food = { 587, "Conjure Food" }, gem = { 759, "Conjure Mana Agate" },
 		dampen = { 604, "Dampen Magic" }, icelance = { 30455, "Ice Lance" },
 	},
-	buffs = { { "ai" }, { "magearmor", "icearmor", "frostarmor" } },
+	-- Frost, as the WoW Forever guides play it (Icy Veins, Wowhead, Method,
+	-- Warcraft Tavern; read 22.11.2026). At level 60 the priority is: Ice
+	-- Barrier up (its Frigid Power buff adds damage), Cone of Cold at five
+	-- stacks of Winter's Chill, Ice Lance on a frozen target or with Fingers
+	-- of Frost, Frostbolt for everything else.
+	--
+	-- Ice or Frost Armor before Mage Armor: alone in the world the armour
+	-- and the chill on whatever hits you are worth more than the mana.
+	buffs = { { "ai" }, { "icearmor", "frostarmor", "magearmor" } },
+	-- F, out of combat with an enemy picked: Ice Barrier first when it is
+	-- not up and not on cooldown (OneKey.lua, decide). The guides cast it
+	-- just before the pull.
+	shield = "barrier",
 	-- The client stops a macro at the first spell that fails (on cooldown,
-	-- out of range), so F holds only spells without a cooldown: Fireball
-	-- pulls from the longest range (35 yd; Frostbolt 30, Fire Blast 20).
-	-- (A spell with no mana stops the macro too, so the wand line the engine
-	-- adds after Frostbolt shoots only when Frostbolt is not learned yet.)
-	-- Frostbolt keeps the mob slowed the whole fight: Fireball only opens
-	-- (once per target), every press after that is Frostbolt, whose slow
-	-- lasts longer than its cast, so it never runs out. Before Frostbolt is
-	-- learned, Fireball is the filler.
+	-- out of range), so F holds only spells without a cooldown.
+	-- Below level 15 Fireball opens, once per target: it reaches 35 yd and
+	-- hits harder than a low Frostbolt. From 15 (Improved Frostbolt done,
+	-- Frostbite learned) every press is Frostbolt, as in the guides: it is
+	-- the faster cast, the mob is slowed from the first hit, and every hit
+	-- can freeze it, give Fingers of Frost and build Winter's Chill.
+	-- Before Frostbolt is learned, Fireball is the filler.
 	pull = {},
 	fight = {
-		{ "once", "fireball", H, need = "frostbolt" },
-		{ "cast", "frostbolt", H },
+		{ "once", "fireball", H, need = "frostbolt", below = 15 },
 		{ "cast", "fireball", H, without = "frostbolt" },
+		{ "cast", "frostbolt", H },
 	},
-	-- Shift+F, when the mob reaches you (the HUD says when): Frost Nova
-	-- freezes it, then Ice Lance on the frozen target (Shatter). Step back
-	-- and F goes on with Frostbolt.
-	heal = { { "seq", { "nova", "icelance" }, "", "combat" } },
+	-- Shift+F, when the mob reaches you (the HUD says when): Frost Nova,
+	-- step back during the global cooldown, then Frostbolt with Ice Lance
+	-- right behind it, so both land on the frozen mob (Shatter). Left alone
+	-- for 10 s the sequence starts over, so the next Nova is the first
+	-- press again.
+	heal = { { "seq", { "nova", "frostbolt", "icelance" }, "", "10/combat" } },
 	-- Ctrl+F: instant damage while you move: Fire Blast, then Cone of Cold.
+	-- With five stacks of Winter's Chill the HUD asks for the Cone.
 	behind = { { "seq", { "fireblast", "cone" }, H, "combat" } },
-	alert = { freeze = "nova", lance = "icelance", cd = { nova = 25, icelance = 8 } },
+	alert = { freeze = "nova", lance = "icelance", bolt = "frostbolt",
+		cd = { nova = 25, icelance = 8, cone = 10, barrier = 30 },
+		-- Winter's Chill (talent, level 35): Frostbolt and Ice Lance casts
+		-- build it, Cone of Cold spends it at five
+		chill = { level = 35, build = { "frostbolt", "icelance" }, spend = "cone", stacks = 5 },
+		-- Frigid Power lasts a minute from the Ice Barrier cast
+		shield = { spell = "barrier", every = 57 } },
 	cc = { { "cast", "poly", H } },
 	sos = { { "cast", "manashield", "" }, { "potion" } },
 	free = { { "cast", "blink", "" } },
+	-- Ctrl+G: Ice Barrier again in a long fight (the HUD says when)
+	hide = { { "cast", "barrier", "" } }, hideIsSpell = true,
 }
 
 C.WARRIOR = {
