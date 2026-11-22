@@ -72,14 +72,22 @@ C.WARRIOR = {
 	},
 	buffs = { { "shout" } },
 	pull = { { "cast", "charge", "[nocombat,harm,nodead] " } },
+	-- Overpower (only after a dodge) and Execute (only under 20 % health)
+	-- cannot be used most of the time, and a spell that cannot be used stops
+	-- the macro: first on F they kept Rend and Heroic Strike from ever being
+	-- reached. They have keys of their own now.
 	fight = {
-		{ "cast", "op", H }, { "cast", "execute", H }, { "once", "rend", H },
+		{ "once", "rend", H },
 		{ "cast", "hs", H, bang = true },
 	},
-	heal = { { "cast", "bloodrage", "" } },
+	-- Shift+F: Execute, for the mob's last fifth of health
+	heal = { { "cast", "execute", H } },
 	cc = { { "cast", "ham", H } },
-	behind = { { "cast", "tc", "" }, { "cast", "demo", "" } },
+	-- Ctrl+F: Overpower right after the mob dodges
+	behind = { { "cast", "op", H } },
 	sos = { { "cast", "demo", "" }, { "potion" } },
+	-- Shift+G: Bloodrage, rage at the start of a fight
+	free = { { "cast", "bloodrage", "" } },
 }
 
 C.ROGUE = {

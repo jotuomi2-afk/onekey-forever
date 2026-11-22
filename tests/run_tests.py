@@ -470,9 +470,8 @@ def main():
         free = next((v for k, v in attrs.items() if "Free" in k or "free" in k), "")
         hide = next((v for k, v in attrs.items() if "Hide" in k or "hide" in k), "")
         # Forever has no powershifting: the key swaps forms
-        for want in ("[form:3] Bear Form", "[form:1] Cat Form", "[noform] Cat Form"):
-            if want not in free:
-                p.append("break-free key lacks %r: %r" % (want, free))
+        if free.strip() != "/cast [form:3] Bear Form; Cat Form":
+            p.append("break-free key: want cat to bear, anything else to cat: %r" % free)
         if "/cancelform" not in hide:
             p.append("Ctrl+G does not bring you back to caster form: %r" % hide)
         # caster form, in combat, rooted
@@ -1087,7 +1086,8 @@ def main():
                 "Stormstrike", "Enrage", "Feral Charge", "Bash", "Nature's Grasp", "Hibernate",
                 "Ice Barrier", "Evasion", "Feign Death", "Divine Shield", "Divine Protection", "Lay on Hands",
                 "Retaliation", "Intimidating Shout", "Psychic Scream", "Death Coil", "Stoneclaw Totem", "Gouge",
-                "Shred", "Ravage", "Backstab", "Ambush", "/use [combat]")
+                "Shred", "Ravage", "Backstab", "Ambush", "Overpower", "Execute", "Thunder Clap",
+                "Judgement", "Earth Shock", "/use [combat]")
 
     def may_fail_early(text):
         acts = [l for l in text.split("\n") if l.startswith(("/cast", "/use"))]
@@ -1203,6 +1203,31 @@ def main():
                 p.append("Drain Life on Shift+F and Life Tap on Shift+G expected")
             if "Immolate" not in (ns.OneKeyMacros.behind or ""):
                 p.append("Ctrl+F burst lost Immolate")
+        return p
+
+    @S.test("warrior: F is Rend once and Heroic Strike; Overpower and Execute on their own keys")
+    def _():
+        p = []
+        probe, _ = load_addon(new_lua(), ["Classes.lua"])
+        spells = {v[1]: v[2] for v in probe.CLASSES["WARRIOR"].spells.values()}
+        lua = new_lua()
+        set_class(lua, "WARRIOR", 1, 30, spells)
+        lua.execute("STUB.buffs = {}")
+        ns, errs = load_addon(lua)
+        p += errs
+        for e in ("ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD"):
+            p += lua_list(lua.eval("STUB.fire")(e, "OneKeyDruid"))
+        p += lua_list(lua.eval("STUB.tick")(4, 0.25))
+        M = ns.OneKeyMacros
+        f = M.fight or ""
+        if "Overpower" in f or "Execute" in f:
+            p.append("a spell that is mostly unusable is on F: %r" % f)
+        if "Rend, null" not in f or "!Heroic Strike" not in f:
+            p.append("F lacks Rend once or Heroic Strike: %r" % f)
+        if "Overpower" not in (M.behind or "") or "Execute" not in (M.heal or ""):
+            p.append("Overpower on Ctrl+F and Execute on Shift+F expected: %r / %r" % (M.behind, M.heal))
+        if "Bloodrage" not in (M.free or ""):
+            p.append("Bloodrage on Shift+G expected: %r" % M.free)
         return p
 
     @S.test("priest: Shadow Word: Pain once, then the wand; Smite only with no wand")

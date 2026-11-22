@@ -7,6 +7,14 @@
   now Faerie Fire, Rake, Claw, Claw, Rip, Claw, Claw, Claw, Ferocious Bite:
   Rip with three combo points (Rake and two Claws), the Bite with three
   Claws more.
+- Shorter, sturdier macros:
+  - Druid, Shift+G is now one short line: `/cast [form:3] Bear Form; Cat
+    Form` (cat to bear, anything else, water and travel form too, to cat).
+  - Warrior, F: Overpower and Execute were first on F, but they can be
+    used only after a dodge or under 20 % health, and a spell that cannot
+    be used stops the macro, so Rend and Heroic Strike were seldom reached.
+    F is now Rend once and Heroic Strike; Ctrl+F is Overpower, Shift+F
+    Execute, Shift+G Bloodrage. The macro test now knows these spells.
 - The trainer hints follow Forever: Shred at 20, Rake and Ferocious Bite at
   24 (Classic had 22 and 32).
 

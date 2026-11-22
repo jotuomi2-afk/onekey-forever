@@ -678,13 +678,15 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 	-- are in), so the key swaps: cat to bear, bear to cat, caster form into
 	-- the fighting form. Ctrl + emergency key brings you back to caster form.
 	if F then
-		local parts = {}
+		-- in the fighting form the other one, anywhere else (caster, water,
+		-- travel) the fighting form: "/cast [form:3] Bear Form; Cat Form"
 		if C and B and known.cat then
-			parts[#parts + 1] = ("[form:%d] %s"):format(C, bearName)
-			parts[#parts + 1] = ("[form:%d] %s"):format(B, N.cat)
+			local inFight = (formName == N.cat) and C or B
+			local other = (formName == N.cat) and bearName or N.cat
+			out.free = ("/cast [form:%d] %s; %s"):format(inFight, other, formName)
+		else
+			out.free = "/cast " .. formName
 		end
-		parts[#parts + 1] = "[noform] " .. formName
-		out.free = "/cast " .. table.concat(parts, "; ")
 	end
 
 	-- Ctrl + emergency key: hide before going away. Shadowmeld (night elf)
