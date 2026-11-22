@@ -554,6 +554,44 @@ def main():
             p.append("after a corpse run (half health) F does not heal or rest: %r" % main[:80])
         return p
 
+    @S.test("logic: a cat with a target keeps its form for a Mark with time left; party members get the Mark")
+    def _():
+        p = []
+        lua = new_lua()
+        ns, errs = load_addon(lua, ["Logic.lua"])
+        p += errs
+        D = lua.eval("""function(L, form, target, motw, motwAny, party)
+            local cfg = {}
+            for k, v in pairs(L.DEFAULTS) do cfg[k] = v end
+            local s = { cfg = cfg, known = { ht = true, motw = true, thorns = true },
+                buffs = { motw = motw, motwAny = motwAny, thorns = true }, target = target, mode = "cat",
+                form = form, partyMotw = party, mana = nil, hp = nil }
+            local a, b, c = L.Decide(s)
+            return tostring(a) .. ":" .. tostring(b) .. ":" .. tostring(c)
+        end""")
+        r = D(ns.Logic, "cat", "hostile", False, True, None)
+        if not r.startswith("attack"):
+            p.append("cat, target, Mark running out: %s (should keep fighting in form)" % r)
+        r = D(ns.Logic, "cat", "hostile", False, False, None)
+        if not r.startswith("buff:motw"):
+            p.append("cat, target, no Mark at all: %s (should put it back)" % r)
+        r = D(ns.Logic, "cat", "none", False, True, None)
+        if not r.startswith("buff:motw"):
+            p.append("no target, Mark running out: %s (should renew)" % r)
+        r = D(ns.Logic, "none", "hostile", True, True, "party2")
+        if r != "buff:motw:party2":
+            p.append("a party member without the Mark: %s" % r)
+        r = D(ns.Logic, "cat", "hostile", True, True, "party2")
+        if r.startswith("buff"):
+            p.append("a cat with a target leaves its form for a party buff: %s" % r)
+        m = ns.Logic.ActionMacro("buff", "Mark of the Wild", None, "", "party2")
+        if "/cast [@party2] Mark of the Wild" not in m:
+            p.append("party buff macro: %r" % m)
+        m = ns.Logic.ActionMacro("buff", "Mark of the Wild", None, "", "raid7")
+        if "[@player]" not in m:
+            p.append("a unit that is not party1-4 must not reach the macro: %r" % m)
+        return p
+
     @S.test("logic: no heal at full health before a tough pull; buffs come first")
     def _():
         p = []

@@ -77,7 +77,8 @@ end
 --   "none"   nothing (reason in arg)
 --   "wait"   eating or drinking, keep sitting
 --   "heal"   arg: spell key          "cure"  arg: spell key
---   "eat"    "drink"                 "buff"  arg: spell key
+--   "eat"    "drink"                 "buff"  arg: spell key, and a
+--            party unit when the buff is for someone else
 --   "attack" arg: "target" (find one) or "fight"
 function Logic.Decide(s)
 	local cfg, k, b = s.cfg, s.known, s.buffs
@@ -160,10 +161,18 @@ function Logic.Decide(s)
 	-- one itself, so "no target" hardly ever happens). Mark of the Wild and
 	-- Omen of Clarity last long enough to be worth leaving a form for;
 	-- Thorns too when no enemy is picked yet, else only in caster form.
+	-- In cat or bear form with an enemy picked, the key does not leave the
+	-- form to renew a Mark that still has time on it: "F turns me back
+	-- into caster form now and then" (reported 22.11.); renewing waits for
+	-- caster form or no target. A Mark that is gone is put back.
 	if cfg.buffs and m >= 30 then
-		if k.motw and not b.motw then return "buff", "motw" end
+		local inForm = s.form ~= "none" and live
+		if k.motw and not b.motw and (not inForm or not b.motwAny) then return "buff", "motw" end
 		-- Omen of Clarity is passive in WoW: Forever: nothing to cast
-		if k.thorns and not b.thorns and (s.form == "none" or not live) then return "buff", "thorns" end
+		if k.thorns and not b.thorns and not inForm then return "buff", "thorns" end
+		-- the party: Mark of the Wild on a member in range who lacks it
+		-- (s.partyMotw is that unit, "party1".."party4")
+		if k.motw and s.partyMotw and not inForm then return "buff", "motw", s.partyMotw end
 	end
 
 	return "attack", live and "fight" or "target"
@@ -716,9 +725,10 @@ function Logic.KeyName(text)
 	return nil, "not a key: use a letter, a digit, F1-F12, NUMPAD0-9 or BUTTON3-5"
 end
 
-function Logic.ActionMacro(action, spell, item, fight)
+function Logic.ActionMacro(action, spell, item, fight, unit)
 	if action == "heal" or action == "cure" or action == "buff" then
-		return "/cancelform [form]\n/cast [@player] " .. spell
+		local who = (unit and unit:match("^party[1-4]$")) and unit or "player"
+		return "/cancelform [form]\n/cast [@" .. who .. "] " .. spell
 	elseif action == "eat" or action == "drink" then
 		return "/use item:" .. item
 	elseif action == "attack" then

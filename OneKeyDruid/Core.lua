@@ -16,7 +16,7 @@ local Logic = ns.Logic
 local _, CLASS = UnitClass("player")
 if CLASS ~= "DRUID" then return end
 
-local VERSION = "0.32.3"
+local VERSION = "0.32.4"
 local BUTTON = "OneKeyDruidButton"
 -- The buttons of the modifier keys.
 local NAMES = { heal = "OneKeyDruidHeal", cc = "OneKeyDruidStop", behind = "OneKeyDruidBehind",
@@ -199,6 +199,30 @@ local function buffLeft(name, left)
 	return hasBuff(name)
 end
 
+-- A party member near you without the buff, as "party1".."party4", or
+-- nil. Out of combat; in a raid nothing (too many to go through). An
+-- aura or range answer the client keeps secret counts as "has it".
+local function partyMissing(name)
+	if not name or not (IsInGroup and IsInGroup()) or (IsInRaid and IsInRaid()) then return nil end
+	if not (C_UnitAuras and C_UnitAuras.GetAuraDataBySpellName) then return nil end
+	for i = 1, 4 do
+		local u = "party" .. i
+		local ok, there, dead, online = pcall(function()
+			return UnitExists(u), UnitIsDeadOrGhost(u), UnitIsConnected(u)
+		end)
+		if ok and there and not secret(there) and not secret(dead) and not dead and online and not secret(online) then
+			local okR, near = pcall(function()
+				return C_Spell and C_Spell.IsSpellInRange and C_Spell.IsSpellInRange(name, u)
+			end)
+			if okR and near == true then
+				local okA, a = pcall(C_UnitAuras.GetAuraDataBySpellName, u, name, "HELPFUL")
+				if okA and a == nil then return u end
+			end
+		end
+	end
+	return nil
+end
+
 local function debuffs()
 	local poison, curse = false, false
 	for i = 1, 40 do
@@ -362,6 +386,8 @@ local function readState()
 	end
 	local b = s.buffs
 	b.motw, b.thorns, b.omen = buffLeft(N.motw, 300), buffLeft(N.thorns, 60), hasBuff(N.omen)
+	b.motwAny = hasBuff(N.motw)
+	s.partyMotw = known.motw and partyMissing(N.motw) or nil
 	b.rejuv, b.regrowth, b.abolish = hasBuff(N.rejuv), hasBuff(N.regrowth), hasBuff(N.abolish)
 	s.poison, s.curse = debuffs()
 	return s
@@ -1192,11 +1218,15 @@ local function update()
 		return
 	end
 	local s = readState()
-	local action, arg = Logic.Decide(s)
+	local action, arg, unit = Logic.Decide(s)
 	local label, spell, item
 	if action == "heal" or action == "cure" or action == "buff" then
 		spell = N[arg]
 		label = tr(action, key, spell)
+		if unit then
+			local who = UnitName(unit)
+			label = tr(action, key, spell .. " → " .. ((who and not secret(who)) and tostring(who) or unit))
+		end
 	elseif action == "eat" then
 		item = food
 		label = tr("eat", key)
@@ -1262,7 +1292,7 @@ local function update()
 	elseif action == "catpull" then
 		apply(macros.catpull, label, action)
 	else
-		apply(Logic.ActionMacro(action, spell, item, macros.fight), label, action)
+		apply(Logic.ActionMacro(action, spell, item, macros.fight, unit), label, action)
 	end
 end
 

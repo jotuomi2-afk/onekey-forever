@@ -87,6 +87,7 @@ Likelihood (L) and impact (I) are rated 1–3; their product sets the depth of t
 | REQ-38 | Druid: before a pull, 4+ other living enemies in Wrath's range hold F (DO NOT PULL), 2-3 warn; /okd brave on lifts the hold. In bear form G does not leave the form (potion only) | druid: a camp of enemies |
 | REQ-39 | Druid cat F: Rip is the first finisher, Ferocious Bite the second once learned, with three Claws before the Bite; F stays within 255 characters | druid: cat finishers are Rip first |
 | REQ-40 | Warrior: F holds no spell that is usable only now and then (Overpower, Execute); they have Ctrl+F and Shift+F | warrior: F is Rend once |
+| REQ-41 | Druid F out of combat: in cat or bear form with a target it does not leave the form to renew a Mark with time left; a party member in range without Mark of the Wild gets it ([@partyN]) | logic: a cat with a target keeps its form |
 | REQ-25 | The mage keeps the Frostbolt slow up: Fireball only opens | macro: mage opens |
 | REQ-23 | The HUD tells a mage in melee to Frost Nova, then Ice Lance and step back | hud: mage hit in melee |
 | REQ-20 |
@@ -140,6 +141,7 @@ point to several tests; names are matched on their beginning.
 | REQ-38 | Druid: before a pull, 4+ other living enemies in Wrath's range hold F (DO NOT PULL), 2-3 warn; /okd brave on lifts the hold. In bear form G does not leave the form (potion only) | druid: a camp of enemies |
 | REQ-39 | Druid cat F: Rip is the first finisher, Ferocious Bite the second once learned, with three Claws before the Bite; F stays within 255 characters | druid: cat finishers are Rip first |
 | REQ-40 | Warrior: F holds no spell that is usable only now and then (Overpower, Execute); they have Ctrl+F and Shift+F | warrior: F is Rend once |
+| REQ-41 | Druid F out of combat: in cat or bear form with a target it does not leave the form to renew a Mark with time left; a party member in range without Mark of the Wild gets it ([@partyN]) | logic: a cat with a target keeps its form |
 | REQ-25 | The mage keeps the Frostbolt slow up: Fireball only opens | macro: mage opens |
 | REQ-23 | The HUD tells a mage in melee to Frost Nova, then Ice Lance and step back | hud: mage hit in melee |
 | REQ-20 | With no enemy targeted, the key only targets; the next update checks the target before attacking | macro: every class; smoke: |

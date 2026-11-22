@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.32.4
+
+- Druid, F (reported 22.11.: "F turns me from cat into caster form now
+  and then"): in cat or bear form with an enemy picked, F no longer leaves
+  the form to renew a Mark of the Wild that still has time on it (it
+  renewed five minutes early). The Mark is renewed in caster form or with
+  no target; a Mark that is gone altogether is still put back.
+  (In the log the other changes to caster form in a fight were Shift+F.)
+- Druid, F in a party: out of combat, a party member in range without
+  Mark of the Wild gets it (`/cast [@party2] Mark of the Wild`); the HUD
+  says who. Not in a raid, and not while you are in form with a target.
+
 ## 0.32.3
 
 - The AFK alarm (every class) keeps sounding for as long as the fight
