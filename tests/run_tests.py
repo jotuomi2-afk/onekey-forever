@@ -623,6 +623,23 @@ def main():
             p.append("next fight within a minute: G still has Grasp (it would stop the key)")
         return p
 
+    @S.test("druid: cat finishers are Rip first, then Ferocious Bite once it is learned")
+    def _():
+        p = []
+        lua = new_lua()
+        nsl, _ = load_addon(lua, ["Logic.lua"])
+        for lvl in (25, 32, 40):
+            f = druid_macros(lua, nsl, lvl, "cat").fight or ""
+            seq = next((l for l in f.split("\n") if l.startswith("/castsequence") and "Claw" in l), "")
+            if len(f) > 255:
+                p.append("level %d: F is %d characters" % (lvl, len(f)))
+            rip, fb = seq.find("Rip"), seq.find("Ferocious Bite")
+            if lvl < 32 and fb >= 0:
+                p.append("level %d: Ferocious Bite before it is learned: %r" % (lvl, seq))
+            if lvl >= 32 and not (0 <= rip < fb):
+                p.append("level %d: want Rip, then Ferocious Bite: %r" % (lvl, seq))
+        return p
+
     @S.test("druid: a camp of enemies near the target holds the pull key (death of 21.11. evening)")
     def _():
         p = []

@@ -9,6 +9,10 @@ seven gnolls on, 35 hits in 42 seconds):
   Wrath's range (from their nameplates). Two or three: an orange "careful,
   N more mobs close". Four or more: "DO NOT PULL", and F does not pull, as
   for an elite. `/okd brave on` lets you pull anyway.
+- Druid, cat F: once Ferocious Bite is learned (level 32) the sequence
+  finishes with Rip first and Ferocious Bite second (before, Bite replaced
+  Rip in both rounds). Short of space, two rounds with a Claw fewer instead
+  of one round, so Faerie Fire is not recast every round.
 - Druid, G in bear form stays in the bear and drinks the potion: leaving
   the form near death dropped its armour, and Rejuvenation and Nature's
   Grasp came too late. From cat or caster form G heals as before.

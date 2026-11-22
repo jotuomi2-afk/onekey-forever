@@ -446,7 +446,12 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 			-- Short of space: one round.
 			local round = {}
 			for _ = 1, (known.rake or known.fb or known.rip) and 3 or 1 do round[#round + 1] = N.claw end
-			local fin = (known.fb and N.fb) or (known.rip and N.rip) or nil
+			-- Finishers: Rip first (the bleed runs while the next combo points
+			-- build), then Ferocious Bite to end the fight; with one of them
+			-- known, that one both times.
+			local fin1 = (known.rip and N.rip) or (known.fb and N.fb) or nil
+			local fin2 = (known.fb and N.fb) or fin1
+			local fin = fin1
 			if fin then round[#round + 1] = fin end
 			local function build(rounds, claws)
 				local t = {}
@@ -454,13 +459,16 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 				if known.rake then t[#t + 1] = N.rake end
 				for r = 1, rounds do
 					for _ = 1, claws do t[#t + 1] = N.claw end
-					if fin then t[#t + 1] = fin end
+					if fin then t[#t + 1] = (r == 1) and fin1 or fin2 end
 				end
 				return t
 			end
 			local claws = #round - (fin and 1 or 0)
 			local long = seq(inForm, "target", build(fin and 2 or 1, claws))
-			local short = seq(inForm, "target", build(1, math.max(1, claws - 1)))
+			-- short of space: two rounds with a Claw fewer (Rip, then Bite),
+			-- one round only when two do not fit either
+			local short = seq(inForm, "target", build(fin and 2 or 1, math.max(1, claws - 1)))
+			if fin2 ~= fin1 and #short > 120 then short = seq(inForm, "target", build(1, math.max(1, claws - 1))) end
 			L[#L + 1] = { long, 1, short, 3 }
 			if cfg.shiftpower and known.shiftpower then L[#L + 1] = { "/cast " .. nos .. M(N.shiftpower), 8 } end
 		end
