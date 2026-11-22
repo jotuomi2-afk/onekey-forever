@@ -85,7 +85,7 @@ Likelihood (L) and impact (I) are rated 1–3; their product sets the depth of t
 | REQ-36 | Short of mana the druid's G drinks a mana potion once a fight, then the bear; a potion still cooling as a fight starts is left out of G | druid: a potion still cooling |
 | REQ-37 | Priest: F puts Shadow Word: Pain on once per target, then wands; Mind Flay and Smite only with no wand | priest: Shadow Word: Pain once |
 | REQ-38 | Druid: before a pull, 4+ other living enemies in Wrath's range hold F (DO NOT PULL), 2-3 warn; /okd brave on lifts the hold. In bear form G does not leave the form (potion only) | druid: a camp of enemies |
-| REQ-39 | Druid cat F: Rip is the first finisher, Ferocious Bite the second once learned; F stays within 255 characters | druid: cat finishers are Rip first |
+| REQ-39 | Druid cat F: Rip is the first finisher, Ferocious Bite the second once learned, with three Claws before the Bite; F stays within 255 characters | druid: cat finishers are Rip first |
 | REQ-25 | The mage keeps the Frostbolt slow up: Fireball only opens | macro: mage opens |
 | REQ-23 | The HUD tells a mage in melee to Frost Nova, then Ice Lance and step back | hud: mage hit in melee |
 | REQ-20 |
@@ -137,7 +137,7 @@ point to several tests; names are matched on their beginning.
 | REQ-36 | Short of mana the druid's G drinks a mana potion once a fight, then the bear; a potion still cooling as a fight starts is left out of G | druid: a potion still cooling |
 | REQ-37 | Priest: F puts Shadow Word: Pain on once per target, then wands; Mind Flay and Smite only with no wand | priest: Shadow Word: Pain once |
 | REQ-38 | Druid: before a pull, 4+ other living enemies in Wrath's range hold F (DO NOT PULL), 2-3 warn; /okd brave on lifts the hold. In bear form G does not leave the form (potion only) | druid: a camp of enemies |
-| REQ-39 | Druid cat F: Rip is the first finisher, Ferocious Bite the second once learned; F stays within 255 characters | druid: cat finishers are Rip first |
+| REQ-39 | Druid cat F: Rip is the first finisher, Ferocious Bite the second once learned, with three Claws before the Bite; F stays within 255 characters | druid: cat finishers are Rip first |
 | REQ-25 | The mage keeps the Frostbolt slow up: Fireball only opens | macro: mage opens |
 | REQ-23 | The HUD tells a mage in melee to Frost Nova, then Ice Lance and step back | hud: mage hit in melee |
 | REQ-20 | With no enemy targeted, the key only targets; the next update checks the target before attacking | macro: every class; smoke: |

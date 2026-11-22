@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.32.2
+
+- Druid, cat F (from the log of 22.11.): Ferocious Bite came with only two
+  Claws behind it, so it hit with two or three combo points. The sequence is
+  now Faerie Fire, Rake, Claw, Claw, Rip, Claw, Claw, Claw, Ferocious Bite:
+  Rip with three combo points (Rake and two Claws), the Bite with three
+  Claws more.
+- The trainer hints follow Forever: Shred at 20, Rake and Ferocious Bite at
+  24 (Classic had 22 and 32).
+
 ## 0.32.1
 
 From the log of 21.11. evening (a death at a gnoll camp: a Wrath pull,

@@ -45,8 +45,8 @@ DRUID_SPELLS = {
     8936: ("Regrowth", 12), 5229: ("Enrage", 12), 5211: ("Bash", 14), 1066: ("Aquatic Form", 16),
     770: ("Faerie Fire", 18), 2637: ("Hibernate", 18), 16689: ("Nature's Grasp", 10),
     768: ("Cat Form", 20), 1082: ("Claw", 20), 1079: ("Rip", 20), 5215: ("Prowl", 20),
-    5221: ("Shred", 22), 1822: ("Rake", 24), 5217: ("Tiger's Fury", 24), 783: ("Travel Form", 30),
-    22568: ("Ferocious Bite", 32), 6785: ("Ravage", 32), 9005: ("Pounce", 36), 20580: ("Shadowmeld", 1),
+    5221: ("Shred", 20), 1822: ("Rake", 24), 5217: ("Tiger's Fury", 24), 783: ("Travel Form", 30),
+    22568: ("Ferocious Bite", 24), 6785: ("Ravage", 32), 9005: ("Pounce", 36), 20580: ("Shadowmeld", 1),
     2383: ("Find Herbs", 1),
 }
 
@@ -628,16 +628,19 @@ def main():
         p = []
         lua = new_lua()
         nsl, _ = load_addon(lua, ["Logic.lua"])
-        for lvl in (25, 32, 40):
+        for lvl in (23, 25, 40):
             f = druid_macros(lua, nsl, lvl, "cat").fight or ""
             seq = next((l for l in f.split("\n") if l.startswith("/castsequence") and "Claw" in l), "")
             if len(f) > 255:
                 p.append("level %d: F is %d characters" % (lvl, len(f)))
             rip, fb = seq.find("Rip"), seq.find("Ferocious Bite")
-            if lvl < 32 and fb >= 0:
+            if lvl < 24 and fb >= 0:
                 p.append("level %d: Ferocious Bite before it is learned: %r" % (lvl, seq))
-            if lvl >= 32 and not (0 <= rip < fb):
+            if lvl >= 24 and not (0 <= rip < fb):
                 p.append("level %d: want Rip, then Ferocious Bite: %r" % (lvl, seq))
+            # the Bite gets three Claws behind it (22.11.: two were too few)
+            if lvl >= 24 and seq[rip:fb].count("Claw") < 3:
+                p.append("level %d: fewer than three Claws before the Bite: %r" % (lvl, seq))
         return p
 
     @S.test("druid: a camp of enemies near the target holds the pull key (death of 21.11. evening)")

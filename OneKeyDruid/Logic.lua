@@ -453,22 +453,25 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 			local fin2 = (known.fb and N.fb) or fin1
 			local fin = fin1
 			if fin then round[#round + 1] = fin end
-			local function build(rounds, claws)
+			-- per round the Claws before its finisher: { 2, 3 } is Rake and two
+			-- Claws (3 combo points) for Rip, then three Claws for the Bite.
+			-- The log of 22.11. showed the Bite with only two Claws behind it.
+			local function build(claws)
 				local t = {}
 				if known.ff then t[#t + 1] = N.ff end
 				if known.rake then t[#t + 1] = N.rake end
-				for r = 1, rounds do
-					for _ = 1, claws do t[#t + 1] = N.claw end
+				for r, n in ipairs(claws) do
+					for _ = 1, n do t[#t + 1] = N.claw end
 					if fin then t[#t + 1] = (r == 1) and fin1 or fin2 end
 				end
 				return t
 			end
-			local claws = #round - (fin and 1 or 0)
-			local long = seq(inForm, "target", build(fin and 2 or 1, claws))
-			-- short of space: two rounds with a Claw fewer (Rip, then Bite),
-			-- one round only when two do not fit either
-			local short = seq(inForm, "target", build(fin and 2 or 1, math.max(1, claws - 1)))
-			if fin2 ~= fin1 and #short > 120 then short = seq(inForm, "target", build(1, math.max(1, claws - 1))) end
+			local c = #round - (fin and 1 or 0)
+			local long = seq(inForm, "target", build(fin and { c, c } or { c }))
+			-- short of space: a Claw fewer before Rip (Rake gives its combo
+			-- point), and a Claw fewer before the Bite only if that is too long
+			local short = seq(inForm, "target", build(fin and { math.max(1, c - 1), c } or { math.max(1, c - 1) }))
+			if #short > 120 then short = seq(inForm, "target", build(fin and { math.max(1, c - 1), math.max(1, c - 1) } or { 1 })) end
 			L[#L + 1] = { long, 1, short, 3 }
 			if cfg.shiftpower and known.shiftpower then L[#L + 1] = { "/cast " .. nos .. M(N.shiftpower), 8 } end
 		end
@@ -744,10 +747,11 @@ Logic.ZONES = {
 }
 
 Logic.TRAIN = {
-	{ 20, "Cat Form, Claw, Prowl, Rip; talent Feral Charge" },
-	{ 22, "Shred" }, { 24, "Rake, Tiger's Fury" }, { 26, "Dash" },
+	-- Forever moved Shred to 20 and Rake and Ferocious Bite to 24
+	{ 20, "Cat Form, Claw, Prowl, Rip, Shred; talent Feral Charge" },
+	{ 24, "Rake, Ferocious Bite, Tiger's Fury" }, { 26, "Dash" },
 	{ 28, "Cower, Maul rank" }, { 30, "Travel Form" },
-	{ 32, "Ferocious Bite, Ravage" }, { 36, "Pounce" },
+	{ 32, "Ravage" }, { 36, "Pounce" },
 }
 
 -- level: yours; zone: GetRealZoneText(). Returns the advice line (or nil
