@@ -963,6 +963,12 @@ def main():
             errs += lua_list(tick(20, 0.5))
             if lua.eval("STUB.sounds") == 0:
                 errs.append("no alarm sound in a fight after ten idle minutes")
+            # still sounding a minute into the fight (22.11.: it stopped at 30 s)
+            errs += lua_list(tick(60, 0.5))     # 40 s into the fight
+            n = lua.eval("STUB.sounds")
+            errs += lua_list(tick(40, 0.5))
+            if lua.eval("STUB.sounds") <= n:
+                errs.append("the alarm went quiet before the fight ended")
             return errs
 
     def mage_session(level, extra=()):

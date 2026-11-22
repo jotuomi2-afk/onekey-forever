@@ -16,7 +16,7 @@ local Logic = ns.Logic
 local _, CLASS = UnitClass("player")
 if CLASS ~= "DRUID" then return end
 
-local VERSION = "0.32.2"
+local VERSION = "0.32.3"
 local BUTTON = "OneKeyDruidButton"
 -- The buttons of the modifier keys.
 local NAMES = { heal = "OneKeyDruidHeal", cc = "OneKeyDruidStop", behind = "OneKeyDruidBehind",
@@ -1279,11 +1279,14 @@ end
 local function alarmTick()
 	if not alarm.on then return end
 	-- the first tick runs on the combat event, just before the lock
-	if (alarm.n > 0 and not locked()) or lastPress() > alarm.since or alarm.n >= 15 then alarm.on = false return end
+	if (alarm.n > 0 and not locked()) or lastPress() > alarm.since or alarm.n >= 60 then alarm.on = false return end
 	alarm.n = alarm.n + 1
 	if PlaySound then pcall(PlaySound, 8959, "Master") end
 	if FlashClientIcon then pcall(FlashClientIcon) end
-	if C_Timer and C_Timer.After then C_Timer.After(2, alarmTick) end
+	-- every 2 s for half a minute, then every 3 s for as long as the fight
+	-- lasts, up to three minutes (22.11.: a wolf took 78 s to kill an AFK
+	-- druid, and the alarm had stopped after 30 s)
+	if C_Timer and C_Timer.After then C_Timer.After(alarm.n < 15 and 2 or 3, alarmTick) end
 end
 local function startAlarm()
 	if db.alarm == false or alarm.on then return end

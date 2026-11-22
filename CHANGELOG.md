@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.32.3
+
+- The AFK alarm (every class) keeps sounding for as long as the fight
+  lasts, up to three minutes: every 2 s for half a minute, then every 3 s.
+  In the log of 22.11. a Rabid Dire Wolf took 78 seconds to kill the druid
+  while away, and the alarm had gone quiet after 30 seconds.
+
 ## 0.32.2
 
 - Druid, cat F (from the log of 22.11.): Ferocious Bite came with only two

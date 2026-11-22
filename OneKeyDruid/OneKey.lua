@@ -16,7 +16,7 @@ if CLASS == "DRUID" then return end
 local CL = ns.CLASSES and ns.CLASSES[CLASS]
 local Logic = ns.Logic
 
-local VERSION = "0.32.2"
+local VERSION = "0.32.3"
 local PREFIX = "|cff7fd4ffOneKey|r "
 local LIMIT = 255
 local NAMES = { fight = "OneKeyMain", heal = "OneKeyHeal", cc = "OneKeyAlt", behind = "OneKeyCtrl",
@@ -743,11 +743,14 @@ local function alarmTick()
 	if not alarm.on then return end
 	local last = clicks[#clicks] or 0
 	-- the first tick runs on the combat event, just before the lock
-	if (alarm.n > 0 and not locked()) or last > alarm.since or alarm.n >= 15 then alarm.on = false return end
+	if (alarm.n > 0 and not locked()) or last > alarm.since or alarm.n >= 60 then alarm.on = false return end
 	alarm.n = alarm.n + 1
 	if PlaySound then pcall(PlaySound, 8959, "Master") end
 	if FlashClientIcon then pcall(FlashClientIcon) end
-	if C_Timer and C_Timer.After then C_Timer.After(2, alarmTick) end
+	-- every 2 s for half a minute, then every 3 s for as long as the fight
+	-- lasts, up to three minutes (22.11.: a wolf took 78 s to kill an AFK
+	-- druid, and the alarm had stopped after 30 s)
+	if C_Timer and C_Timer.After then C_Timer.After(alarm.n < 15 and 2 or 3, alarmTick) end
 end
 
 local function enterCombat()

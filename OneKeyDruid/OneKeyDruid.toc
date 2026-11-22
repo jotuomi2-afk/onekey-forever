@@ -2,7 +2,7 @@
 ## Title: OneKey Forever
 ## Notes: One key for leveling, every class: it heals, eats, buffs, picks a target or fights, whichever fits now.
 ## Author: Jukka Tuominen
-## Version: 0.32.2
+## Version: 0.32.3
 ## X-License: MIT
 ## SavedVariablesPerCharacter: OneKeyDruidDB
 
