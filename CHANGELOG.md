@@ -1,5 +1,72 @@
 # Changelog
 
+## 0.34.0
+
+The other seven classes, set against the WoW Forever levelling guides
+(Warcraft Tavern and Method; read 23.11.2026). None of this has been
+played yet: the macros are tested in the simulated client only.
+
+- New for every class: the HUD names a helper key when its spell can be
+  used. A reactive spell (after a dodge or a parry, under 20 % health) is
+  named when the game says it is usable; a cooldown spell when it is ready.
+- New for every class: what F offers before a fight (a buff, a shield, a
+  weapon imbue, an opener) is tried once. A press that does not help (no
+  rage or mana, out of range) no longer holds the key; the next press
+  attacks.
+- Warrior:
+  - With Mortal Strike or Bloodthirst learned, F is Rend once and the
+    strike. Heroic Strike on every press took the rage the strike needs;
+    it stays on your own action bar for a full rage bar. Without a strike
+    talent F is Rend and Heroic Strike, as before.
+  - The HUD says "OVERPOWER: Ctrl+F" after a dodge and "EXECUTE: Shift+F"
+    under 20 % health.
+- Rogue:
+  - Slice and Dice is the first finisher, right after the first Sinister
+    Strike (the guides: as soon as possible). Then the stun chain as
+    before.
+  - Ctrl+F in a fight is Riposte; the HUD says so after a parry. From
+    stealth it is still Ambush.
+- Hunter:
+  - Aimed Shot and Arcane Shot are one sequence, the last line of F, so
+    each goes out when it is ready.
+  - With Summon Hawk (level 25): hawk, Aimed Shot, hawk, Arcane Shot. Two
+    hawks stay up, as the guides ask (the hawk shares Arcane Shot's
+    cooldown).
+  - Hunter's Mark and Serpent Sting are one line, once per target, so that
+    the macro fits.
+- Priest:
+  - Before a pull, from level 10: Power Word: Shield (not under Weakened
+    Soul), then Mind Blast as the opener, then the fight: Shadow Word:
+    Pain and the wand.
+  - In the fight the HUD says "MIND BLAST: Ctrl+F" when it is ready.
+  - Before Mind Blast, Smite opens from range.
+  - From Shadowform Mind Flay fills, not the wand.
+- Warlock: Bane of Agony first, then Corruption, then Siphon Life. The
+  wand stays the filler on F: Drain Life, the guides' filler from level 30,
+  reaches less far than the wand, and a cast out of range stops the key.
+  It is on Shift+F.
+- Paladin:
+  - In Forever Judgement no longer uses the seal up. The seal is now kept
+    up out of combat like a buff (Seal of Command once learned), with
+    Retribution Aura (before it Devotion Aura) and Blessing of Might.
+  - F is Judgement, Holy Strike, Judgement, Holy Strike, then the seal
+    again, in one sequence: each when it is ready. It was the seal and
+    Judgement by turns, and Holy Strike was missing.
+- Shaman:
+  - Out of combat F puts on Windfury Weapon (Rockbiter Weapon before
+    level 30) when the main hand has no imbue.
+  - F is Flame Shock, Stormstrike, Earth Shock in one sequence. The shocks
+    share a cooldown and Flame Shock burns for 12 seconds, so it is renewed
+    as it ends, and Stormstrike goes in between.
+- Left out, and why:
+  - Victory Rush, Blade Flurry, Adrenaline Rush, Rapid Fire, Bestial
+    Wrath, Devouring Plague, Shadow Word: Death, Consecration, totems:
+    no free key, a long cooldown, or a use the addon cannot judge. Use
+    them from your own action bar.
+  - Shank (rogue) and the other new Forever spells whose cost and cooldown
+    the guides do not give.
+  - Summon Hawk and Holy Strike are found by their English names.
+
 ## 0.33.0
 
 Frost mage, set against the WoW Forever guides (Icy Veins, Wowhead, Method,

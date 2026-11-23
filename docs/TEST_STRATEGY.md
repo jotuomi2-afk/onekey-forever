@@ -91,6 +91,13 @@ Likelihood (L) and impact (I) are rated 1–3; their product sets the depth of t
 | REQ-25 | The mage keeps the Frostbolt slow up: Fireball only opens, and only below level 15. Shift+F is Frost Nova, Frostbolt, Ice Lance, and starts over after 10 s | macro: mage opens |
 | REQ-42 | Mage: out of combat with an enemy picked F casts Ice Barrier first when it is not up and not on cooldown; a press that does not bring the buff does not hold the key; Ice Armor comes before Mage Armor; Ctrl+G is Ice Barrier | mage: Ice Barrier before the pull |
 | REQ-43 | Mage HUD: five Frostbolt or Ice Lance casts on a target ask for Cone of Cold (Winter's Chill, level 35; /okd cone off); a minute after Ice Barrier it asks for it again | hud: mage with five Frostbolts |
+| REQ-44 | What F offers before a fight (buff, shield, imbue, opener) is tried once: a press that does not help does not hold the key | mage: Ice Barrier before the pull; priest: before the pull; shaman: the weapon imbue |
+| REQ-45 | The HUD names a helper key when its spell can be used: reactive spells from the client's usable check (Overpower, Execute, Riposte), cooldown spells when ready (Mind Blast) | warrior: F is Rend once; rogue: Riposte; priest: before the pull |
+| REQ-46 | Hunter: the shots with a cooldown are one sequence as the last line of F (with Summon Hawk: hawk, Aimed Shot, hawk, Arcane Shot); F keeps the pet, the once-per-target line and Auto Shot within 255 characters | hunter: the cooldown shots |
+| REQ-47 | Paladin: aura, blessing and seal are kept up out of combat; F is Judgement and Holy Strike in one sequence, the seal again after two rounds | paladin: aura, blessing and seal |
+| REQ-48 | Shaman: out of combat F puts the weapon imbue on (Windfury over Rockbiter); F is Lightning Bolt to pull, then Flame Shock, Stormstrike, Earth Shock in one sequence | shaman: the weapon imbue |
+| REQ-49 | Priest: from level 10 F shields before the pull (not under Weakened Soul) and opens with Mind Blast; Mind Flay fills from Shadowform | priest: before the pull; priest: Shadow Word: Pain once |
+| REQ-50 | Rogue: Slice and Dice is the first finisher; the chain with Cheap Shot fits 255 characters | macro: rogue chains |
 | REQ-23 | The HUD tells a mage in melee to Frost Nova, then Ice Lance and step back | hud: mage hit in melee |
 | REQ-20 |
 | RK16 | The AFK alarm stays silent | 2 | 2 | REQ-16 |
@@ -147,6 +154,13 @@ point to several tests; names are matched on their beginning.
 | REQ-25 | The mage keeps the Frostbolt slow up: Fireball only opens, and only below level 15. Shift+F is Frost Nova, Frostbolt, Ice Lance, and starts over after 10 s | macro: mage opens |
 | REQ-42 | Mage: out of combat with an enemy picked F casts Ice Barrier first when it is not up and not on cooldown; a press that does not bring the buff does not hold the key; Ice Armor comes before Mage Armor; Ctrl+G is Ice Barrier | mage: Ice Barrier before the pull |
 | REQ-43 | Mage HUD: five Frostbolt or Ice Lance casts on a target ask for Cone of Cold (Winter's Chill, level 35; /okd cone off); a minute after Ice Barrier it asks for it again | hud: mage with five Frostbolts |
+| REQ-44 | What F offers before a fight (buff, shield, imbue, opener) is tried once: a press that does not help does not hold the key | mage: Ice Barrier before the pull; priest: before the pull; shaman: the weapon imbue |
+| REQ-45 | The HUD names a helper key when its spell can be used: reactive spells from the client's usable check (Overpower, Execute, Riposte), cooldown spells when ready (Mind Blast) | warrior: F is Rend once; rogue: Riposte; priest: before the pull |
+| REQ-46 | Hunter: the shots with a cooldown are one sequence as the last line of F (with Summon Hawk: hawk, Aimed Shot, hawk, Arcane Shot); F keeps the pet, the once-per-target line and Auto Shot within 255 characters | hunter: the cooldown shots |
+| REQ-47 | Paladin: aura, blessing and seal are kept up out of combat; F is Judgement and Holy Strike in one sequence, the seal again after two rounds | paladin: aura, blessing and seal |
+| REQ-48 | Shaman: out of combat F puts the weapon imbue on (Windfury over Rockbiter); F is Lightning Bolt to pull, then Flame Shock, Stormstrike, Earth Shock in one sequence | shaman: the weapon imbue |
+| REQ-49 | Priest: from level 10 F shields before the pull (not under Weakened Soul) and opens with Mind Blast; Mind Flay fills from Shadowform | priest: before the pull; priest: Shadow Word: Pain once |
+| REQ-50 | Rogue: Slice and Dice is the first finisher; the chain with Cheap Shot fits 255 characters | macro: rogue chains |
 | REQ-23 | The HUD tells a mage in melee to Frost Nova, then Ice Lance and step back | hud: mage hit in melee |
 | REQ-20 | With no enemy targeted, the key only targets; the next update checks the target before attacking | macro: every class; smoke: |
 

@@ -16,7 +16,7 @@ if CLASS == "DRUID" then return end
 local CL = ns.CLASSES and ns.CLASSES[CLASS]
 local Logic = ns.Logic
 
-local VERSION = "0.33.0"
+local VERSION = "0.34.0"
 local PREFIX = "|cff7fd4ffOneKey|r "
 local LIMIT = 255
 local NAMES = { fight = "OneKeyMain", heal = "OneKeyHeal", cc = "OneKeyAlt", behind = "OneKeyCtrl",
@@ -74,17 +74,31 @@ local function hasBuff(name)
 	return false
 end
 
+-- a debuff on the player, by its English name (out of combat only: auras
+-- are secret in a fight)
+local function hasDebuff(name)
+	if not (C_UnitAuras and C_UnitAuras.GetAuraDataBySpellName) then return false end
+	local ok, a = pcall(C_UnitAuras.GetAuraDataBySpellName, "player", name, "HARMFUL")
+	return ok and a ~= nil
+end
+
 local function readSpells()
 	if not CL then return end
 	for key, s in pairs(CL.spells) do
 		local name = spellName(s[1]) or s[2]
 		N[key], known[key] = name, isKnown(s[1], name) or nil
 	end
+	-- a name for "one of these is learned" (warrior: a strike talent)
+	for name, list in pairs(CL.either or {}) do
+		known[name] = nil
+		for _, k in ipairs(list) do if known[k] then known[name] = true end end
+	end
 	-- a wand in the ranged slot (for classes whose filler is the wand)
 	known.wand = nil
 	if CL.wand and IsEquippedItemType then
 		local ok, w = pcall(IsEquippedItemType, "Wands")
 		if ok and w and not secret(w) then known.wand = true end
+		if CL.wandUntil and known[CL.wandUntil] then known.wand = nil end
 	end
 end
 
@@ -265,7 +279,7 @@ local TEXT = {
 		afk = "Going AFK? Ctrl+%s: hide", noClass = "no list for this class yet",
 		aMelee = "IN MELEE: Ctrl+%s  %s, then step back and %s", aNova = "IN MELEE: Shift+%s  %s", aLance = "FROZEN: step back, Shift+%s x2  %s + %s",
 		aBack = "FROZEN: step back, %s", aCone = "WINTER'S CHILL x%d: close in, Ctrl+%s until %s",
-		aShield = "%s: Ctrl+%s" },
+		aShield = "%s: Ctrl+%s", aKey = "%s: %s%s" },
 	fi = { target = "%s: etsi kohde", fight = "%s: hyökkää", buff = "%s: buffaa (%s)", conjure = "%s: loihdi (%s)",
 		hold = "ÄLÄ VEDÄ: liian vahva (%s). /okd brave on", dead = "Olet kuollut", mounted = "Ratsailla",
 		cFight = "%s: taistele", cMany = "%d vihollista: paina %s tai pakene", run = "PAKENE!  %s",
@@ -273,7 +287,7 @@ local TEXT = {
 		afk = "Menossa AFK? Ctrl+%s: piiloon", noClass = "tälle luokalle ei vielä ole listaa",
 		aMelee = "LÄHITAISTELU: Ctrl+%s  %s, sitten taakse ja %s", aNova = "LÄHITAISTELU: Shift+%s  %s", aLance = "JÄÄSSÄ: peräänny, Shift+%s x2  %s + %s",
 		aBack = "JÄÄSSÄ: peräänny, %s", aCone = "WINTER'S CHILL x%d: lähelle, Ctrl+%s kunnes %s",
-		aShield = "%s: Ctrl+%s" },
+		aShield = "%s: Ctrl+%s", aKey = "%s: %s%s" },
 }
 local function tr(key, ...)
 	local t = TEXT[db and db.lang] or TEXT.en
@@ -291,33 +305,66 @@ local function apply(text, label)
 	buttons.fight:SetAttribute("macrotext", text or "")
 end
 
+-- What F offers out of combat before the fight (a buff, the shield, the
+-- weapon imbue, the opener) must never hold the key. A press that does not
+-- help (no rage or mana, out of range, a debuff in the way) is tried once;
+-- after it the key moves on, until the target changes or a fight ends.
+local tries = {}
+local cooldownLeft
+
+local function mayTry(tag, now)
+	local t = tries[tag]
+	if not t then t = { offered = now } tries[tag] = t end
+	if t.skip then return false end
+	local press = clicks[#clicks] or 0
+	if press > t.offered and now - press > 2 then t.skip = true return false end
+	return true
+end
+
 -- buffs the class keeps up; the first learned of each group
-local function missingBuff()
+local function missingBuff(now)
 	for _, group in ipairs(CL.buffs or {}) do
 		for _, k in ipairs(group) do
 			if known[k] then
-				if not hasBuff(N[k]) then return k end
+				if hasBuff(N[k]) then tries["buff:" .. k] = nil
+				elseif mayTry("buff:" .. k, now) then return k end
 				break
 			end
 		end
 	end
 end
 
--- The class's shield before the pull (mage: Ice Barrier). A press that
--- does not bring the buff (no mana, a silence) must not hold the key: after
--- one try the key attacks, until the target changes or a fight ends.
-local shield = { offered = 0, skip = false }
-local cooldownLeft
+-- the weapon imbue (shaman): the first learned of the list, when the main
+-- hand has none
+local function missingImbue(now)
+	if not CL.imbue or not GetWeaponEnchantInfo then return nil end
+	local ok, has = pcall(GetWeaponEnchantInfo)
+	if not ok or secret(has) then return nil end
+	if has then tries.imbue = nil return nil end
+	for _, k in ipairs(CL.imbue) do
+		if known[k] then return mayTry("imbue", now) and k or nil end
+	end
+end
 
+-- the class's shield before the pull (mage: Ice Barrier, priest: Power
+-- Word: Shield)
 local function wantShield(now)
 	local k = CL.shield
-	if not k or not known[k] or shield.skip then return false end
-	if hasBuff(N[k]) then shield.offered = 0 return false end
+	if not k or not known[k] then return false end
+	local lvl = UnitLevel("player")
+	if CL.shieldFrom and (secret(lvl) or type(lvl) ~= "number" or lvl < CL.shieldFrom) then return false end
+	if hasBuff(N[k]) then tries.shield = nil return false end
+	if CL.shieldBlock and hasDebuff(CL.shieldBlock) then return false end
 	if cooldownLeft(k, now) > 0 then return false end
-	if shield.offered == 0 then shield.offered = now end
-	local press = clicks[#clicks] or 0
-	if press > shield.offered and now - press > 2 then shield.skip = true return false end
-	return true
+	return mayTry("shield", now)
+end
+
+-- a spell with a cooldown that opens the fight (priest: Mind Blast). In
+-- combat the key is the fight macro, which holds no cooldown spell.
+local function wantOpener(now)
+	local k = CL.opener
+	if not k or not known[k] or cooldownLeft(k, now) > 0 then return false end
+	return mayTry("opener", now)
 end
 
 local function decide()
@@ -334,8 +381,11 @@ local function decide()
 			return "/cast " .. N[CL.conjure.food], tr("conjure", key, N[CL.conjure.food])
 		end
 	end
-	local b = missingBuff()
+	local now = GetTime()
+	local b = missingBuff(now)
 	if b then return "/cast [@player] " .. N[b], tr("buff", key, N[b]) end
+	b = missingImbue(now)
+	if b then return "/cast " .. N[b], tr("buff", key, N[b]) end
 	if tk == "hostile" then
 		local lvl, mine = UnitLevel("target"), UnitLevel("player")
 		local class = UnitClassification and UnitClassification("target")
@@ -345,8 +395,11 @@ local function decide()
 				return "", "|cffff3030" .. tr("hold", diff < 99 and ("+" .. diff) or "??") .. "|r"
 			end
 		end
-		if wantShield(GetTime()) then
+		if wantShield(now) then
 			return "/cast [@player] " .. N[CL.shield], tr("buff", key, N[CL.shield])
+		end
+		if wantOpener(now) then
+			return TARGET .. "\n/cast [harm,nodead] " .. N[CL.opener], tr("fight", key)
 		end
 		return macros.fight, tr("fight", key)
 	end
@@ -482,7 +535,8 @@ cooldownLeft = function(key, now)
 			return math.max(0, cd.startTime + cd.duration - now)
 		end
 	end
-	local t, len = lastCast[key], CL and CL.alert and CL.alert.cd and CL.alert.cd[key] or 0
+	local t = lastCast[key]
+	local len = CL and ((CL.alert and CL.alert.cd and CL.alert.cd[key]) or (CL.cd and CL.cd[key])) or 0
 	if not t then return 0 end
 	return math.max(0, t + len - now)
 end
@@ -536,6 +590,27 @@ local function inMelee(spellKey, now)
 	return false
 end
 
+-- Spells the fight key cannot hold, on the helper keys: a reactive spell
+-- (usable only now and then: after a dodge, a parry, under 20 % health) is
+-- named when the client says it can be used, a cooldown spell when it is
+-- ready. Only the first that applies; only text.
+local COMBO = { heal = "Shift+", cc = "Alt+", behind = "Ctrl+" }
+local function keyHint(now)
+	local key = db.key or "F"
+	for _, r in ipairs(CL and CL.hints or {}) do
+		local name = known[r.spell] and N[r.spell]
+		if name and COMBO[r.key] and (macros[r.key] or ""):find(name, 1, true) and cooldownLeft(r.spell, now) == 0 then
+			local show = not r.react
+			if r.react and C_Spell and C_Spell.IsSpellUsable then
+				local ok, usable = pcall(C_Spell.IsSpellUsable, name)
+				show = ok and not secret(usable) and usable == true
+			end
+			if show and targetKind() == "hostile" then return tr("aKey", name:upper(), COMBO[r.key], key) end
+		end
+	end
+	return nil
+end
+
 local function alertText(now)
 	local key = db.key or "F"
 	local H = CL and CL.meleeHint
@@ -543,7 +618,7 @@ local function alertText(now)
 		return tr("aMelee", key, N[H.spell], key)
 	end
 	local A = CL and CL.alert
-	if not A or not known[A.freeze] then return nil end
+	if not A or not known[A.freeze] then return keyHint(now) end
 	local frozenAt = lastCast[A.freeze]
 	if frozenAt and now - frozenAt < 8 then
 		if A.lance and known[A.lance] and cooldownLeft(A.lance, now) == 0 then
@@ -560,13 +635,13 @@ local function alertText(now)
 	if W and chillStacks(now) >= W.stacks and cooldownLeft(W.spend, now) == 0 then
 		return tr("aCone", W.stacks, key, N[W.spend])
 	end
-	local S = A.shield
+	local S = A and A.shield
 	if S and db.sos and known[S.spell] and macros.hide and macros.hide:find(N[S.spell], 1, true)
 		and cooldownLeft(S.spell, now) == 0 and now - (lastCast[S.spell] or -999) >= S.every
 		and now - live.start >= 3 then
 		return tr("aShield", N[S.spell], db.sos)
 	end
-	return nil
+	return keyHint(now)
 end
 local shownAlert
 ns.OneKeyAlert = function() return shownAlert end -- read by the tests
@@ -931,7 +1006,7 @@ driver:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		logCombat(false)
 		current.text = nil
 		adds.n = 0
-		chill.n, shield.skip, shield.offered = 0, false, 0
+		chill.n, tries = 0, {}
 		if #secureLater > 0 then
 			for _, b in ipairs(secureLater) do b:SetAttribute("type", "macro") end
 			secureLater = {}
@@ -962,7 +1037,7 @@ driver:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 	elseif event == "ZONE_CHANGED_NEW_AREA" then
 		logEvent("Z", GetRealZoneText and GetRealZoneText() or "?")
 	elseif event == "PLAYER_TARGET_CHANGED" then
-		chill.n, shield.skip, shield.offered = 0, false, 0
+		chill.n, tries = 0, {}
 		if not locked() then
 			local name, lvl, class = logTarget()
 			if name then lg.lastName, lg.lastLevel = name, lvl logEvent("T", name, lvl, class) end

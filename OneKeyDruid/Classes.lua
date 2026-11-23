@@ -85,6 +85,12 @@ C.MAGE = {
 	hide = { { "cast", "barrier", "" } }, hideIsSpell = true,
 }
 
+-- The classes below follow the WoW Forever levelling guides (Warcraft
+-- Tavern, Method; read 23.11.2026). What a guide casts "on cooldown" or
+-- "when available" cannot be on F with other spells (a failed cast stops
+-- the macro), so it sits inside one sequence, which waits, or on a helper
+-- key that the HUD names when the spell is ready (hints).
+
 C.WARRIOR = {
 	melee = true,
 	spells = {
@@ -93,22 +99,35 @@ C.WARRIOR = {
 		tc = { 6343, "Thunder Clap" }, demo = { 1160, "Demoralizing Shout" }, ham = { 1715, "Hamstring" },
 		bloodrage = { 2687, "Bloodrage" }, retal = { 20230, "Retaliation" }, fear = { 5246, "Intimidating Shout" },
 		shoot = { 3018, "Shoot" }, throw = { 2764, "Throw" },
+		ms = { 12294, "Mortal Strike" }, bt = { 23881, "Bloodthirst" },
 	},
 	buffs = { { "shout" } },
 	pull = { { "cast", "charge", "[nocombat,harm,nodead] " } },
 	-- Overpower (only after a dodge) and Execute (only under 20 % health)
 	-- cannot be used most of the time, and a spell that cannot be used stops
 	-- the macro: first on F they kept Rend and Heroic Strike from ever being
-	-- reached. They have keys of their own now.
+	-- reached. They have keys of their own, and the HUD names the key when
+	-- the client says the spell can be used.
+	-- The guides: Charge, Rend, Overpower whenever it is up, Mortal Strike
+	-- or Bloodthirst on cooldown, Heroic Strike with rage left over. With a
+	-- strike talent F is Rend once and the strike: Heroic Strike on every
+	-- press took the rage the strike needs (it stays on your action bar for
+	-- a full rage bar). Without one, Heroic Strike as before.
 	fight = {
 		{ "once", "rend", H },
-		{ "cast", "hs", H, bang = true },
+		{ "cast", "hs", H, bang = true, without = "strike" },
+		{ "cast", "bt", H, without = "ms" },
+		{ "cast", "ms", H },
 	},
+	-- "strike" is known when Mortal Strike or Bloodthirst is (OneKey.lua)
+	either = { strike = { "ms", "bt" } },
 	-- Shift+F: Execute, for the mob's last fifth of health
 	heal = { { "cast", "execute", H } },
 	cc = { { "cast", "ham", H } },
 	-- Ctrl+F: Overpower right after the mob dodges
 	behind = { { "cast", "op", H } },
+	hints = { { spell = "op", key = "behind", react = true }, { spell = "execute", key = "heal", react = true } },
+	cd = { op = 5 },
 	sos = { { "cast", "demo", "" }, { "potion" } },
 	-- Shift+G: Bloodrage, rage at the start of a fight
 	free = { { "cast", "bloodrage", "" } },
@@ -123,28 +142,39 @@ C.ROGUE = {
 		stealth = { 1784, "Stealth" }, cs = { 1833, "Cheap Shot" }, ambush = { 8676, "Ambush" },
 		gouge = { 1776, "Gouge" }, kick = { 1766, "Kick" }, evasion = { 5277, "Evasion" },
 		sprint = { 2983, "Sprint" }, vanish = { 1856, "Vanish" }, throw = { 2764, "Throw" },
-		kidney = { 408, "Kidney Shot" },
+		kidney = { 408, "Kidney Shot" }, riposte = { 14251, "Riposte" },
 	},
 	buffs = {},
-	-- The stun chain (WoW Forever guides): Cheap Shot from stealth (4 s,
-	-- 2 combo points), Sinister Strike to 5 points, Kidney Shot (5 s at 5
-	-- points), one more Sinister Strike while it is stunned, Gouge as the
-	-- stun ends (it breaks on damage, so the energy comes back while it
-	-- holds), then Sinister Strike and Eviscerate. In one /castsequence:
-	-- Kidney Shot and Gouge have cooldowns, and in a line of their own a
-	-- cooldown would stop the macro; in the sequence the press waits for
-	-- them. A spell without energy is skipped and the sequence waits. Before
-	-- Kidney Shot (level 30): Sinister Strike, Eviscerate, Gouge in between.
-	pull = { { "cast", "cs", "[stealth,harm,nodead] " } },
+	-- The guides (combat): Cheap Shot from stealth, Sinister Strike to
+	-- build, Slice and Dice as soon as possible, Eviscerate at 3-5 points.
+	-- So Slice and Dice is the first finisher: after one Sinister Strike
+	-- (one point, or three behind a Cheap Shot). Then the stun chain:
+	-- Sinister Strike to 3 points, Kidney Shot, one more Sinister Strike
+	-- while it is stunned, Gouge as the stun ends (it breaks on damage, so
+	-- the energy comes back while it holds), then Sinister Strike and
+	-- Eviscerate. In one /castsequence: Kidney Shot and Gouge have
+	-- cooldowns, and in a line of their own a cooldown would stop the
+	-- macro; in the sequence the press waits for them. A spell without
+	-- energy is skipped and the sequence waits. Before Kidney Shot (level
+	-- 30): Slice and Dice, Sinister Strike, Eviscerate, Gouge in between.
+	-- Short conditions: the chain must fit 255 characters with Cheap Shot.
+	-- In stealth Cheap Shot goes first and its global cooldown holds the
+	-- sequence back, so the sequence needs no [nostealth].
+	pull = { { "cast", "cs", "[stealth] " } },
 	fight = {
-		{ "seq", { "ss", "ss", "ss", "kidney", "ss", "gouge", "ss", "ss", "evis" },
-			"[nostealth,harm,nodead] ", "target", need = "kidney" },
-		{ "seq", { "ss", "ss", "ss", "evis", "gouge", "ss", "ss", "ss", "evis" },
-			"[nostealth,harm,nodead] ", "target", without = "kidney" },
+		{ "seq", { "ss", "snd", "ss", "ss", "ss", "kidney", "ss", "gouge", "ss", "ss", "evis" },
+			"", "target", need = "kidney" },
+		{ "seq", { "ss", "snd", "ss", "ss", "ss", "evis", "gouge", "ss", "ss", "ss", "evis" },
+			"", "target", without = "kidney" },
 	},
 	heal = { { "cast", "kick", H } },
 	cc = { { "cast", "gouge", H } },
-	behind = { { "cast", "ambush", "[stealth,harm,nodead] " } },
+	-- Ctrl+F: Ambush from stealth; in a fight Riposte, after a parry (the
+	-- HUD says when). The two conditions never hold together, and a false
+	-- condition is passed over.
+	behind = { { "cast", "ambush", "[stealth,harm,nodead] " }, { "cast", "riposte", "[nostealth,harm,nodead] " } },
+	hints = { { spell = "riposte", key = "behind", react = true } },
+	cd = { riposte = 6 },
 	sos = { { "cast", "evasion", "" }, { "potion" } },
 	free = { { "cast", "sprint", "" } },
 	hide = { { "cast", "stealth", "[nocombat,nostealth]" } },
@@ -157,16 +187,26 @@ C.HUNTER = {
 		auto = { 75, "Auto Shot" }, raptor = { 2973, "Raptor Strike" }, mongoose = { 1495, "Mongoose Bite" },
 		hawk = { 13165, "Aspect of the Hawk" }, monkey = { 13163, "Aspect of the Monkey" },
 		mend = { 136, "Mend Pet" }, conc = { 5116, "Concussive Shot" }, fd = { 5384, "Feign Death" },
-		wing = { 2974, "Wing Clip" }, disengage = { 781, "Disengage" },
+		wing = { 2974, "Wing Clip" }, disengage = { 781, "Disengage" }, aimed = { 19434, "Aimed Shot" },
+		-- new in Forever (a talent, level 25); known by its name
+		summon = { 0, "Summon Hawk" },
 	},
 	buffs = { { "hawk", "monkey" } },
 	pull = {},
+	-- The guides: the pet in, Serpent Sting, Auto Shot, Arcane Shot and
+	-- Aimed Shot on cooldown; from level 25 two hawks up at all times
+	-- (Summon Hawk lasts 18 s and shares a 6 s cooldown with Arcane Shot,
+	-- so Arcane Shot is every third cast). The shots with a cooldown are
+	-- one sequence, the last line: a press waits for the one that is next,
+	-- and nothing comes after it. Hawk at 0 s, Aimed Shot, hawk at 6 s,
+	-- Arcane Shot at 12 s, and round again at 18 s as the first hawk goes.
+	-- Hunter's Mark and Serpent Sting once per target, in one line (room).
 	fight = {
 		{ "raw", "/petattack [harm,nodead]" },
-		{ "once", "mark", H }, { "once", "serpent", H },
+		{ "seq", { "mark", "serpent" }, H, "target", once = true, stop = true },
 		{ "cast", "auto", H, bang = true },
-		-- last: when it is on cooldown nothing after it is lost
-		{ "cast", "arcane", H },
+		{ "seq", { "summon", "aimed", "summon", "arcane" }, H, "target", need = "summon" },
+		{ "seq", { "aimed", "arcane" }, H, "target", without = "summon" },
 	},
 	heal = { { "cast", "mend", "[@pet,exists,nodead]" } },
 	cc = { { "cast", "conc", H }, { "cast", "wing", H } },
@@ -192,13 +232,23 @@ C.PRIEST = {
 		form = { 15473, "Shadowform" }, flay = { 15407, "Mind Flay" },
 	},
 	buffs = { { "fort" }, { "inner" } },
-	-- Mind Blast has a cooldown, and the client stops a macro at the first
-	-- spell that fails, so it is on Ctrl+F, not F.
-	pull = {},
-	-- Levelling the priest way: Shadow Word: Pain once per target, then the
-	-- wand, which costs no mana. Mind Flay and Smite are the filler only
-	-- with no wand on: as the last line the wand was never reached (a spell
-	-- with no mana stops the macro; it is not skipped), so the mana ran dry.
+	-- The guides (shadow): Power Word: Shield and Mind Blast before the
+	-- pull, Shadow Word: Pain, then the wand; Mind Blast again when it is
+	-- ready. From Shadowform (level 40) Mind Flay fills instead of the wand.
+	-- Out of combat, with an enemy picked, F gives the shield and then
+	-- casts Mind Blast (OneKey.lua, decide); in the fight Mind Blast is on
+	-- Ctrl+F, and the HUD says when it is ready: it has a cooldown, and the
+	-- client stops a macro at the first spell that fails.
+	-- The shield from level 10 (the guides wand without it before), and
+	-- not while Weakened Soul forbids it.
+	shield = "pws", shieldFrom = 10, shieldBlock = "Weakened Soul", opener = "mb",
+	-- Before Mind Blast (level 10) Smite opens, from range.
+	pull = { { "cast", "smite", "[nocombat,harm,nodead] ", without = "mb" } },
+	-- Shadow Word: Pain once per target, then the wand, which costs no
+	-- mana. Mind Flay and Smite are the filler only with no wand on: as the
+	-- last line the wand was never reached (a spell with no mana stops the
+	-- macro; it is not skipped), so the mana ran dry. "wand" is known with
+	-- a wand on, until Shadowform is learned.
 	fight = {
 		-- [nochanneling]: a press during Mind Flay must not cut it short
 		{ "once", "swp", "[harm,nodead,nochanneling] " },
@@ -206,10 +256,12 @@ C.PRIEST = {
 		{ "cast", "smite", "[harm,nodead,nochanneling] ", without = "wand" },
 		{ "cast", "shoot", "[harm,nodead,nochanneling] ", bang = true, need = "wand" },
 	},
-	wandFiller = true,
+	wandFiller = true, wandUntil = "form",
 	heal = { { "cast", "flash", "[@player]" }, { "cast", "heal", "[@player]" }, { "cast", "lheal", "[@player]" } },
 	cc = { { "cast", "scream", "" } },
 	behind = { { "cast", "mb", H } },
+	hints = { { spell = "mb", key = "behind" } },
+	cd = { mb = 8, pws = 4 },
 	sos = { { "cast", "pws", "[@player]" }, { "potion" } },
 }
 
@@ -233,7 +285,8 @@ C.WARLOCK = {
 	-- [nochanneling]: a press during Drain Life does not cut it short.
 	fight = {
 		{ "raw", "/petattack [harm,nodead]" },
-		{ "seq", { "corruption", "agony", "siphon" }, HC, "target", once = true, stop = true },
+		-- the guides pull with Bane of Agony (it starts slow), then Corruption
+		{ "seq", { "agony", "corruption", "siphon" }, HC, "target", once = true, stop = true },
 		{ "cast", "sb", HC, without = "wand" },
 		{ "cast", "shoot", HC, bang = true, need = "wand" },
 	},
@@ -253,14 +306,22 @@ C.PALADIN = {
 		judge = { 20271, "Judgement" }, hl = { 635, "Holy Light" }, fol = { 19750, "Flash of Light" },
 		hoj = { 853, "Hammer of Justice" }, dp = { 498, "Divine Protection" }, ds = { 642, "Divine Shield" },
 		loh = { 633, "Lay on Hands" }, purify = { 1152, "Purify" }, sotc = { 21082, "Seal of the Crusader" },
+		retaura = { 7294, "Retribution Aura" }, soc = { 20375, "Seal of Command" },
+		-- new in Forever (level 6); known by its name
+		strike = { 0, "Holy Strike" },
 	},
-	buffs = { { "devotion" }, { "might" } },
+	-- The guides: a blessing, Retribution Aura (level 16) and a seal up;
+	-- Seal of Command once it is learned, Seal of Righteousness before.
+	-- In Forever Judgement no longer uses the seal up, so the seal is kept
+	-- up like a buff, out of combat.
+	buffs = { { "retaura", "devotion" }, { "might" }, { "soc", "seal" } },
 	pull = {},
 	fight = {
-		-- Seal, then Judgement when it is ready, then the seal again: the
-		-- sequence waits on Judgement's cooldown instead of resealing on
-		-- every press. Without Judgement the seal goes on once per target.
-		{ "seq", { "seal", "judge" }, H, "target", once = true },
+		-- Judgement and Holy Strike, each when it is ready: in one sequence
+		-- a press waits for the one that is next. The seal again after two
+		-- rounds, for a long fight. A new target starts at Judgement.
+		{ "seq", { "judge", "strike", "judge", "strike", "soc" }, H, "target", need = "soc" },
+		{ "seq", { "judge", "strike", "judge", "strike", "seal" }, H, "target", without = "soc" },
 	},
 	heal = { { "cast", "fol", "[@player]" }, { "cast", "hl", "[@player]" } },
 	cc = { { "cast", "hoj", H } },
@@ -275,16 +336,25 @@ C.SHAMAN = {
 		ls = { 324, "Lightning Shield" }, hw = { 331, "Healing Wave" }, lhw = { 8004, "Lesser Healing Wave" },
 		earthbind = { 2484, "Earthbind Totem" }, stoneclaw = { 5730, "Stoneclaw Totem" },
 		rb = { 8017, "Rockbiter Weapon" }, stormstrike = { 17364, "Stormstrike" }, ghost = { 2645, "Ghost Wolf" },
+		wf = { 8232, "Windfury Weapon" },
 	},
 	buffs = { { "ls" } },
+	-- The guides: Rockbiter Weapon to level 30, Windfury Weapon from 30.
+	-- F puts it on out of combat when the main hand has no imbue.
+	imbue = { "wf", "rb" },
 	pull = { { "cast", "lb", "[nocombat,harm,nodead] " } },
+	-- The guides (enhancement): Lightning Bolt pulls, Flame Shock is kept
+	-- up, Stormstrike on cooldown, Earth Shock fills. The shocks share a
+	-- 6 s cooldown and Flame Shock burns for 12 s, so one sequence does it:
+	-- Flame Shock at 0 s, Stormstrike, Earth Shock at 6 s, Flame Shock
+	-- again at 12 s. A press waits for the spell that is next (the shock's
+	-- cooldown, or the mob coming into reach for Stormstrike).
 	fight = {
-		{ "once", "fs", H },
-		{ "cast", "es", H },
+		{ "seq", { "fs", "stormstrike", "es" }, H, "target" },
 	},
 	heal = { { "cast", "lhw", "[@player]" }, { "cast", "hw", "[@player]" } },
 	cc = { { "cast", "earthbind", "" } },
-	-- Stormstrike has a cooldown: off F, on Ctrl+F (a failed cast stops the macro)
+	-- Ctrl+F: Stormstrike alone
 	behind = { { "cast", "stormstrike", H } },
 	sos = { { "cast", "hw", "[@player]" }, { "potion" } },
 	free = { { "cast", "ghost", "[nocombat]" } },

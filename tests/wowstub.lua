@@ -231,7 +231,11 @@ C_Spell = {
 		return n and { name = n } or nil
 	end,
 	GetSpellPowerCost = function() return { { type = 0, cost = 40 } } end,
-	IsSpellUsable = function() return true, false end,
+	-- STUB.usable[name] = false: a reactive spell that cannot be used now
+	IsSpellUsable = function(name)
+		if STUB.usable and STUB.usable[name] ~= nil then return STUB.usable[name], false end
+		return true, false
+	end,
 	IsSpellPassive = function(id) return id == 16864 end,
 	PickupSpell = function(id) STUB.cursor = id end,
 	-- range: STUB.inRange[spell name] = true / false (nil: no answer)
@@ -246,6 +250,8 @@ C_Spell = {
 	end,
 }
 function GetSpellCooldown() return 0, 0, 1 end
+-- the main hand's imbue: STUB.imbue = true / false
+function GetWeaponEnchantInfo() return STUB.imbue and true or false end
 C_UnitAuras = {
 	GetAuraDataBySpellName = function(unit, name)
 		if STUB.buffs[name] then return { name = name, expirationTime = 0 } end
@@ -344,7 +350,8 @@ end
 -- timers are real: STUB.tick runs every callback that is due
 STUB.timers = {}
 STUB.cds = {}
-STUB.cooldown = { ["Nature's Grasp"] = 60, ["Frost Nova"] = 25, ["Ice Lance"] = 8, ["Kidney Shot"] = 20, ["Gouge"] = 10 }
+STUB.cooldown = { ["Nature's Grasp"] = 60, ["Frost Nova"] = 25, ["Ice Lance"] = 8, ["Kidney Shot"] = 20, ["Gouge"] = 10,
+	["Mind Blast"] = 8 }
 -- the client fires UNIT_SPELLCAST_SUCCEEDED and starts the spell's cooldown
 function STUB.castDone(spellID)
 	local name = STUB.names and STUB.names[spellID]

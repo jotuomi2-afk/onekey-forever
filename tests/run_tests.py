@@ -1190,7 +1190,9 @@ def main():
             p += lua_list(lua.eval("STUB.tick")(2, 0.25))
             fight = ns.OneKeyMacros.fight or ""
             seq = next((l for l in fight.split("\n") if l.startswith("/castsequence")), "")
-            if level >= 26 and "[stealth,harm,nodead] Cheap Shot" not in fight:
+            if level >= 10 and not seq.split("reset=target ")[-1].startswith("Sinister Strike, Slice and Dice, "):
+                p.append("level %d: Slice and Dice is not the first finisher: %r" % (level, seq))
+            if level >= 26 and "/cast [stealth] Cheap Shot\n" not in fight:
                 p.append("level %d: no Cheap Shot opener from stealth" % level)
             if level >= 30:
                 if not re.search(r"Sinister Strike, Kidney Shot, Sinister Strike, Gouge, .*Eviscerate$", seq):
@@ -1291,7 +1293,9 @@ def main():
         for cls, cid in (("MAGE", 8), ("WARRIOR", 1), ("ROGUE", 4), ("HUNTER", 3), ("PRIEST", 5),
                          ("WARLOCK", 9), ("PALADIN", 2), ("SHAMAN", 7)):
             CL = probe.CLASSES[cls]
-            spells = {v[1]: v[2] for v in CL.spells.values()}
+            # a character has one strike talent; the priest's wand is its
+            # filler until Shadowform
+            spells = {v[1]: v[2] for v in CL.spells.values() if v[2] not in ("Bloodthirst", "Shadowform")}
             # the main spell: the last fight line that names a spell
             last = None
             for i in range(1, len(CL.fight) + 1):
@@ -1354,45 +1358,69 @@ def main():
                 p.append("Ctrl+F burst lost Immolate")
         return p
 
-    @S.test("warrior: F is Rend once and Heroic Strike; Overpower and Execute on their own keys")
+    def class_session(cls, cid, level, drop=(), setup=""):
+        probe, _ = load_addon(new_lua(), ["Classes.lua"])
+        spells = {v[1]: v[2] for v in probe.CLASSES[cls].spells.values() if v[2] not in drop}
+        lua = new_lua()
+        set_class(lua, cls, cid, level, spells)
+        lua.execute("STUB.buffs = {} " + setup)
+        ns, errs = load_addon(lua)
+        fire, tick = lua.eval("STUB.fire"), lua.eval("STUB.tick")
+        for e in ("ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD"):
+            errs += lua_list(fire(e, "OneKeyDruid"))
+        errs += lua_list(tick(4, 0.25))
+        return lua, ns, errs, fire, tick
+
+    def in_combat(lua, fire, tick):
+        errs = lua_list(fire("PLAYER_REGEN_DISABLED"))
+        lua.execute("STUB.combat = true")
+        return errs + lua_list(tick(2, 0.25))
+
+    @S.test("warrior: F is Rend once and Heroic Strike; with a strike talent Rend and the strike; the HUD names Overpower and Execute")
     def _():
         p = []
-        probe, _ = load_addon(new_lua(), ["Classes.lua"])
-        spells = {v[1]: v[2] for v in probe.CLASSES["WARRIOR"].spells.values()}
-        lua = new_lua()
-        set_class(lua, "WARRIOR", 1, 30, spells)
-        lua.execute("STUB.buffs = {}")
-        ns, errs = load_addon(lua)
+        strikes = ("Mortal Strike", "Bloodthirst")
+        lua, ns, errs, fire, tick = class_session("WARRIOR", 1, 30, drop=strikes)
         p += errs
-        for e in ("ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD"):
-            p += lua_list(lua.eval("STUB.fire")(e, "OneKeyDruid"))
-        p += lua_list(lua.eval("STUB.tick")(4, 0.25))
         M = ns.OneKeyMacros
         f = M.fight or ""
         if "Overpower" in f or "Execute" in f:
             p.append("a spell that is mostly unusable is on F: %r" % f)
-        if "Rend, null" not in f or "!Heroic Strike" not in f:
+        if "Rend, null" not in f or not f.endswith("!Heroic Strike"):
             p.append("F lacks Rend once or Heroic Strike: %r" % f)
         if "Overpower" not in (M.behind or "") or "Execute" not in (M.heal or ""):
             p.append("Overpower on Ctrl+F and Execute on Shift+F expected: %r / %r" % (M.behind, M.heal))
         if "Bloodrage" not in (M.free or ""):
             p.append("Bloodrage on Shift+G expected: %r" % M.free)
+        for have in strikes:
+            lua, ns, errs, fire, tick = class_session("WARRIOR", 1, 40, drop=[x for x in strikes if x != have],
+                                                      setup='STUB.targetName = "Boar" STUB.usable = { Overpower = false, Execute = false }')
+            p += errs
+            f = ns.OneKeyMacros.fight or ""
+            if "Rend, null" not in f or not f.endswith("/cast [harm,nodead] " + have) or "Heroic Strike" in f:
+                p.append("with %s, F is not Rend once and the strike last: %r" % (have, f))
+            p += in_combat(lua, fire, tick)
+            if ns.OneKeyAlert():
+                p.append("a hint with nothing usable: %r" % ns.OneKeyAlert())
+            lua.execute("STUB.usable.Overpower = true")
+            p += lua_list(tick(2, 0.25))
+            a = ns.OneKeyAlert() or ""
+            if "OVERPOWER" not in a or "Ctrl+F" not in a:
+                p.append("no Overpower hint after a dodge: %r" % a)
+            lua.execute("STUB.usable.Overpower = false STUB.usable.Execute = true")
+            p += lua_list(tick(2, 0.25))
+            a = ns.OneKeyAlert() or ""
+            if "EXECUTE" not in a or "Shift+F" not in a:
+                p.append("no Execute hint: %r" % a)
         return p
 
-    @S.test("priest: Shadow Word: Pain once, then the wand; Smite only with no wand")
+    @S.test("priest: Shadow Word: Pain once, then the wand; Smite only with no wand; Mind Flay from Shadowform")
     def _():
         p = []
-        probe, _ = load_addon(new_lua(), ["Classes.lua"])
-        spells = {v[1]: v[2] for v in probe.CLASSES["PRIEST"].spells.values()}
         for wand in (True, False):
-            lua = new_lua()
-            set_class(lua, "PRIEST", 5, 24, spells)
-            lua.execute("STUB.buffs = {} STUB.wand = %s" % ("true" if wand else "false"))
-            ns, errs = load_addon(lua)
+            lua, ns, errs, fire, tick = class_session("PRIEST", 5, 24, drop=("Shadowform",),
+                                                      setup="STUB.wand = %s" % ("true" if wand else "false"))
             p += errs
-            for e in ("ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD"):
-                p += lua_list(lua.eval("STUB.fire")(e, "OneKeyDruid"))
-            p += lua_list(lua.eval("STUB.tick")(4, 0.25))
             f = ns.OneKeyMacros.fight or ""
             acts = [l for l in f.split("\n") if l.startswith(("/cast", "/use"))]
             if not acts or "Shadow Word: Pain, null" not in acts[0]:
@@ -1404,6 +1432,160 @@ def main():
                 p.append("with no wand Smite is the filler: %r" % f)
             if f.count("Shoot") > 1:
                 p.append("the wand twice: %r" % f)
+            if "Mind Blast" in f:
+                p.append("Mind Blast (a cooldown) is in the fight macro: %r" % f)
+        lua, ns, errs, fire, tick = class_session("PRIEST", 5, 40, setup="STUB.wand = true")
+        p += errs
+        f = ns.OneKeyMacros.fight or ""
+        if "Mind Flay" not in f or "Shoot" in f:
+            p.append("with Shadowform the filler is not Mind Flay: %r" % f)
+        return p
+
+    @S.test("priest: before the pull F shields, then opens with Mind Blast; in the fight the HUD names Ctrl+F when it is ready")
+    def _():
+        p = []
+        lua, ns, errs, fire, tick = class_session(
+            "PRIEST", 5, 24, drop=("Shadowform",),
+            setup='STUB.wand = true STUB.buffs = { ["Power Word: Fortitude"] = true, ["Inner Fire"] = true } '
+                  'STUB.targetName = "Murloc" STUB.targetLevel = 24')
+        p += errs
+        main = lambda: macro_attrs(lua).get("OneKeyMain:macrotext", "")
+        if main() != "/cast [@player] Power Word: Shield":
+            p.append("with an enemy picked F is not the shield first: %r" % main())
+        # Weakened Soul: no shield, the opener
+        lua.execute('STUB.buffs["Weakened Soul"] = true')
+        p += lua_list(tick(2, 0.25))
+        if "Power Word: Shield" in main():
+            p.append("F asks for the shield under Weakened Soul: %r" % main())
+        lua.execute('STUB.buffs["Weakened Soul"] = nil')
+        p += lua_list(tick(2, 0.25))
+        lua.execute('STUB.buffs["Power Word: Shield"] = true')
+        p += lua_list(tick(2, 0.25))
+        if not main().endswith("/cast [harm,nodead] Mind Blast"):
+            p.append("with the shield up F does not open with Mind Blast: %r" % main())
+        # the opener is out of range: one try, then the fight macro
+        p += lua_list(lua.eval("STUB.click")("OneKeyMain", True))
+        p += lua_list(tick(12, 0.25))
+        if "Shadow Word: Pain" not in main():
+            p.append("a Mind Blast press that failed holds the key: %r" % main())
+        # in the fight: Mind Blast is named when ready, not while it cools
+        p += lua_list(fire("PLAYER_TARGET_CHANGED"))
+        p += lua_list(lua.eval("STUB.castDone")(8092))
+        p += in_combat(lua, fire, tick)
+        if ns.OneKeyAlert():
+            p.append("a Mind Blast hint while it is on cooldown: %r" % ns.OneKeyAlert())
+        p += lua_list(tick(36, 0.25))
+        a = ns.OneKeyAlert() or ""
+        if "MIND BLAST" not in a or "Ctrl+F" not in a:
+            p.append("no Mind Blast hint when it is ready: %r" % a)
+        # level 6: Smite opens, no Mind Blast yet
+        lua, ns, errs, fire, tick = class_session("PRIEST", 5, 6, drop=("Shadowform", "Mind Blast", "Mind Flay"),
+                                                  setup="STUB.wand = true")
+        p += errs
+        lua.execute('STUB.buffs = { ["Power Word: Fortitude"] = true } STUB.targetName = "Wolf" STUB.targetLevel = 6')
+        p += lua_list(tick(2, 0.25))
+        if "Power Word: Shield" in macro_attrs(lua).get("OneKeyMain:macrotext", ""):
+            p.append("level 6: F shields before the pull")
+        f = ns.OneKeyMacros.fight or ""
+        if "/cast [nocombat,harm,nodead] Smite" not in f:
+            p.append("before Mind Blast Smite does not open: %r" % f)
+        return p
+
+    @S.test("rogue: Riposte on Ctrl+F in a fight, named after a parry")
+    def _():
+        p = []
+        lua, ns, errs, fire, tick = class_session("ROGUE", 4, 30, setup='STUB.targetName = "Boar" STUB.usable = { Riposte = false }')
+        p += errs
+        b = ns.OneKeyMacros.behind or ""
+        if b != "/cast [stealth,harm,nodead] Ambush\n/cast [nostealth,harm,nodead] Riposte":
+            p.append("Ctrl+F is not Ambush in stealth and Riposte out of it: %r" % b)
+        p += in_combat(lua, fire, tick)
+        if ns.OneKeyAlert():
+            p.append("a Riposte hint before a parry: %r" % ns.OneKeyAlert())
+        lua.execute("STUB.usable.Riposte = true")
+        p += lua_list(tick(2, 0.25))
+        a = ns.OneKeyAlert() or ""
+        if "RIPOSTE" not in a or "Ctrl+F" not in a:
+            p.append("no Riposte hint after a parry: %r" % a)
+        return p
+
+    @S.test("hunter: the cooldown shots are one last sequence; hawks from Summon Hawk; the macro keeps Auto Shot")
+    def _():
+        p = []
+        for hawk in (False, True):
+            lua, ns, errs, fire, tick = class_session("HUNTER", 3, 60, drop=() if hawk else ("Summon Hawk",))
+            p += errs
+            f = ns.OneKeyMacros.fight or ""
+            lines = f.split("\n")
+            want = "Summon Hawk, Aimed Shot, Summon Hawk, Arcane Shot" if hawk else "Aimed Shot, Arcane Shot"
+            if not lines[-1].endswith("reset=target " + want):
+                p.append("hawk=%s: the last line is not the shot sequence: %r" % (hawk, lines[-1]))
+            for need in ("/petattack", "Hunter's Mark, Serpent Sting, null", "!Auto Shot"):
+                if need not in f:
+                    p.append("hawk=%s: %s fell out of F (%d chars)" % (hawk, need, len(f)))
+            if len(f) > MACRO_LIMIT:
+                p.append("hawk=%s: %d chars" % (hawk, len(f)))
+        return p
+
+    @S.test("paladin: aura, blessing and seal are kept up out of combat; F is Judgement and Holy Strike in one sequence")
+    def _():
+        p = []
+        lua, ns, errs, fire, tick = class_session("PALADIN", 2, 30, drop=("Seal of Command",))
+        p += errs
+        main = lambda: macro_attrs(lua).get("OneKeyMain:macrotext", "")
+        f = ns.OneKeyMacros.fight or ""
+        if not f.endswith("reset=target Judgement, Holy Strike, Judgement, Holy Strike, Seal of Righteousness"):
+            p.append("F is not Judgement, Holy Strike twice, then the seal: %r" % f)
+        seen = []
+        for name in ("Retribution Aura", "Blessing of Might", "Seal of Righteousness"):
+            seen.append(main())
+            if main() != "/cast [@player] " + name:
+                p.append("F does not put %s up: %r" % (name, main()))
+            lua.execute('STUB.buffs["%s"] = true' % name)
+            p += lua_list(tick(2, 0.25))
+        lua, ns, errs, fire, tick = class_session("PALADIN", 2, 40)
+        p += errs
+        f = ns.OneKeyMacros.fight or ""
+        if not f.endswith("Holy Strike, Seal of Command"):
+            p.append("with Seal of Command learned it is not the seal: %r" % f)
+        # level 4: no Holy Strike yet
+        lua, ns, errs, fire, tick = class_session("PALADIN", 2, 4, drop=("Seal of Command", "Holy Strike", "Retribution Aura"))
+        p += errs
+        f = ns.OneKeyMacros.fight or ""
+        if not f.endswith("reset=target Judgement, Judgement, Seal of Righteousness"):
+            p.append("level 4: %r" % f)
+        return p
+
+    @S.test("shaman: the weapon imbue out of combat (Windfury over Rockbiter); F is Flame Shock, Stormstrike, Earth Shock")
+    def _():
+        p = []
+        lua, ns, errs, fire, tick = class_session("SHAMAN", 7, 30, setup='STUB.buffs = { ["Lightning Shield"] = true }')
+        p += errs
+        main = lambda: macro_attrs(lua).get("OneKeyMain:macrotext", "")
+        if main() != "/cast Windfury Weapon":
+            p.append("with no imbue F is not Windfury Weapon: %r" % main())
+        # a press that does nothing (no weapon) does not hold the key
+        p += lua_list(lua.eval("STUB.click")("OneKeyMain", True))
+        p += lua_list(tick(12, 0.25))
+        if "Windfury" in main():
+            p.append("an imbue press that failed holds the key: %r" % main())
+        lua, ns, errs, fire, tick = class_session("SHAMAN", 7, 20, drop=("Windfury Weapon", "Stormstrike"),
+                                                  setup='STUB.buffs = { ["Lightning Shield"] = true }')
+        p += errs
+        if main() != "/cast Rockbiter Weapon":
+            p.append("before Windfury F is not Rockbiter Weapon: %r" % main())
+        lua.execute("STUB.imbue = true")
+        p += lua_list(tick(2, 0.25))
+        if "Weapon" in main():
+            p.append("with an imbue on F still asks for one: %r" % main())
+        f = ns.OneKeyMacros.fight or ""
+        if not f.endswith("reset=target Flame Shock, Earth Shock"):
+            p.append("level 20: F is not Flame Shock, Earth Shock: %r" % f)
+        lua, ns, errs, fire, tick = class_session("SHAMAN", 7, 30)
+        p += errs
+        f = ns.OneKeyMacros.fight or ""
+        if not f.endswith("reset=target Flame Shock, Stormstrike, Earth Shock") or "[nocombat,harm,nodead] Lightning Bolt" not in f:
+            p.append("level 30: F is not the Lightning Bolt pull and Flame Shock, Stormstrike, Earth Shock: %r" % f)
         return p
 
     @S.test("log: every class writes the session log the analyzer reads (no player names)")
