@@ -14,8 +14,12 @@ and say so if it is older than the play the player means.
    `python3 -I tools/analyze_log.py <path> --last 3`
    (`--since EPOCH` to start after a given install). The line format is in
    the script's docstring.
-2. Name the addon version each session ran: a session that started before
-   an install ran the old version. Compare with the install time.
+2. Name the addon version each session ran: it is the last field of the
+   session line from 0.35.2 on ("?" before that: compare the session's
+   start with the install time).
+   `python3 -I tools/analyze_log.py <all characters' files> --field X.Y.Z`
+   says whether a version has enough play behind it for a release
+   (docs/RELEASE.md, "From beta to release").
 3. Read, in this order:
    - deaths: the 25 lines before each (attackers, target level vs. own
      level, which keys were pressed, whether G was used, potions)

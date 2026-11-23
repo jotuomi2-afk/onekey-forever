@@ -1,7 +1,8 @@
 name: curseforge
 
-# When a GitHub release is published (by a person, from the draft the
-# release workflow made), the same tested zip goes to CurseForge. Nothing
+# The tested zip of a GitHub release goes to CurseForge: when a person
+# publishes a release, when the release workflow has made a pre-release
+# (a beta there), and when promote.yml turns one into a release. Nothing
 # is rebuilt here, and nothing runs until the owner has set:
 #   Settings → Secrets and variables → Actions
 #     secret   CF_API_KEY        (authors.curseforge.com → API Tokens)
@@ -16,6 +17,18 @@ on:
       tag:
         description: "Release tag to upload, e.g. v0.32.0"
         required: true
+      prerelease:
+        description: "Upload as a beta"
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+      prerelease:
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -31,7 +44,7 @@ jobs:
       CF_GAME_VERSION: ${{ vars.CF_GAME_VERSION }}
       TAG: ${{ github.event.release.tag_name || inputs.tag }}
       REPO: ${{ github.repository }}
-      PRERELEASE: ${{ github.event.release.prerelease || false }}
+      PRERELEASE: ${{ github.event.release.prerelease || inputs.prerelease || false }}
     steps:
       - name: Settings present
         run: |

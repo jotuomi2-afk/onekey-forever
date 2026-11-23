@@ -76,6 +76,14 @@ MUTANTS = [
      "-- merged from QuestieDB\n", "security", "another source"),
     ("data from another database, deep in the file", "QuestData.lua", "$END",
      "\n-- extra quests from wowhead\n", "security", "another source"),
+    ("the session line loses the addon version", "OneKey.lua", "local function logStart()\n",
+     '\tlocal VERSION = nil\n', "log: every class", "addon version"),
+    ("release: the scan step switched off", "../.github/workflows/release.yml", "      - run: python3 -I security/scan.py\n",
+     "        if: false\n", "release: a new version", "condition was added"),
+    ("release: the beta upload called as a release", "../.github/workflows/release.yml", "      prerelease: true",
+     " # was\n      prerelease: false", "release: a new version", "line is gone or changed"),
+    ("promote: the checksum no longer stops it", "../.github/workflows/promote.yml", 'sha256sum -c "OneKeyForever-$v.zip.sha256"',
+     " || true", "release: a new version", "line is gone or changed"),
 ]
 
 

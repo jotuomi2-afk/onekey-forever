@@ -79,6 +79,7 @@ Likelihood (L) and impact (I) are rated 1–3; their product sets the depth of t
 | RK22 | Data from a second source (All The Things) breaks the licence rule or repeats pfQuest's quests | 1 | 3 | REQ-07, REQ-53, scan R6, two mutants |
 | RK23 | The quest list taints the fight keys or acts for the player (a click that casts, targets or moves) | 1 | 3 | REQ-54, scan R1 (Click, aliased calls), mutants |
 | RK24 | A hint reads a secret value in combat, or names a key from a value it could not read | 2 | 2 | REQ-45, REQ-55, mutant |
+| RK25 | A version is published with no person pressing a button: a broken or unchecked build reaches players, or a beta is called a release with no play behind it | 2 | 3 | REQ-56, REQ-57, mutant (version stamp); every check runs in the release job before the release is made; a new version is only ever a pre-release |
 
 ## 5. Requirements and traceability
 
@@ -143,6 +144,8 @@ point to several tests; names are matched on their beginning.
 | REQ-53 | Quests Forever added (All The Things: ids from 20000, with a level, one side only in the starting zones) are offered where they start, named by the server's title or plainly; a quest of the log no file knows uses the game's own point and count; no record repeats a pfQuest quest | solo: quests Forever added; questdatanew: |
 | REQ-54 | The quest list is plain frames: a left click sets the game's waypoint and prints the task, a right click leaves the quest out; nothing secure is touched, in a fight too | solo: the list window; security: |
 | REQ-55 | A hint from a secret answer names no key; cooldowns are read as the fight begins and then counted from the player's own casts, and with neither nothing is named, for the mage's hints too | hints fail closed:; hints: cooldowns read |
+| REQ-56 | Publishing: a new version number on main becomes a pre-release only after the tests, the mutants, 500 fuzz runs per class, the coverage gate, the scan and the build, never below a published number and never without a changelog section; a pre-release becomes a release only through release/STABLE, with the tested zip checked against its SHA-256 and a passing section in release/FIELD.md; actions are pinned | release: a new version |
+| REQ-57 | The play behind a version: every class stamps the addon version on the session line; the analyser counts only sessions with that stamp and holds a release back for too little play, one class alone, fights with the key pressed and no cast, or many deaths | release: the log analyser; log: every class |
 
 ## 6. Threat model (STRIDE)
 

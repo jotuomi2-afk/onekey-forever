@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.2
+
+- The session log notes which addon version a session ran (the last field
+  of the session line). Nothing else changes in the game.
+- For the project: a new version is now published as a beta by itself once
+  every check has passed, and becomes a release when enough play with that
+  exact version is behind it (docs/RELEASE.md, "From beta to release").
+
 ## 0.35.1
 
 - Mage, F: the opener now goes by how far the target is. Before each pull

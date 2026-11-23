@@ -16,7 +16,7 @@ if CLASS == "DRUID" then return end
 local CL = ns.CLASSES and ns.CLASSES[CLASS]
 local Logic = ns.Logic
 
-local VERSION = "0.35.1"
+local VERSION = "0.35.2"
 local PREFIX = "|cff7fd4ffOneKey|r "
 local LIMIT = 255
 local NAMES = { fight = "OneKeyMain", heal = "OneKeyHeal", cc = "OneKeyAlt", behind = "OneKeyCtrl",
@@ -1035,7 +1035,7 @@ local function logStart()
 	lg.t0 = GetTime()
 	lg.xp, lg.xpMax = xpNow()
 	logEvent("S", time and time() or 0, UnitLevel("player"), lg.xp, lg.xpMax,
-		GetXPExhaustion and GetXPExhaustion() or 0, GetRealZoneText and GetRealZoneText() or "?", CLASS)
+		GetXPExhaustion and GetXPExhaustion() or 0, GetRealZoneText and GetRealZoneText() or "?", CLASS, VERSION)
 end
 
 local function logCombat(on)

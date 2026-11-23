@@ -1,22 +1,71 @@
 name: release
 
-# A tag v1.2.3 whose number matches "## Version" in the toc builds the zip,
-# runs every check again and publishes a GitHub release with the zip and its
-# SHA-256. Nothing else in the repository can publish.
+# Two ways in, the same checks for both:
+#   1. A commit on main that changes "## Version" in the toc to a number
+#      with no tag yet: after every check the tag vX.Y.Z and a PRE-RELEASE
+#      are created here, and the zip goes to CurseForge as a beta.
+#   2. A tag v1.2.3 pushed by a person: a draft release for them to publish
+#      (or the files are attached to the release they already published).
+# The workflows turn a pre-release into a release only through
+# release/STABLE (promote.yml); a person can still do it on the Releases page.
 on:
   push:
     tags: ["v*.*.*"]
+    branches: [main]
+    paths: ["OneKeyDruid/OneKeyDruid.toc"]
 
 permissions:
   contents: read
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.plan.outputs.tag }}
+      go: ${{ steps.plan.outputs.go }}
+      auto: ${{ steps.plan.outputs.auto }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          v=$(sed -n 's/^## Version: *//p' OneKeyDruid/OneKeyDruid.toc | tr -d '\r')
+          case "$v" in [0-9]*.[0-9]*.[0-9]*) ;; *) echo "bad version '$v' in the toc"; exit 1;; esac
+          echo "$v" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "bad version '$v' in the toc"; exit 1; }
+          echo "tag=v$v" >> "$GITHUB_OUTPUT"
+          if [ "$REF_TYPE" = "tag" ]; then
+            test "v$v" = "$REF_NAME" || { echo "tag $REF_NAME but toc says $v"; exit 1; }
+            echo "go=1" >> "$GITHUB_OUTPUT"; echo "auto=0" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$v" >/dev/null 2>&1; then
+            echo "v$v is tagged already: nothing to publish."
+            echo "go=0" >> "$GITHUB_OUTPUT"; echo "auto=0" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          # only forwards: never a number below one that is out
+          tags=$(gh api --paginate "repos/$GITHUB_REPOSITORY/tags?per_page=100" --jq '.[].name')
+          top=$( (echo "$tags" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sed 's/^v//'; echo "$v") | sort -V | tail -1)
+          test "$top" = "$v" || { echo "$v is below the published $top"; exit 1; }
+          grep -Fxq "## $v" CHANGELOG.md || { echo "CHANGELOG.md has no section for $v"; exit 1; }
+          echo "go=1" >> "$GITHUB_OUTPUT"; echo "auto=1" >> "$GITHUB_OUTPUT"
+
   release:
+    needs: plan
+    if: needs.plan.outputs.go == '1'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: release        # protect it in Settings → Environments (required reviewer)
     permissions:
-      contents: write           # only to create the release
+      contents: write           # only to create the tag and the release
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -25,10 +74,6 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install --require-hashes -r tests/requirements.txt
-      - name: Tag matches the toc version
-        run: |
-          v=$(sed -n 's/^## Version: *//p' OneKeyDruid/OneKeyDruid.toc | tr -d '\r')
-          test "v$v" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME but toc says $v"; exit 1; }
       - run: python3 -I tests/run_tests.py
       - run: python3 -I tests/mutation_check.py
       - run: python3 -I tests/fuzz_test.py --runs 500
@@ -36,23 +81,39 @@ jobs:
       - run: python3 -I security/scan.py
       - run: python3 -I tools/build.py --no-test
       - name: Release notes from CHANGELOG.md
+        env:
+          TAG: ${{ needs.plan.outputs.tag }}
         run: |
-          v=${GITHUB_REF_NAME#v}
+          v=${TAG#v}
           awk -v v="$v" '$0 ~ "^## "v {f=1; next} /^## / && f {exit} f' CHANGELOG.md > notes.md
           test -s notes.md || echo "OneKey Forever $v" > notes.md
-      # A release a person already published for this tag (from the Releases
-      # page) gets the files and stays published; otherwise a draft is made
-      # for a person to check and publish. (The action used before turned a
-      # published release back into a draft.)
-      - name: Attach to the release, or make a draft
+      # A release a person already published for this tag gets the files and
+      # stays as it is. A tag a person pushed gets a draft for them to check.
+      # A new version on main gets its tag and a pre-release (a beta).
+      - name: Attach to the release, make a draft, or publish the pre-release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ needs.plan.outputs.tag }}
+          AUTO: ${{ needs.plan.outputs.auto }}
         run: |
           files=$(ls dist/OneKeyForever-*.zip dist/OneKeyForever-*.zip.sha256)
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" $files --clobber --repo "$GITHUB_REPOSITORY"
+          elif [ "$AUTO" = "1" ]; then
+            gh release create "$TAG" $files --target "$GITHUB_SHA" --prerelease \
+              --title "OneKey Forever ${TAG#v}" --notes-file notes.md --repo "$GITHUB_REPOSITORY"
           else
             gh release create "$TAG" $files --draft --title "OneKey Forever ${TAG#v}" \
               --notes-file notes.md --repo "$GITHUB_REPOSITORY"
           fi
+
+  # A release made with the workflow's own token starts no other workflow,
+  # so the beta upload is called from here.
+  curseforge:
+    needs: [plan, release]
+    if: needs.plan.outputs.auto == '1'
+    uses: ./.github/workflows/curseforge.yml
+    with:
+      tag: ${{ needs.plan.outputs.tag }}
+      prerelease: true
+    secrets: inherit

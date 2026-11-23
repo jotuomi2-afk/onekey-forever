@@ -1947,6 +1947,11 @@ def main():
         for c in ("S", "T", "C+", "P", "A", "C-", "L"):
             if c not in codes:
                 p.append("no %s line in %r" % (c, lines))
+        ver = re.search(r"^## Version:\s*(\S+)", open(os.path.join(ADDON, "OneKeyDruid.toc"), encoding="utf-8").read(), re.M).group(1)
+        if not any(l.split("|")[1] == "S" and l.endswith("|" + ver) for l in lines):
+            p.append("the session line does not end with the addon version %s: %r" % (ver, lines[:2]))
+        if "freeSlots(), VERSION)" not in open(os.path.join(ADDON, "Core.lua"), encoding="utf-8").read():
+            p.append("the druid's session line does not end with the addon version")
         if not any(l.split("|")[1:3] == ["P", "fight"] and l.endswith("|3") for l in lines):
             p.append("three fight presses not one P line: %r" % lines)
         if not any(l.split("|")[1:3] == ["A", "Corruption"] for l in lines):
@@ -1962,6 +1967,129 @@ def main():
         e = lua.eval("STUB.slash")("log off")
         if e or lua.eval("OneKeyDruidDB.log"):
             p.append("/okd log off: %r" % e)
+        return p
+
+    @S.test("release: a new version is published as a beta after every check; only release/STABLE makes it a release")
+    def _():
+        p = []
+        wf = lambda n: open(os.path.join(ROOT, ".github", "workflows", n), encoding="utf-8").read()
+        rel, pro, cf = wf("release.yml"), wf("promote.yml"), wf("curseforge.yml")
+        # whole lines: a gate with "|| true", an "if:" or a changed call fails here
+        must = {
+            "release.yml": (rel, [
+                "      - run: pip install --require-hashes -r tests/requirements.txt",
+                "      - run: python3 -I tests/run_tests.py",
+                "      - run: python3 -I tests/mutation_check.py",
+                "      - run: python3 -I tests/fuzz_test.py --runs 500",
+                "      - run: OKD_COVERAGE=1 python3 -I tests/run_tests.py --min-coverage 65",
+                "      - run: python3 -I security/scan.py",
+                "      - run: python3 -I tools/build.py --no-test",
+                "    needs: plan",
+                "    if: needs.plan.outputs.go == '1'",
+                "    needs: [plan, release]",
+                "    if: needs.plan.outputs.auto == '1'",
+                "      prerelease: true",
+                '          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$v" >/dev/null 2>&1; then',
+                '          test "$top" = "$v" || { echo "$v is below the published $top"; exit 1; }',
+                '          grep -Fxq "## $v" CHANGELOG.md || { echo "CHANGELOG.md has no section for $v"; exit 1; }',
+                '            gh release create "$TAG" $files --target "$GITHUB_SHA" --prerelease \\',
+                '            gh release create "$TAG" $files --draft --title "OneKey Forever ${TAG#v}" \\',
+                '    paths: ["OneKeyDruid/OneKeyDruid.toc"]',
+            ]),
+            "promote.yml": (pro, [
+                '    paths: ["release/STABLE"]',
+                "    needs: promote",
+                "    if: needs.promote.outputs.done == '1'",
+                "      prerelease: false",
+                '          sha256sum -c "OneKeyForever-$v.zip.sha256"',
+                '          grep -Fxq "## $v: enough for a release" release/FIELD.md || { echo "release/FIELD.md does not say that $v has enough play behind it"; exit 1; }',
+                '          test "$top" = "$v" || { echo "$v is below the latest release $latest"; exit 1; }',
+                """          test "$state" = "$(printf 'false\\ttrue')" || { echo "$tag is not a published pre-release"; exit 1; }""",
+            ]),
+        }
+        for name, (text, lines_) in must.items():
+            have = text.splitlines()
+            for l in lines_:
+                if l not in have:
+                    p.append("%s: the line is gone or changed: %s" % (name, l.strip()))
+            for l in have:
+                u = l.strip()
+                if u.startswith("#"):
+                    continue
+                if "continue-on-error" in u or "|| true" in u.replace("2>/dev/null | sed 's/^v//' || true", "") \
+                        or "true ||" in u or u in ("if: false", "if: always()") or "set +e" in u:
+                    p.append("%s: a check is switched off: %s" % (name, u))
+        if rel.count("gh release create") != 2 or "prerelease: false" in rel or "--prerelease=false" in rel or "--latest" in rel:
+            p.append("release.yml can make a full release")
+        if rel.count("\n    if:") != 2 or pro.count("\n    if:") != 1 or rel.count("        if:") or pro.count("        if:"):
+            p.append("a job or step condition was added or removed in release.yml or promote.yml")
+        gate_at = [rel.find(l) for l in must["release.yml"][1][:7]]
+        if sorted(gate_at) != gate_at or not gate_at[-1] < rel.find("gh release create"):
+            p.append("release.yml: the checks do not all run, in order, before the release is made")
+        if "build.py" in pro or "gh release create" in pro or "gh release upload" in pro:
+            p.append("promote.yml builds or uploads: it may only turn the tested pre-release into a release")
+        if '"beta" if os.environ.get("PRERELEASE") == "true" else "release"' not in cf:
+            p.append("curseforge.yml: the release type no longer follows the pre-release flag")
+        for name, text in (("release.yml", rel), ("promote.yml", pro), ("curseforge.yml", cf)):
+            for l in text.splitlines():
+                u = l.strip()
+                if u.startswith(("- uses:", "uses:")) and not u.split("uses:")[1].strip().startswith("./") \
+                        and not re.search(r"@[0-9a-f]{40}\b", u):
+                    p.append("%s: an action is not pinned to a commit: %s" % (name, u))
+            if "pull_request_target" in text or "persist-credentials: true" in text:
+                p.append("%s: unsafe trigger or kept credentials" % name)
+        stable = open(os.path.join(ROOT, "release", "STABLE"), encoding="utf-8").read().strip()
+        if not re.match(r"^\d+\.\d+\.\d+$", stable):
+            p.append("release/STABLE is not one version number: %r" % stable)
+        return p
+
+    @S.test("release: the log analyser counts the play behind a version (stamped sessions only)")
+    def _():
+        import importlib.util, tempfile
+        p = []
+        spec = importlib.util.spec_from_file_location("analyze_log", os.path.join(ROOT, "tools", "analyze_log.py"))
+        al = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(al)
+
+        def log(cls, ver, fights, seconds, dead=0, deaths=0):
+            s = "0.0|S|1|10|0|100|0|Elwynn|" + ("1|2" if cls == "DRUID" else cls) + ("|" + ver if ver else "")
+            out, t = [s], 1.0
+            for i in range(fights):
+                out += ["%.1f|C+|Wolf|10|normal" % t, "%.1f|P|fight|6" % t]
+                if i >= dead:
+                    out.append("%.1f|A|Claw" % t)
+                out.append("%.1f|C-|5|10|1|1" % (t + 5))
+                t += 6
+            out += ["%.1f|D+|Wolf|10" % t] * deaths
+            out.append("%.1f|T|Wolf|10" % seconds)
+            return 'OneKeyDruidDB = {\n["lines"] = {\n' + "".join('"%s",\n' % l for l in out) + '},\n["pos"] = {\n"CENTER",\n},\n}\n'
+
+        def verdict(*logs):
+            ss = []
+            for text in logs:
+                with tempfile.NamedTemporaryFile("w", suffix=".lua", delete=False, encoding="utf-8") as f:
+                    f.write(text)
+                ss += [al.summary(e) for e in al.sessions(f.name)]
+                os.unlink(f.name)
+            return al.field(ss, "9.9.9")
+
+        d = log("DRUID", "9.9.9", 40, 3600)
+        if verdict(d, d)["fights"] != 40:
+            p.append("the same session from two files (the .bak) is counted twice")
+        if verdict(d.replace('\n},\n["pos"]', '\n\t},\n["pos"]').replace('"CENTER"', '"99999|x|y"'))["minutes"] != 60:
+            p.append("a string of another table is read as a log line")
+        good = verdict(log("DRUID", "9.9.9", 40, 3600), log("MAGE", "9.9.9", 30, 2400))
+        if good["missing"] or good["fights"] != 70 or good["minutes"] != 100:
+            p.append("enough play is not enough: %r" % good)
+        if not verdict(log("DRUID", "9.9.8", 40, 3600), log("MAGE", "", 30, 2400))["missing"] \
+                or verdict(log("DRUID", "9.9.8", 40, 3600))["sessions"] != 0:
+            p.append("sessions of another version, or with no stamp, are counted")
+        if not any("another class" in m for m in verdict(log("DRUID", "9.9.9", 80, 7200))["missing"]):
+            p.append("one class alone is enough")
+        if not any("no cast" in m for m in verdict(log("DRUID", "9.9.9", 40, 3600, dead=5), log("MAGE", "9.9.9", 30, 2400))["missing"]):
+            p.append("fights with the key pressed and no cast do not hold a release back")
+        if not any("deaths" in m for m in verdict(log("DRUID", "9.9.9", 40, 3600, deaths=4), log("MAGE", "9.9.9", 30, 2400))["missing"]):
+            p.append("four deaths in 100 minutes do not hold a release back")
         return p
 
     @S.test("ranks: a new rank replaces the old one on the bars, never in combat, only once")

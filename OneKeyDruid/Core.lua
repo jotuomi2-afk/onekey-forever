@@ -16,7 +16,7 @@ local Logic = ns.Logic
 local _, CLASS = UnitClass("player")
 if CLASS ~= "DRUID" then return end
 
-local VERSION = "0.35.1"
+local VERSION = "0.35.2"
 local BUTTON = "OneKeyDruidButton"
 -- The buttons of the modifier keys.
 local NAMES = { heal = "OneKeyDruidHeal", cc = "OneKeyDruidStop", behind = "OneKeyDruidBehind",
@@ -1981,7 +1981,7 @@ local function logStart()
 	lg.bucketAt = 0
 	local zone = GetRealZoneText and GetRealZoneText() or "?"
 	logEvent("S", time and time() or 0, UnitLevel("player"), lg.xp, lg.xpMax,
-		GetXPExhaustion and GetXPExhaustion() or 0, zone, GetMoney and GetMoney() or 0, freeSlots())
+		GetXPExhaustion and GetXPExhaustion() or 0, zone, GetMoney and GetMoney() or 0, freeSlots(), VERSION)
 	lg.inFight = locked()
 	if lg.inFight then lg.fightAt, lg.fightXp, lg.hits, lg.most = GetTime(), 0, 0, 0 end
 end

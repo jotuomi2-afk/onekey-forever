@@ -34,18 +34,66 @@ client's interface number changes, after the in-game check.
 
 ## Steps for each release
 
-1. `release-manager` agent (or by hand): bump the version in the three
-   places, add a `## x.y.z` section at the top of CHANGELOG.md.
-2. Open a PR. CI runs the tests, the tests for the tests, the scan and the
-   build. The `security-reviewer` agent reviews the diff.
-3. Merge. Tag on main: `git tag -s vX.Y.Z -m "OneKey Forever X.Y.Z"` and push the tag.
-4. The `release` workflow checks the tag against the toc, runs everything
-   again, builds `OneKeyForever-X.Y.Z.zip` and its `.sha256`, and creates a **draft**
-   release with the CHANGELOG section as notes.
-5. The owner downloads the draft's zip, does the in-game check, publishes.
-6. Optional later: CurseForge/Wago through the BigWigsMods packager
-   (`.pkgmeta` is ready; needs `CF_API_KEY` / `WAGO_API_TOKEN` as
-   environment secrets of `release`).
+The owner decided on 23.11.2026 that releases are published without him
+pressing a button: a beta as soon as a new version passes every check, a
+release when the play logs show it works.
+
+1. Bump the version in the three places, add a `## x.y.z` section at the
+   top of CHANGELOG.md, run every check (`release` skill). The
+   `security-reviewer` agent reviews the diff.
+2. Push to main. The `release` workflow sees a version number with no tag,
+   runs everything again (tests, the tests for the tests, 500 fuzz runs per
+   class, the coverage gate, the scan, the build), creates the tag
+   `vX.Y.Z` and a **pre-release** with `OneKeyForever-X.Y.Z.zip` and its
+   `.sha256`, and uploads the zip to CurseForge as a **beta**.
+   - It refuses a number below one that is published, and a version with
+     no CHANGELOG section.
+   - A commit that does not change the toc publishes nothing.
+3. The zip is installed on the owner's computer; he plays.
+4. From beta to release: see below.
+
+A person can still publish by hand: a tag pushed by a person gets a draft
+release; a release published from the Releases page gets the files
+attached and goes to CurseForge by its own pre-release flag.
+
+## From beta to release
+
+A pre-release becomes a release when the owner's play logs show that this
+exact version works. The addon stamps its version on every session line
+(from 0.35.2), so the logs say which version was played.
+
+`python3 -I tools/analyze_log.py <every character's OneKeyDruid.lua> --field X.Y.Z`
+answers with the totals and what is missing. A version has enough behind
+it when its stamped sessions hold:
+
+| What | Needed | Why |
+|---|---|---|
+| Play time | 90 minutes | loading, zoning, vendors, a death or two all happen |
+| Fights | 60 | the macros are chosen and pressed often enough |
+| Classes | the druid and one other class, 20 fights each | the two engines (Core.lua, OneKey.lua) both ran |
+| Fights with F pressed 5+ times and no cast | at most 2 % | a macro that does nothing |
+| Deaths | at most one an hour, each read | none may come from the addon (a key that did nothing, a hint that was wrong) |
+
+And by judgement, written down in `release/FIELD.md`:
+
+- every death and every repeated hint of those sessions was read;
+- nothing the owner reported about this version is open;
+- what the version changed was actually used in the sessions (a mage fix
+  needs mage fights; a quest list change needs quest hints followed).
+
+When all of it holds:
+
+1. Add `## X.Y.Z: enough for a release` to `release/FIELD.md` with the
+   totals (version, classes, minutes, fights, deaths: no character names,
+   no times, no lines of the log; the log itself never leaves the
+   computer).
+2. Write `X.Y.Z` into `release/STABLE` and push. The `promote` workflow
+   checks the section, checks the released zip against its SHA-256, turns
+   the pre-release into the latest release and uploads the same zip to
+   CurseForge as a release.
+
+A version that does not get there stays a beta; the next version starts
+its own count. `release/FIELD.md` also notes why a version stayed a beta.
 
 ## First repository layout
 
@@ -57,7 +105,8 @@ tools/                build.py, extract_pfquest.py, analyze_log.py
 docs/                 ARCHITECTURE.md, RELEASE.md
 .claude/agents/       test-runner, security-reviewer, release-manager, log-analyst
 .claude/skills/       run-tests, security-audit, release, analyze-session-log
-.github/workflows/    ci.yml, release.yml
+.github/workflows/    ci.yml, release.yml, promote.yml, curseforge.yml
+release/              STABLE (the stable version), FIELD.md (the play behind each version)
 README.md CHANGELOG.md SECURITY.md THIRD_PARTY_NOTICES.md LICENSE CLAUDE.md
 ```
 

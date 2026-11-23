@@ -23,6 +23,11 @@ python3 -I tests/mutation_check.py
 python3 -I security/scan.py
 ```
 
+Publishing is automatic (docs/RELEASE.md): a new toc version on main becomes
+a beta after every check; `release/STABLE` turns a played beta into a
+release. Do not change `release/STABLE` without the evidence in
+`release/FIELD.md`.
+
 Use the skills: `run-tests`, `security-audit`, `release`,
 `analyze-session-log`. For a review that is not grading its own work, hand
 the diff to the `security-reviewer` agent.

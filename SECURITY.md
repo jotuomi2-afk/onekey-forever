@@ -70,8 +70,16 @@ vulnerability" (Security tab) rather than a public issue. Include the version
 
 ## Supply chain
 
-- The release zip is built by `tools/build.py` in CI from a tagged commit,
-  scanned, and published with its SHA-256 checksum.
+- The release zip is built by `tools/build.py` in CI, scanned, and
+  published with its SHA-256 checksum.
+- A new version number on `main` is published by CI as a pre-release (a
+  beta on CurseForge) after every check has run again in the release job;
+  it becomes a release only through `release/STABLE`, which re-checks the
+  tested zip against its checksum and builds nothing. Whoever can push to
+  `main` can therefore publish: keep that to the owner (branch protection,
+  and a required reviewer on the `release` environment if a person should
+  approve each publication).
 - CI actions are pinned to full commit SHAs; the workflows have read-only
-  permissions except the release job, which may only write releases.
+  permissions except the release and promote jobs, which may only write
+  releases and tags.
 - No runtime dependencies: the package is plain Lua, TOC and XML.
