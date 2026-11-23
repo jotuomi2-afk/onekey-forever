@@ -27,6 +27,7 @@ update from an older version.
 | Alt+F | Bash / roots; out of combat eat and drink | crowd control; out of combat eat and drink |
 | Ctrl+F | leave form; as a cat: Shred from behind | wand or the class's extra spell |
 | G | emergency: Rejuvenation, then the bear, potion; short of mana a mana potion and straight into the bear | one emergency spell, then the potion (mage: Frost Nova, Blink, Mana Shield) |
+| Alt+G | run: cat form, then Dash (Travel Form when Dash is not ready) | |
 | Shift+G | cat ↔ bear (also breaks roots) | get away (mage: Counterspell) |
 | Ctrl+G | hide before going away (Shadowmeld) | Stealth / Shadowmeld (mage: Ice Barrier) |
 

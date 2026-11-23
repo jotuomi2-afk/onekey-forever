@@ -47,7 +47,7 @@ DRUID_SPELLS = {
     768: ("Cat Form", 20), 1082: ("Claw", 20), 1079: ("Rip", 20), 5215: ("Prowl", 20),
     5221: ("Shred", 20), 1822: ("Rake", 24), 5217: ("Tiger's Fury", 24), 783: ("Travel Form", 30),
     22568: ("Ferocious Bite", 24), 6785: ("Ravage", 32), 9005: ("Pounce", 36), 20580: ("Shadowmeld", 1),
-    2383: ("Find Herbs", 1),
+    2383: ("Find Herbs", 1), 1850: ("Dash", 26),
 }
 
 
@@ -176,7 +176,7 @@ def druid_fight(lua, ns, level, mode, selfcast=True):
     return druid_macros(lua, ns, level, mode, selfcast).fight
 
 
-def druid_macros(lua, ns, level, mode, selfcast=True, mana=None, extra=""):
+def druid_macros(lua, ns, level, mode, selfcast=True, mana=None, extra="", forms="{B=1,A=2,C=3}"):
     """The druid macros at a level, with every spell and talent known
     (Feral Charge included), as Logic.BuildMacros makes them."""
     N = lua.eval("""{bear="Bear Form",cat="Cat Form",ht="Healing Touch",rejuv="Rejuvenation",regrowth="Regrowth",
@@ -184,7 +184,7 @@ def druid_macros(lua, ns, level, mode, selfcast=True, mana=None, extra=""):
      enrage="Enrage",roar="Demoralizing Roar",claw="Claw",rip="Rip",rake="Rake",shred="Shred",prowl="Prowl",
      ff="Faerie Fire (Feral)",fb="Ferocious Bite",ravage="Ravage",pounce="Pounce",tf="Tiger's Fury",
      hibernate="Hibernate",thorns="Thorns",motw="Mark of the Wild",direbear="Dire Bear Form",
-     charge="Feral Charge - Cat",chargeBear="Feral Charge",travel="Travel Form",shadowmeld="Shadowmeld"}""")
+     charge="Feral Charge - Cat",chargeBear="Feral Charge",travel="Travel Form",shadowmeld="Shadowmeld",dash="Dash"}""")
     kb = {v: k for k, v in N.items()}
     kb["Faerie Fire"] = "ff"
     kn = lua.eval("{}")
@@ -198,7 +198,7 @@ def druid_macros(lua, ns, level, mode, selfcast=True, mana=None, extra=""):
     for k in ns.Logic.DEFAULTS.keys():
         cfg[k] = ns.Logic.DEFAULTS[k]
     cfg["enrage"] = True
-    o = ns.Logic.BuildMacros(kn, N, lua.eval("{B=1,A=2,C=3}"), mode, cfg,
+    o = ns.Logic.BuildMacros(kn, N, lua.eval(forms), mode, cfg,
                              lua.eval("{selfcast=%s,potion=118,food=4536,water=159,mana=%s,%s}" % (
                                  "true" if selfcast else "false", mana or "nil", extra)))
     return o
@@ -742,6 +742,111 @@ def main():
         o = druid_macros(lua, nsl, 24, "cat", mana=rich)
         if not o.sosGrasp or "/cancelform" not in (o.sos or ""):
             p.append("with mana enough G should heal and Grasp: %r / %r" % (o.sos, o.sosGrasp))
+        return p
+
+    @S.test("druid: Alt+G runs - the cat and then Dash when Dash is ready as the fight starts, else Travel Form or the cat")
+    def _():
+        p = []
+        lua = new_lua()
+        nsl, _ = load_addon(lua, ["Logic.lua"])
+        o = druid_macros(lua, nsl, 30, "cat", forms="{B=1,A=2,C=3,T=4}")
+        if (o.run or "").split("\n") != ["/cast [noform:3] Cat Form", "/cast [form:3] Dash"]:
+            p.append("Alt+G with Dash is %r" % o.run)
+        if o.runSlow != "/cast [outdoors,noform:4] Travel Form; [indoors,noform:3] Cat Form":
+            p.append("Alt+G without Dash at 30 is %r" % o.runSlow)
+        o = druid_macros(lua, nsl, 24, "cat")
+        if o.run or o.runSlow != "/cast [noform:3] Cat Form":
+            p.append("level 24 (no Dash, no Travel Form): %r / %r" % (o.run, o.runSlow))
+        o = druid_macros(lua, nsl, 14, "bear")
+        if o.run or o.runSlow:
+            p.append("a druid with no cat form has a run key: %r / %r" % (o.run, o.runSlow))
+        for lvl in (26, 30, 40):
+            o = druid_macros(lua, nsl, lvl, "cat", forms="{B=1,A=2,C=3,T=4}")
+            for m in (o.run, o.runSlow):
+                if "Dash" in m.split("\n")[0] or len(m) > 255 or "Nature" in m or "item:" in m:
+                    p.append("level %d: something that can fail stands before the form, or too long: %r" % (lvl, m))
+        # in the client: bound to Alt+G, and the Dash variant only when Dash is ready
+        lua = new_lua()
+        set_class(lua, "DRUID", 11, 27, druid_spells(27))
+        lua.execute('STUB.buffs = { ["Mark of the Wild"] = true, ["Thorns"] = true } STUB.form = 3')
+        ns, errs = load_addon(lua)
+        p += errs
+        fire, tick = lua.eval("STUB.fire"), lua.eval("STUB.tick")
+        for e in ("ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD"):
+            p += lua_list(fire(e, "OneKeyDruid"))
+        p += lua_list(tick(6, 0.25))
+        for cmd in ("bind F", "sos G"):
+            lua.eval("STUB.slash")(cmd)
+        if lua.eval('STUB.bindings["ALT-G"]') != "OneKeyDruidRun":
+            p.append("Alt+G is bound to %r; keys %r" % (lua.eval('STUB.bindings["ALT-G"]'), sorted(str(k) for k in lua.eval("STUB.bindings").keys())))
+        run = lambda: macro_attrs(lua).get("OneKeyDruidRun:macrotext", "")
+        p += lua_list(fire("PLAYER_REGEN_DISABLED"))
+        if "Dash" not in run():
+            p.append("Dash is ready and not on Alt+G: %r" % run())
+        lua.execute("STUB.combat = false")
+        p += lua_list(fire("PLAYER_REGEN_ENABLED"))
+        lua.execute('STUB.cds = STUB.cds or {} STUB.cds["Dash"] = { start = STUB.now, dur = 300 }')
+        p += lua_list(tick(2, 0.25))
+        p += lua_list(fire("PLAYER_REGEN_DISABLED"))
+        if "Dash" in run() or "Cat Form" not in run():
+            p.append("Dash on its cooldown as the fight starts is still on Alt+G: %r" % run())
+        # an elite in the fight: the HUD names the run key
+        lua.execute('STUB.combat = true STUB.targetClass = "elite" STUB.targetName = "Blackrock Sentry" STUB.targetLevel = 22 STUB.shown = {}')
+        p += lua_list(tick(4, 0.25))
+        if not any("ELITE: Alt+G runs" in t for t in lua_list(lua.eval("STUB.shown"))):
+            p.append("an elite in the fight and no hint to run: %r" % lua_list(lua.eval("STUB.shown"))[-4:])
+        shown = lambda: lua_list(lua.eval("STUB.shown"))
+        lua.execute('STUB.targetClass = "normal" STUB.shown = {}')
+        p += lua_list(tick(4, 0.25))
+        if any("ELITE" in t for t in shown()):
+            p.append("the elite hint stays on an ordinary mob")
+        # a secret answer names no key and raises nothing; nor does a friendly elite
+        lua.execute('STUB.targetClass = STUB_secret() STUB.shown = {}')
+        p += lua_list(tick(4, 0.25))
+        lua.execute('STUB.targetClass = "elite" local ca = UnitCanAttack UnitCanAttack = function() return false end STUB.ca = ca')
+        p += lua_list(tick(4, 0.25))
+        if any("ELITE" in t for t in shown()):
+            p.append("the elite hint from a secret answer or on a friendly target")
+        lua.execute("UnitCanAttack = STUB.ca")
+        # after the first seconds the elite hint gives way
+        p += lua_list(tick(40, 0.25))
+        lua.execute("STUB.shown = {}")
+        p += lua_list(tick(4, 0.25))
+        if any("ELITE" in t for t in shown()):
+            p.append("the elite hint still covers the other hints ten seconds into the fight")
+        # three attackers: the HUD names both keys, in both languages
+        lua.execute("""STUB.targetClass = "normal" STUB.shown = {}
+            C_NamePlate.GetNamePlates = function()
+              local t = {} for i = 1, 3 do t[i] = { namePlateUnitToken = "nameplate" .. i } end return t end
+            local ca = UnitCanAttack
+            UnitCanAttack = function(a, b) if tostring(b):find("^nameplate") then return true end return ca(a, b) end
+            UnitThreatSituation = function() return 3 end UnitAffectingCombat = function() return true end""")
+        p += lua_list(tick(4, 0.25))
+        if not any("3 ENEMIES: Alt+G runs (G to stand)" in t for t in shown()):
+            p.append("three attackers and no hint to run: %r" % shown()[-3:])
+        lua.execute("STUB.combat = false")
+        p += lua_list(fire("PLAYER_REGEN_ENABLED"))
+        lua.eval("STUB.slash")("lang fi")
+        lua.execute("STUB.combat = true STUB.shown = {}")
+        p += lua_list(fire("PLAYER_REGEN_DISABLED"))
+        p += lua_list(tick(4, 0.25))
+        if not any("3 VIHOLLISTA: Alt+G pakenee (G kestää)" in t for t in shown()):
+            p.append("the Finnish hint with three attackers: %r" % shown()[-3:])
+        # cooldowns the client keeps secret: Dash is counted from the player's own cast
+        lua.execute("""STUB.combat = false
+            C_Spell.GetSpellCooldown = function() return { startTime = STUB_secret(), duration = STUB_secret() } end""")
+        p += lua_list(fire("PLAYER_REGEN_ENABLED"))
+        p += lua_list(tick(1300, 0.25))
+        p += lua_list(fire("PLAYER_REGEN_DISABLED"))
+        if "Dash" not in run():
+            p.append("secret cooldowns and no Dash cast for five minutes: Dash is not on Alt+G: %r" % run())
+        p += lua_list(lua.eval("STUB.castDone")(1850))
+        p += lua_list(fire("PLAYER_REGEN_ENABLED"))
+        p += lua_list(tick(8, 0.25))
+        p += lua_list(fire("PLAYER_REGEN_DISABLED"))
+        if "Dash" in run():
+            p.append("secret cooldowns: Dash was cast seconds ago and is on Alt+G again: %r" % run())
+        p += lua_list(lua.eval("STUB.violations") and lua_list(lua.eval("STUB.violations")) or [])
         return p
 
     @S.test("druid: a potion still cooling when the fight starts is left out of G")

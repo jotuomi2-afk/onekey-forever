@@ -146,6 +146,7 @@ point to several tests; names are matched on their beginning.
 | REQ-55 | A hint from a secret answer names no key; cooldowns are read as the fight begins and then counted from the player's own casts, and with neither nothing is named, for the mage's hints too | hints fail closed:; hints: cooldowns read |
 | REQ-56 | Publishing: a new version number on main becomes a pre-release only after the tests, the mutants, 500 fuzz runs per class, the coverage gate, the scan and the build, never below a published number and never without a changelog section; a pre-release becomes a release only through release/STABLE, with the tested zip checked against its SHA-256 and a passing section in release/FIELD.md; actions are pinned | release: a new version |
 | REQ-57 | The play behind a version: every class stamps the addon version on the session line; the analyser counts only sessions with that stamp and holds a release back for too little play, one class alone, fights with the key pressed and no cast, or many deaths | release: the log analyser; log: every class |
+| REQ-58 | Druid, Alt+G runs: cat form and then Dash when Dash is ready as the fight starts, else Travel Form outdoors or the cat; nothing that can fail stands before the form; a druid with no cat form has no run key; the HUD names Alt+G on an elite and with three or more enemies | druid: Alt+G runs |
 
 ## 6. Threat model (STRIDE)
 

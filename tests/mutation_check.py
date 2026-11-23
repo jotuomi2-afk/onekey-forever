@@ -84,6 +84,13 @@ MUTANTS = [
      " # was\n      prerelease: false", "release: a new version", "line is gone or changed"),
     ("promote: the checksum no longer stops it", "../.github/workflows/promote.yml", 'sha256sum -c "OneKeyForever-$v.zip.sha256"',
      " || true", "release: a new version", "line is gone or changed"),
+    ("druid: Dash on Alt+G although it is on its cooldown", "Logic.lua",
+     "\t\t\tout.run = (\"/cast [noform:%d] %s\\n/cast [form:%d] %s\"):format(C, N.cat, C, N.dash)\n",
+     "\t\t\tout.runSlow = out.run\n", "druid: Alt+G runs", "without Dash at 30"),
+    ("druid: Dash's own cast is not remembered", "Core.lua", "\t\t\t\tif name == N.dash then dashAt = GetTime() end\n",
+     "\t\t\t\tdashAt = -300\n", "druid: Alt+G runs", "cast seconds ago"),
+    ("druid: the elite hint reads the class unguarded", "Core.lua", "local function targetElite()\n",
+     '\tif UnitClassification("target") == "elite" then return true end\n', "druid: Alt+G runs", "on a friendly target"),
 ]
 
 

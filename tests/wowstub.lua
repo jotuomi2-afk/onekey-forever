@@ -82,7 +82,13 @@ function frameMeta.SetFormattedText(self, fmt, ...)
 	for i = 1, select("#", ...) do if issecretvalue(args[i]) then args[i] = 50 end end
 	self._text = string.format(fmt, unpack(args))
 end
-function frameMeta.SetText(self, t) self._text = t end
+function frameMeta.SetText(self, t)
+	self._text = t
+	-- the last texts shown, for the tests of the HUD's hints
+	STUB.shown = STUB.shown or {}
+	if type(t) == "string" then STUB.shown[#STUB.shown + 1] = t end
+	if #STUB.shown > 200 then table.remove(STUB.shown, 1) end
+end
 function frameMeta.SetAlpha(self, a)
 	if issecretvalue(a) then return end
 	self._alpha = a

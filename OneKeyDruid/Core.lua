@@ -16,11 +16,11 @@ local Logic = ns.Logic
 local _, CLASS = UnitClass("player")
 if CLASS ~= "DRUID" then return end
 
-local VERSION = "0.35.2"
+local VERSION = "0.36.0"
 local BUTTON = "OneKeyDruidButton"
 -- The buttons of the modifier keys.
 local NAMES = { heal = "OneKeyDruidHeal", cc = "OneKeyDruidStop", behind = "OneKeyDruidBehind",
-	sos = "OneKeyDruidSOS", free = "OneKeyDruidFree", hide = "OneKeyDruidHide" }
+	sos = "OneKeyDruidSOS", free = "OneKeyDruidFree", hide = "OneKeyDruidHide", run = "OneKeyDruidRun" }
 local PREFIX = "|cff7fd4ffOneKey|r "
 
 -- Each spell: id, English name, then alternatives the same way. An id only
@@ -30,7 +30,7 @@ local SPELLS = {
 	rejuv = { 774, "Rejuvenation" }, regrowth = { 8936, "Regrowth" },
 	motw = { 1126, "Mark of the Wild" }, thorns = { 467, "Thorns" }, omen = { 16864, "Omen of Clarity" },
 	bear = { 5487, "Bear Form" }, direbear = { 9634, "Dire Bear Form" }, cat = { 768, "Cat Form" },
-	travel = { 783, "Travel Form" }, aquatic = { 1066, "Aquatic Form" },
+	travel = { 783, "Travel Form" }, aquatic = { 1066, "Aquatic Form" }, dash = { 1850, "Dash" },
 	hibernate = { 2637, "Hibernate" }, enrage = { 5229, "Enrage" }, grasp = { 16689, "Nature's Grasp" }, maul = { 6807, "Maul" }, roar = { 99, "Demoralizing Roar" }, bash = { 5211, "Bash" }, claw = { 1082, "Claw" }, rake = { 1822, "Rake" },
 	rip = { 1079, "Rip" }, fb = { 22568, "Ferocious Bite" }, pounce = { 9005, "Pounce" },
 	shred = { 5221, "Shred" }, ravage = { 6785, "Ravage" },
@@ -408,7 +408,7 @@ local TEXT = {
 		cFight = "%s: hit", cFinish = "%s: finish it", cForm = "%s: back to your form",
 		cRoot = "ROOTED: Shift+%s breaks free", cBack = "Back to caster form: Ctrl+%s",
 		cHits = "Many hits taken: Shift+%s to heal", cTwo = "2 enemies: Alt+%s stops one, %s if it gets bad",
-		cMany = "%d enemies: press %s or run", mHeal = "Shift held: healing", mStop = "Alt held: stop the mob",
+		cMany = "%d enemies: press %s or run", cManyRun = "%d ENEMIES: Alt+%s runs (%s to stand)", cElite = "ELITE: Alt+%s runs (%s to stand)", mHeal = "Shift held: healing", mStop = "Alt held: stop the mob",
 		mRest = "Alt held: eat and drink", mLeave = "Ctrl held: leave the form", mBehind = "Ctrl held: leave form / attack from behind",
 		low = "LOW HEALTH   press %s", lowNoSos = "LOW HEALTH   Shift+%s", healHint = "Heal: Shift+%s", drinkHint = "Low mana: Alt+%s to drink",
 		enemies = "%d ENEMIES", run = "RUN AWAY!  %s", catProwl = "%s: Prowl", swim = "%s: %s", swimming = "in the water", toBear = "bear: Shift+%s", catOpen = "%s: Pounce/Claw · behind the mob: Ctrl+%s Ravage/Shred", hold = "DO NOT PULL: too strong (%s). /okd brave on", camp = "DO NOT PULL: %d more mobs close. /okd brave on", crowd = "%s: careful, %d more mobs close",
@@ -422,7 +422,7 @@ local TEXT = {
 		cFight = "%s: lyö", cFinish = "%s: viimeistele", cForm = "%s: takaisin muotoon",
 		cRoot = "JUURISSA: Shift+%s vapauttaa", cBack = "Takaisin caster-muotoon: Ctrl+%s",
 		cHits = "Paljon osumia: Shift+%s parantaa", cTwo = "2 vihollista: Alt+%s pysäyttää yhden, %s jos pahenee",
-		cMany = "%d vihollista: paina %s tai pakene", mHeal = "Shift pohjassa: parannat", mStop = "Alt pohjassa: pysäytä kohde",
+		cMany = "%d vihollista: paina %s tai pakene", cManyRun = "%d VIHOLLISTA: Alt+%s pakenee (%s kestää)", cElite = "ELIITTI: Alt+%s pakenee (%s kestää)", mHeal = "Shift pohjassa: parannat", mStop = "Alt pohjassa: pysäytä kohde",
 		mRest = "Alt pohjassa: syö ja juo", mLeave = "Ctrl pohjassa: muodosta pois", mBehind = "Ctrl pohjassa: muodosta pois / lyö takaa",
 		low = "VÄHÄN HP:TA   paina %s", lowNoSos = "VÄHÄN HP:TA   Shift+%s", healHint = "Paranna: Shift+%s", drinkHint = "Mana vähissä: Alt+%s juo",
 		enemies = "%d VIHOLLISTA", run = "PAKENE!  %s", catProwl = "%s: hiivi (Prowl)", swim = "%s: %s", swimming = "vedessä", toBear = "karhuksi: Shift+%s", catOpen = "%s: Pounce/Claw · mobin takana: Ctrl+%s Ravage/Shred", hold = "ÄLÄ VEDÄ: liian vahva (%s). /okd brave on", camp = "ÄLÄ VEDÄ: %d muuta mobia lähellä. /okd brave on", crowd = "%s: varo, %d muuta mobia lähellä",
@@ -691,6 +691,7 @@ local function rebuild()
 	kids.sos:SetAttribute("macrotext", macros.sosGrasp or macros.sos or "")
 	kids.free:SetAttribute("macrotext", macros.free or "")
 	kids.hide:SetAttribute("macrotext", macros.hide or "")
+	kids.run:SetAttribute("macrotext", macros.run or macros.runSlow or "")
 	current.text = nil
 	dirty = false
 end
@@ -1107,6 +1108,14 @@ local function hideRun()
 	if runBox then for _, r in ipairs(runBox) do r.box:Hide() end end
 end
 
+-- An elite to fight? Plain values only; a secret one counts as no.
+local function targetElite()
+	local class = UnitClassification and UnitClassification("target")
+	local foe = UnitCanAttack and UnitCanAttack("player", "target")
+	if secret(class) or secret(foe) or not foe then return false end
+	return class == "elite" or class == "rareelite" or class == "worldboss"
+end
+
 -- Rooted? The client's loss-of-control list says so (plain values only;
 -- a secret one counts as not known). The HUD only tells which key frees
 -- you: the key itself cannot change in combat.
@@ -1156,7 +1165,10 @@ local function combatHud()
 	elseif form ~= "none" and now - fromCaster.at < 8 then
 		text = "|cff80d0ff" .. tr("cBack", sos) .. "|r"
 	elseif adds.n >= 3 then
-		text = "|cffff4040" .. tr("cMany", adds.n, sos) .. "|r"
+		text = "|cffff4040" .. ((macros.run or macros.runSlow) and tr("cManyRun", adds.n, sos, sos) or tr("cMany", adds.n, sos)) .. "|r"
+	elseif (macros.run or macros.runSlow) and now - live.at < 8 and targetElite() then
+		-- the first seconds only: after that the other hints are worth more
+		text = "|cffff4040" .. tr("cElite", sos, sos) .. "|r"
 	elseif adds.n == 2 then
 		text = "|cffffa040" .. tr("cTwo", key, sos) .. "|r"
 	elseif formNow() == "none" and Logic.Mode(db, known) ~= "caster" and now - live.at > 8 then
@@ -1362,8 +1374,27 @@ local function withoutCooling(text)
 	return table.concat(out, "\n")
 end
 
+-- Dash ready? The same way: the client's cooldown when plain, else five
+-- minutes from our own record of the last cast.
+local dashAt = -300
+local function dashReady()
+	if not known.dash then return false end
+	if C_Spell and C_Spell.GetSpellCooldown and N.dash then
+		local ok, cd = pcall(C_Spell.GetSpellCooldown, N.dash)
+		if ok and type(cd) == "table" and not secret(cd.startTime) and not secret(cd.duration)
+			and type(cd.startTime) == "number" and type(cd.duration) == "number" then
+			return cd.duration <= 1.5 or cd.startTime + cd.duration <= GetTime()
+		end
+	end
+	return GetTime() - dashAt >= 300
+end
+
 local function pickSos()
 	if locked() or not kids.sos then return end
+	-- Alt + emergency key for this fight: Dash only when it is ready
+	if kids.run then
+		kids.run:SetAttribute("macrotext", (macros.run and dashReady()) and macros.run or macros.runSlow or "")
+	end
 	local text = (macros.sosGrasp and graspReady()) and macros.sosGrasp or macros.sos or ""
 	text = withoutCooling(text)
 	kids.sos:SetAttribute("macrotext", text)
@@ -1393,6 +1424,7 @@ local function bindKey()
 		SetOverrideBindingClick(button, true, db.sos, NAMES.sos, "LeftButton")
 		SetOverrideBindingClick(button, true, "SHIFT-" .. db.sos, NAMES.free, "LeftButton")
 		SetOverrideBindingClick(button, true, "CTRL-" .. db.sos, NAMES.hide, "LeftButton")
+		SetOverrideBindingClick(button, true, "ALT-" .. db.sos, NAMES.run, "LeftButton")
 	end
 end
 
@@ -1803,6 +1835,9 @@ local function status()
 	if macros.cc then say("Alt:\n" .. macros.cc) end
 	if macros.behind then say("Ctrl:\n" .. macros.behind) end
 	if macros.free then say("Shift+" .. tostring(db.sos) .. " (break free):\n" .. macros.free) end
+	if macros.run or macros.runSlow then
+		say("Alt+" .. tostring(db.sos) .. " (run):\n" .. tostring(kids.run and kids.run:GetAttribute("macrotext") or macros.run or macros.runSlow))
+	end
 	if macros.sos then say(("emergency (%s), potion %s:\n%s"):format(tostring(db.sos), tostring(potion), macros.sos)) end
 	do
 		local mi = manaInfo()
@@ -2121,6 +2156,7 @@ logger:SetScript("OnEvent", function(_, event, a1, a2, a3)
 				logEvent("A", name)
 				if name == N.roar and lg.inFight then lg.roared = true end
 				if name == N.grasp then graspAt = GetTime() end
+				if name == N.dash then dashAt = GetTime() end
 				if name == N.ht or name == N.regrowth then lg.paying = false end
 				if (name == N.ht or name == N.regrowth or name == N.rejuv) and not locked() and hpEst.frac then
 					-- a heal out of combat: take its tooltip amount off the estimate

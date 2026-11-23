@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.36.0
+
+- Druid: Alt+G runs. G stands and heals (Rejuvenation, Nature's Grasp, the
+  bear); in the logs of 23.11. that was three deaths against an elite or
+  three and more mobs. Alt+G leaves instead:
+  - with Dash ready as the fight starts: the first press is cat form, the
+    next is Dash (a cat already: Dash at once);
+  - with Dash on its cooldown or not learned: Travel Form outdoors (from
+    level 30), cat form indoors or before 30.
+  - The HUD names it when it matters: "3 ENEMIES: Alt+G runs (G to
+    stand)" and, on an elite, "ELITE: Alt+G runs (G to stand)".
+  - `/okd status` shows what is on Alt+G.
+
 ## 0.35.2
 
 - The session log notes which addon version a session ran (the last field

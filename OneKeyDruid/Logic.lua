@@ -706,6 +706,24 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 		out.hide = ("/cast [noform:%d] %s\n/cast [form:%d,nostealth] %s"):format(C, N.cat, C, N.prowl)
 	end
 
+	-- Alt + emergency key: run. The emergency key stands and heals (the
+	-- bear); against three mobs or an elite that was a death in the logs of
+	-- 23.11. This one leaves: the cat, then Dash on the next press. Each
+	-- line fits only one state ([noform] / [form]), so nothing fails before
+	-- its turn; Dash is last, where a cooldown stops nothing. Core puts
+	-- out.run on the key only when Dash is ready as the fight starts;
+	-- otherwise out.runSlow: Travel Form outdoors, the cat indoors.
+	if C and known.cat then
+		if T and known.travel then
+			out.runSlow = ("/cast [outdoors,noform:%d] %s; [indoors,noform:%d] %s"):format(T, N.travel, C, N.cat)
+		else
+			out.runSlow = ("/cast [noform:%d] %s"):format(C, N.cat)
+		end
+		if known.dash then
+			out.run = ("/cast [noform:%d] %s\n/cast [form:%d] %s"):format(C, N.cat, C, N.dash)
+		end
+	end
+
 	return out
 end
 
