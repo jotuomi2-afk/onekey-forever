@@ -12,8 +12,8 @@ Tested in the simulated client only; nothing here has been played yet.
   - Every row is rated. Green: fine alone. Blue: a quest Forever added
     (where it starts is known, its mobs are not). Under "Not on your own
     right now": quests with an elite target or in a dungeon, quests the
-    game tags for a group, and quests whose mobs are 3 or more levels over
-    you, each with the reason.
+    game tags for a group, and quests that are, or whose mobs are, 3 or more
+    levels over you, each with the reason.
   - Under each row, what to do: for a quest in your log the game's own
     count of what is left ("Gnoll Paw: 3/8"), otherwise the quest's task
     line. Mobs are named with their level ("kill Defias Trapper (11-12)").

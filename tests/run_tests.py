@@ -1791,6 +1791,10 @@ def main():
         deadmines = [q for q in Q.q.keys() if str(Q.q[q]).startswith("Collecting Memories|")]
         if not deadmines or not f(deadmines[0])[13]:
             p.append("Collecting Memories (the Deadmines) is not marked as a group quest")
+        # an item many mobs drop: the ones in the quest's own zone, near its level
+        goulash = f(92)
+        if goulash[9] != "1433" or not (15 <= int(goulash[14] or 0) <= 20):
+            p.append("Redridge Goulash (92) is not a Redridge quest with level 15-20 mobs: %r" % goulash[9:15])
         hogger = str(npcs[448]).split("|")
         if hogger[0] != "Hogger" or hogger[3] != "11" or hogger[4] != "1":
             p.append("Hogger: level and rank not in the npc record: %r" % hogger)
@@ -1885,7 +1889,7 @@ def main():
         errs += lua_list(lua.eval("STUB.fire")("PLAYER_LOGIN"))
         return lua, ns, errs
 
-    @S.test("solo: the rating - elite and dungeon need a group, mobs 3 levels over are too hard, the game's tag wins")
+    @S.test("solo: the rating - elite and dungeon need a group, mobs or a quest 3 levels over are too hard, the game's tag wins")
     def _():
         p = []
         lua, ns, errs = quest_session(12, 1436, 56, 47)
@@ -1895,7 +1899,8 @@ def main():
         cases = [
             (t(level=12, mob=13, flags=""), 12, None, "solo"),
             (t(level=12, mob=15, flags=""), 12, None, "hard"),
-            (t(level=16, mob=0, flags=""), 12, None, "hard"),
+            (t(level=15, mob=0, flags=""), 12, None, "hard"),
+            (t(level=14, mob=14, flags=""), 12, None, "solo"),
             (t(level=12, mob=12, flags="E"), 12, None, "group"),
             (t(level=18, mob=19, flags="D"), 25, None, "group"),
             (t(level=5, mob=5, flags=""), 12, None, "low"),

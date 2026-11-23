@@ -228,6 +228,11 @@ local function titleOf(q, fi)
 	if C and C.GetTitleForQuestID then
 		local ok, t = pcall(C.GetTitleForQuestID, q.id)
 		if ok and type(t) == "string" and not secret(t) and t ~= "" then q.title = t return t end
+		-- not known yet: ask the server once, the answer is there next time
+		if not q.asked and C.RequestLoadQuestByID then
+			q.asked = true
+			pcall(C.RequestLoadQuestByID, q.id)
+		end
 	end
 	return (fi and "Uusi Forever-quest #%d" or "New Forever quest #%d"):format(q.id)
 end
@@ -264,8 +269,8 @@ end
 -- Can one player do it at this level?
 --   "group": the game tags it for a group, an objective is elite, or it
 --            is in a dungeon
---   "hard":  its mobs are 3 or more levels over you (the fight key will not
---            pull them either), or the quest itself is 4 or more over
+--   "hard":  its mobs, or the quest itself, are 3 or more levels over you
+--            (the fight key will not pull such mobs either)
 --   "low":   6 or more levels under you: next to no XP
 --   "new":   a quest Forever added: where it starts is known, its mobs not
 --   "solo":  everything else
@@ -276,7 +281,7 @@ function QH.Rate(q, lvl, g)
 	if flags:find("D", 1, true) or flags:find("E", 1, true) then return "group" end
 	local level = g and g.level or q.level or 0
 	if q.new and not g then return "new" end
-	if (q.mob or 0) >= lvl + 3 or level >= lvl + 4 then return "hard" end
+	if (q.mob or 0) >= lvl + 3 or level >= lvl + 3 then return "hard" end
 	if level > 0 and level <= lvl - 6 then return "low" end
 	return "solo"
 end

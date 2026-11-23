@@ -133,13 +133,16 @@ def place(name, data, unit=False):
     return "%s|%d|%s%s" % (esc(name), ZONE_TO_UIMAP[zone], ",".join(out), tail)
 
 
-def main_map(refs, U, O):
-    """The uiMap where most of these units and objects are."""
+def main_map(refs, U, O, prefer=0):
+    """The uiMap where most of these units and objects are; the preferred
+    map when any of them is there."""
     count = collections.Counter()
     for kind, i in refs:
         by_zone, _ = zones_of((O if kind == "o" else U)[i])
         for z, pts in by_zone.items():
             count[ZONE_TO_UIMAP[z]] += len(pts)
+    if prefer and count[prefer]:
+        return prefer
     return count.most_common(1)[0][0] if count else 0
 
 
@@ -168,9 +171,27 @@ def main():
                 opens(n, seen, depth + 1)
         return min(9, len(seen))
 
-    def item_sources(i):
+    item_level, item_home = {}, {}
+
+    def item_sources(i, qlvl=None, home=()):
+        """Three units that drop the item and two objects that hold it. Of
+        the units that drop it often enough (a sixth of the best chance, 2 %
+        at least), those nearest the quest's level: the spider meat of a
+        level 18 quest comes from the level 15 spider next door, not from
+        the level 33 one that drops it a little more often. Units in the
+        zone the quest is given in come first."""
+        if qlvl is not None:
+            item_level.setdefault(i, qlvl)
+            item_home.setdefault(i, set(home))
+        qlvl, home = item_level.get(i, 0), item_home.get(i, set())
         d = I[i]
-        drops = sorted(((float(ch), int(u)) for u, ch in d["U"].items()), reverse=True)[:3] if d and d["U"] else []
+        drops = [(float(ch), int(u)) for u, ch in d["U"].items()] if d and d["U"] else []
+        if drops:
+            best = max(ch for ch, _ in drops)
+            often = [(ch, u) for ch, u in drops if ch >= max(2.0, best / 6)] or drops
+            often.sort(key=lambda cu: (0 if home & set(zones_of(U[cu[1]])[0]) else 1,
+                                       abs(top_level(U[cu[1]]) - qlvl) if qlvl and top_level(U[cu[1]]) else 99, -cu[0], cu[1]))
+            drops = often[:3]
         objs = sorted(((float(ch), int(o)) for o, ch in d["O"].items()), reverse=True)[:2] if d and d["O"] else []
         return [u for _, u in drops], [o for _, o in objs]
 
@@ -202,10 +223,15 @@ def main():
                  ["o%d" % o for o in ids(q["start"]["O"] if q["start"] else None)]
         ends = ["%d" % u for u in ids(q["end"]["U"] if q["end"] else None)] + \
                ["o%d" % o for o in ids(q["end"]["O"] if q["end"] else None)]
+        home = set()
+        for s in starts:
+            home |= set(zones_of((O if s.startswith("o") else U)[int(s.lstrip("o"))])[0])
         obj = []
         # what the quest sends you against: the units to kill and the units
         # that drop its items. Elite: every source of one objective is elite,
-        # rare elite or a boss. Dungeon: one is found only indoors.
+        # rare elite or a boss. Dungeon: one is found only indoors. The mob
+        # level of the quest: the highest among its objectives, each counted
+        # by its lowest source.
         targets, flags, mob = [], set(), 0
         if q["obj"]:
             for u in ids(q["obj"]["U"]):
@@ -215,7 +241,7 @@ def main():
             for i in ids(q["obj"]["I"]):
                 obj.append("i%dx1" % i)
                 items[i] = None
-                us, os_ = item_sources(i)
+                us, os_ = item_sources(i, lvl, home)
                 if us and not os_:
                     targets.append([("n", u) for u in us])
             for o in ids(q["obj"]["O"]):
@@ -228,12 +254,14 @@ def main():
                 flags.add("E")
             if all(indoors((O if kind == "o" else U)[i]) for kind, i in group):
                 flags.add("D")
-            for d in units:
-                mob = max(mob, top_level(d))
+            # of several sources for one objective, the lowest will do
+            tops = [top_level(d) for d in units if top_level(d) > 0]
+            if tops:
+                mob = max(mob, min(tops))
         for s in starts + ends:
             (need_o if s.startswith("o") else need_u).add(int(s.lstrip("o")))
-        where = main_map([r for g in targets for r in g], U, O) or \
-            main_map([("o" if s.startswith("o") else "n", int(s.lstrip("o"))) for s in starts], U, O)
+        given = main_map([("o" if s.startswith("o") else "n", int(s.lstrip("o"))) for s in starts], U, O)
+        where = main_map([r for g in targets for r in g], U, O, given) or given
         text = " ".join(str(loc["O"] or "").replace("$B", " ").replace("$b", " ").split())
         quests[qid] = "%s|%d|%d|%s|%s|%s||%s|%s|%s|%s|%s|%s|%s|%s|%d|%s" % (
             esc(title), lvl, mn, ",".join(starts), ",".join(ends),
