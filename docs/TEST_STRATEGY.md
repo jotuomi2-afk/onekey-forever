@@ -26,7 +26,7 @@ owner test, and a risk without a test is a gap that blocks a release.
 | L3 integration | The whole addon loaded in a simulated client (`tests/wowstub.lua`): secret values raise on comparison or arithmetic; secure changes in combat are recorded and blocked, as in the client; events reach only frames that registered them; timers run; the damage meter returns secret values in combat | `tests/run_tests.py` | every commit, CI |
 | L3 property / fuzz | Random reproducible sessions for nine classes: random targets, combat, forms, zones, deaths, events, and slash input, including junk; client variations (no scale curve, no damage meter) | `tests/fuzz_test.py` | 40 runs per class in CI, 500 before a release |
 | L3 performance | `QuestHelp.Refresh` + `Hint` under 8 ms per call | `tests/run_tests.py` | every commit |
-| Test-quality check | Mutation check: the unchanged suite must pass first, then 13 planted faults must each fail the named test with the expected message | `tests/mutation_check.py` | CI |
+| Test-quality check | Mutation check: the unchanged suite must pass first, then 15 planted faults must each fail the named test with the expected message | `tests/mutation_check.py` | CI |
 | Coverage | Approximate line coverage with a Lua line hook; gate 65 % | `OKD_COVERAGE=1 tests/run_tests.py --min-coverage 65` | CI |
 | L4 acceptance | Playing in the real client: `/okd runtest`, session log, `tools/analyze_log.py` | manual | before a release |
 
@@ -103,6 +103,8 @@ Likelihood (L) and impact (I) are rated 1–3; their product sets the depth of t
 | RK16 | The AFK alarm stays silent | 2 | 2 | REQ-16 |
 | RK17 | After a /reload in combat the keys do nothing | 1 | 3 | REQ-18 |
 | RK18 | Quest hints offer the other faction's quests | 2 | 1 | REQ-08 (independent list of known Horde quests) |
+| RK19 | A buff, shield, imbue or opener that cannot be cast holds the fight key out of combat | 2 | 3 | REQ-44, mutant |
+| RK20 | A cooldown or reactive spell early in a fight macro stops the key (seen 19.11.) | 3 | 3 | REQ-22, REQ-45, mutant |
 | RK19 | A spell on cooldown or out of range early in a macro stops it, so the key does nothing | 3 | 2 | REQ-22 |
 
 ## 5. Requirements and traceability
