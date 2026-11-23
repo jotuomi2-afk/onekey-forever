@@ -32,7 +32,7 @@ JUNK = ["solo", "solo print", "solo button", "skip", "skip clear", "", " ", "bin
         "skip", "skip clear", "go", "where", "ranks", "ranks off", "ranks on", "hpregen 3", "hpregen -1",
         "manaregen 999", "status", "report", "%s%s%n", "ää ö €", "x" * 300, "brave on", "brave off",
         "alarm off", "herbs off", "runtest", "debug", "log off", "log on"]
-ZONES = [("Darkshore", 1439), ("Redridge Mountains", 1433), ("Wetlands", 1437), ("Stormwind City", 1453),
+ZONES = [("Westfall", 1436), ("Elwynn Forest", 1429), ("Tirisfal Glades", 1420), ("Zephras Isle", 2521), ("Darkshore", 1439), ("Redridge Mountains", 1433), ("Wetlands", 1437), ("Stormwind City", 1453),
          ("The Deadmines", 9999), ("", 0)]
 TARGETS = ["Redridge Mongrel", "Blackrock Champion", "Chef Breanna", "X%sY", "Dragon|Whelp", "Ölli", None]
 
@@ -61,6 +61,16 @@ def one_run(seed, steps=120):
     lua = T.new_lua()
     T.set_class(lua, cls, cid, level, spells_for(lua, cls, level, rnd))
     lua.execute("STUB.buffs = {} STUB.quests = {} STUB.flagged = {}")
+    # a quest log: known and unknown quests, some finished (handed in on
+    # this map, on another, or nowhere known), some tagged for a group
+    if rnd.random() < 0.6:
+        ids = rnd.sample([12, 22, 92, 102, 168, 176, 214, 1198, 4740, 999001, 999002], rnd.randint(1, 6))
+        lua.execute("STUB.quests = { %s } STUB.questDone = { %s } STUB.questTag = { %s }" % (
+            ", ".join('{ questID = %d, title = "Q%d", level = %d%s }' % (
+                q, q, rnd.randint(1, 60), ", suggestedGroup = 3" if rnd.random() < 0.2 else "") for q in ids),
+            ", ".join("[%d] = true" % q for q in ids if rnd.random() < 0.4),
+            ", ".join("[%d] = %d" % (q, rnd.choice([1, 62, 81])) for q in ids if rnd.random() < 0.2)))
+    lua.execute('STUB.faction = %r' % rnd.choice(["Alliance", "Horde"]))
     # client variations: no scale curve, no damage meter
     if rnd.random() < 0.3:
         lua.execute("CurveConstants = nil")

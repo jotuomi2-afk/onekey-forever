@@ -3,7 +3,9 @@
 ## Before the first public release (blockers)
 
 1. ~~Quest data licence~~ — done in 0.25.0: QuestData.lua is now built
-   from pfQuest's own repository (MIT only) by `tools/extract_pfquest.py`;
+   from pfQuest's own repository (MIT only) by `tools/extract_pfquest.py`
+   (since 0.35.0 also `QuestDataNew.lua` from All The Things, MIT, by
+   `tools/extract_att.py`);
    `security/scan.py` (R6) fails if another source appears in it.
 2. ~~Name~~ — decided: **OneKey Forever** (repository `onekey-forever`,
    zip `OneKeyForever-X.Y.Z.zip`). No WoW addon of that name was found; the

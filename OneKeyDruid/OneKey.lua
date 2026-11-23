@@ -339,12 +339,17 @@ end
 local tries = {}
 local cooldownLeft
 
+local onKey, pressedOffer -- the offer on the fight key now; the one its last press met
+
 local function mayTry(tag, now)
 	local t = tries[tag]
+	if t and t.skip and now >= t.skip then t = nil end
 	if not t then t = { offered = now } tries[tag] = t end
 	if t.skip then return false end
-	if not t.pressed and fightPress > t.offered then t.pressed = fightPress end
-	if t.pressed and now - t.pressed > 2 then t.skip = true return false end
+	if not t.pressed and pressedOffer == tag and fightPress > t.offered then t.pressed = fightPress end
+	-- given up: not again for five minutes (a buff someone else's stronger
+	-- one keeps off would otherwise cost two seconds after every fight)
+	if t.pressed and now - t.pressed > 2 then t.skip = now + 300 return false end
 	return true
 end
 
@@ -410,9 +415,9 @@ local function decide()
 	end
 	local now = GetTime()
 	local b = missingBuff(now)
-	if b then return "/cast [@player] " .. N[b], tr("buff", key, N[b]) end
+	if b then return "/cast [@player] " .. N[b], tr("buff", key, N[b]), "buff:" .. b end
 	b = missingImbue(now)
-	if b then return "/cast " .. N[b], tr("buff", key, N[b]) end
+	if b then return "/cast " .. N[b], tr("buff", key, N[b]), "imbue" end
 	if tk == "hostile" then
 		local lvl, mine = UnitLevel("target"), UnitLevel("player")
 		local class = UnitClassification and UnitClassification("target")
@@ -423,10 +428,10 @@ local function decide()
 			end
 		end
 		if wantShield(now) then
-			return "/cast [@player] " .. N[CL.shield], tr("buff", key, N[CL.shield])
+			return "/cast [@player] " .. N[CL.shield], tr("buff", key, N[CL.shield]), "shield"
 		end
 		if wantOpener(now) then
-			return TARGET .. "\n/cast [harm,nodead] " .. N[CL.opener], tr("fight", key)
+			return TARGET .. "\n/cast [harm,nodead] " .. N[CL.opener], tr("fight", key), "opener"
 		end
 		return macros.fight, tr("fight", key)
 	end
@@ -549,6 +554,8 @@ end
 -- client gives macros no such conditions, and the macro is locked in
 -- combat), so the HUD tells which key to press. It only shows text.
 local lastCast = {}
+local cdAtStart = {}
+local readCooldowns
 local chill = { n = 0, at = 0 }
 cooldownLeft = function(key, now)
 	local name = N[key]
@@ -564,12 +571,36 @@ cooldownLeft = function(key, now)
 	end
 	local t = lastCast[key]
 	local len = CL and ((CL.alert and CL.alert.cd and CL.alert.cd[key]) or (CL.cd and CL.cd[key])) or 0
+	if t and len > 0 then return math.max(0, t + len - now), true end
+	-- no cast seen in this fight: what the client said as the fight began
+	local e = cdAtStart[key]
+	if e then return math.max(0, e - now), true end
 	-- nothing readable and no cast seen: "ready" is a guess (second value)
-	if not t then return 0, false end
-	return math.max(0, t + len - now), len > 0
+	return 0, false
 end
 
+-- As a fight begins the cooldowns are still plain values: keep where each
+-- of the class's cooldown spells stands, for the fight's hints.
+readCooldowns = function()
+	cdAtStart = {}
+	if not (CL and C_Spell and C_Spell.GetSpellCooldown) then return end
+	local now = GetTime()
+	for _, list in ipairs({ CL.alert and CL.alert.cd or {}, CL.cd or {} }) do
+		for key in pairs(list) do
+			local name = N[key]
+			local ok, cd = false, nil
+			if name then ok, cd = pcall(C_Spell.GetSpellCooldown, name) end
+			if ok and type(cd) == "table" and not secret(cd.startTime) and not secret(cd.duration)
+				and type(cd.startTime) == "number" and type(cd.duration) == "number" then
+				cdAtStart[key] = cd.duration <= 1.5 and 0 or (cd.startTime + cd.duration)
+			end
+		end
+	end
+end
+
+local lastOwnCast, shieldCast
 local function noteCast(spellID)
+	lastOwnCast = GetTime()
 	if not CL or secret(spellID) or type(spellID) ~= "number" then return end
 	local name
 	if C_Spell and C_Spell.GetSpellName then
@@ -582,6 +613,7 @@ local function noteCast(spellID)
 	for key, n in pairs(N) do
 		if n == name then
 			lastCast[key] = now
+			if CL.alert and CL.alert.shield and CL.alert.shield.spell == key then shieldCast = now end
 			if W then
 				if key == W.spend then chill.n = 0 end
 				for _, b in ipairs(W.build) do
@@ -643,7 +675,21 @@ local function keyHint(now)
 	return nil
 end
 
+-- A finisher with no combo point holds the rogue's sequence (two strikes
+-- that both missed). Combo points are plain values: with none, and the
+-- key pressed for five seconds without a cast, name the key that makes one.
+local function stuckHint(now)
+	local S = CL and CL.stuck
+	if not S or not known[S.spell] or not GetComboPoints then return nil end
+	local ok, cp = pcall(GetComboPoints, "player", "target")
+	if not ok or secret(cp) or cp ~= 0 then return nil end
+	if now - live.start < 5 or now - (lastOwnCast or 0) < 5 or now - fightPress > 2 then return nil end
+	return tr("aKey", (S.label or "NO COMBO POINT") .. ": " .. N[S.spell], COMBO[S.key] or "", db.key or "F")
+end
+
 local function alertText(now)
+	local stuck = stuckHint(now)
+	if stuck then return stuck end
 	local key = db.key or "F"
 	local H = CL and CL.meleeHint
 	if H and known[H.spell] and inMelee(H.spell, now) then
@@ -653,7 +699,8 @@ local function alertText(now)
 	if not A or not known[A.freeze] then return keyHint(now) end
 	local frozenAt = lastCast[A.freeze]
 	if frozenAt and now - frozenAt < 8 then
-		if A.lance and known[A.lance] and cooldownLeft(A.lance, now) == 0 then
+		local left, sure = cooldownLeft(A.lance or "", now)
+		if A.lance and known[A.lance] and left == 0 and sure then
 			return tr("aLance", key, N[A.bolt] or "", N[A.lance])
 		end
 		return tr("aBack", key)
@@ -662,7 +709,8 @@ local function alertText(now)
 	for i = #live.times, 1, -1 do
 		if now - live.times[i] <= 2.5 then hit = true break end
 	end
-	if hit and cooldownLeft(A.freeze, now) == 0 then
+	local fLeft, fSure = cooldownLeft(A.freeze, now)
+	if hit and fLeft == 0 and fSure then
 		-- the freeze is on the emergency key (mage), or on Shift+F
 		if A.freezeKey == "sos" then
 			if not db.sos then return nil end
@@ -671,12 +719,15 @@ local function alertText(now)
 		return tr("aNova", key, N[A.freeze])
 	end
 	local W = A.chill
-	if W and chillStacks(now) >= W.stacks and cooldownLeft(W.spend, now) == 0 then
+	local wLeft, wSure = 99, false
+	if W then wLeft, wSure = cooldownLeft(W.spend, now) end
+	if W and chillStacks(now) >= W.stacks and wLeft == 0 and wSure then
 		return tr("aCone", W.stacks, key, N[W.spend])
 	end
 	local S = A and A.shield
 	if S and db.sos and known[S.spell] and macros.hide and macros.hide:find(N[S.spell], 1, true)
-		and cooldownLeft(S.spell, now) == 0 and now - (lastCast[S.spell] or -999) >= S.every
+		and select(2, cooldownLeft(S.spell, now)) and cooldownLeft(S.spell, now) == 0
+		and now - (shieldCast or -999) >= S.every
 		and now - live.start >= 3 then
 		return tr("aShield", N[S.spell], db.sos)
 	end
@@ -783,7 +834,7 @@ local function secureButton(name)
 	for k, v in pairs(NAMES) do if v == name then what = k end end
 	b:HookScript("PreClick", function(_, _, down)
 		clicks[#clicks + 1] = GetTime() if #clicks > 12 then table.remove(clicks, 1) end
-		if what == "fight" and down ~= false then fightPress = GetTime() end
+		if what == "fight" and down ~= false then fightPress, pressedOffer = GetTime(), onKey end
 		-- a key held down clicks on both down and up; count one press
 		if logEvent and down ~= false then logEvent("P", (what == "fight" and not locked()) and (current.what or "out") or what) end
 	end)
@@ -931,6 +982,8 @@ end
 
 local function enterCombat()
 	logCombat(true)
+	lastCast = {}
+	if readCooldowns then readCooldowns() end
 	live.start, live.times = GetTime(), {}
 	adds.warned = false
 	if db.alarm ~= false and not alarm.on and GetTime() - (clicks[#clicks] or 0) >= 30 then
@@ -969,7 +1022,8 @@ local function update()
 	updateAlert(GetTime())
 	if bagsDirty then scanBags() bagsDirty, dirty = false, true end
 	if dirty then rebuild() end
-	local text, label = decide()
+	local text, label, offer = decide()
+	onKey = offer
 	apply(text, label)
 	setNote()
 end
@@ -1046,7 +1100,7 @@ driver:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 		logCombat(false)
 		current.text = nil
 		adds.n = 0
-		chill.n, tries = 0, {}
+		chill.n, tries.shield, tries.opener = 0, nil, nil
 		if #secureLater > 0 then
 			for _, b in ipairs(secureLater) do b:SetAttribute("type", "macro") end
 			secureLater = {}
@@ -1175,10 +1229,10 @@ SlashCmdList.ONEKEYDRUID = function(msg)
 		if rest:lower() == "clear" then ns.QH.ClearSkips() say("left-out quests are back.")
 		else say("left out: " .. tostring(ns.QH.Skip() or "nothing")) end
 	elseif cmd == "quests" and ns.QH and ns.QH.Refresh then
-		ns.QH.Refresh(UnitLevel("player"))
+		pcall(ns.QH.Refresh, UnitLevel("player"))
 		ns.QH.List(say, 5)
 	elseif cmd == "go" and ns.QH and ns.QH.Go then
-		ns.QH.Refresh(UnitLevel("player"))
+		pcall(ns.QH.Refresh, UnitLevel("player"))
 		local ok, name = ns.QH.Go()
 		say(ok and ("map pin and arrow: " .. tostring(name)) or "no place to point to.")
 	elseif cmd == "where" and Logic and Logic.Route then

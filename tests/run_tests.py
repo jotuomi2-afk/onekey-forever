@@ -1597,7 +1597,10 @@ def main():
             "PRIEST", 5, 24, drop=("Shadowform",),
             setup='STUB.wand = true STUB.targetName = "Murloc" STUB.targetLevel = 24 STUB.secretCooldown = true')
         p += errs
-        p += in_combat(lua, fire, tick)
+        # the fight begins with the cooldowns already secret (a /reload in
+        # combat): nothing was read, no cast was seen, so nothing is named
+        lua.execute("STUB.combat = true")
+        p += lua_list(fire("PLAYER_REGEN_DISABLED"))
         p += lua_list(tick(8, 0.25))
         if ns.OneKeyAlert():
             p.append("Mind Blast named ready with nothing to read and no cast seen: %r" % ns.OneKeyAlert())
@@ -1608,6 +1611,86 @@ def main():
         p += lua_list(tick(28, 0.25))
         if "MIND BLAST" not in (ns.OneKeyAlert() or ""):
             p.append("Mind Blast not named 9 s after its cast (counted from the cast): %r" % ns.OneKeyAlert())
+        return p
+
+    @S.test("hints: cooldowns read as the fight begins; the mage's hints name nothing from a value that was not read")
+    def _():
+        p = []
+        # read plainly on the way into the fight: Mind Blast is ready
+        lua, ns, errs, fire, tick = class_session(
+            "PRIEST", 5, 24, drop=("Shadowform",),
+            setup='STUB.wand = true STUB.targetName = "Murloc" STUB.targetLevel = 24 STUB.secretCooldown = true')
+        p += errs
+        p += in_combat(lua, fire, tick)
+        if "MIND BLAST" not in (ns.OneKeyAlert() or ""):
+            p.append("Mind Blast, read as ready when the fight began, is not named: %r" % ns.OneKeyAlert())
+        # mage after a /reload in a fight: hit in melee, Frost Nova's cooldown unreadable
+        lua, ns, errs, fire, tick = mage_session(20, ("icelance",))
+        p += errs
+        lua.execute("STUB.secretCooldown = true STUB.combat = true")
+        p += lua_list(fire("PLAYER_REGEN_DISABLED"))
+        p += lua_list(fire("UNIT_COMBAT", "player", "WOUND", "", 30, 1))
+        p += lua_list(tick(2, 0.25))
+        if ns.OneKeyAlert():
+            p.append("a Frost Nova hint from a cooldown nobody read: %r" % ns.OneKeyAlert())
+        return p
+
+    @S.test("try once: a press while mounted is no try; a buff given up on stays away after the fight")
+    def _():
+        p = []
+        lua, ns, errs, fire, tick = class_session(
+            "PRIEST", 5, 24, drop=("Shadowform",),
+            setup='STUB.wand = true STUB.buffs = { ["Inner Fire"] = true } STUB.targetName = "Murloc" STUB.targetLevel = 24')
+        p += errs
+        click = lua.eval("STUB.click")
+        main = lambda: macro_attrs(lua).get("OneKeyMain:macrotext", "")
+        if "Power Word: Fortitude" not in main():
+            return p + ["Fortitude not offered: %r" % main()]
+        lua.execute("STUB.mounted = true")
+        p += lua_list(tick(2, 0.25))
+        p += lua_list(click("OneKeyMain", True))
+        p += lua_list(tick(20, 0.25))
+        lua.execute("STUB.mounted = false")
+        p += lua_list(tick(2, 0.25))
+        if "Power Word: Fortitude" not in main():
+            p.append("a press while mounted counted as the try for Fortitude: %r" % main())
+        # tried and failed: not offered again when the next fight has ended
+        p += lua_list(click("OneKeyMain", True))
+        p += lua_list(tick(12, 0.25))
+        if "Power Word: Fortitude" in main():
+            p.append("Fortitude still offered 3 s after its try: %r" % main())
+        p += in_combat(lua, fire, tick)
+        lua.execute("STUB.combat = false")
+        p += lua_list(fire("PLAYER_REGEN_ENABLED"))
+        p += lua_list(tick(4, 0.25))
+        if "Power Word: Fortitude" in main():
+            p.append("a buff given up on is back after one fight: %r" % main())
+        return p
+
+    @S.test("rogue: with no combo point and a key that casts nothing the HUD names Gouge")
+    def _():
+        p = []
+        lua, ns, errs, fire, tick = class_session("ROGUE", 4, 30, setup='STUB.targetName = "Boar" STUB.usable = { Riposte = false } STUB.combo = 0')
+        p += errs
+        click = lua.eval("STUB.click")
+        p += in_combat(lua, fire, tick)
+        p += lua_list(lua.eval("STUB.castDone")(1752))
+        for i in range(8):
+            p += lua_list(click("OneKeyMain", True))
+            p += lua_list(tick(2, 0.25))
+        if ns.OneKeyAlert():
+            p.append("a hint 4 s after the last cast: %r" % ns.OneKeyAlert())
+        for i in range(6):
+            p += lua_list(click("OneKeyMain", True))
+            p += lua_list(tick(2, 0.25))
+        a = ns.OneKeyAlert() or ""
+        if "NO COMBO POINT" not in a or "Gouge" not in a or "Alt+F" not in a:
+            p.append("no Gouge hint with no combo point and no cast for 7 s: %r" % a)
+        lua.execute("STUB.combo = 2")
+        p += lua_list(click("OneKeyMain", True))
+        p += lua_list(tick(2, 0.25))
+        if "NO COMBO POINT" in (ns.OneKeyAlert() or ""):
+            p.append("the hint stays with combo points: %r" % ns.OneKeyAlert())
         return p
 
     @S.test("rogue: Riposte on Ctrl+F in a fight, named after a parry")
@@ -1802,7 +1885,7 @@ def main():
             if len(f) != 17:
                 p.append("quest %s: %d fields" % (qid, len(f)))
                 continue
-            if not re.match(r"^[DE]*$", f[13]) or not re.match(r"^\d*$", f[14]) or not re.match(r"^\d$", f[15]):
+            if not re.match(r"^D?E?U?$", f[13]) or not re.match(r"^\d*$", f[14]) or not re.match(r"^\d$", f[15]):
                 p.append("quest %s: bad flags, mob level or chain count: %r" % (qid, f[13:16]))
             starts = [s for s in f[3].split(",") if s]
             if not starts:
@@ -1827,6 +1910,22 @@ def main():
             p.append("The People's Militia (12): flags, mob level or task line wrong: %r" % f(12)[13:])
         if f(12)[9] != "1436":
             p.append("The People's Militia (12) is not placed in Westfall (1436): %r" % f(12)[9])
+        # dungeon quests: pfQuest has no position for most dungeon mobs, so a
+        # target, an item source or a hand-in with no place outdoors marks them
+        for qid, name in ((166, "The Defias Brotherhood"), (1198, "In Search of Thaelrid"), (1013, "The Book of Ur"),
+                          (1098, "Deathstalkers in Shadowfang"), (4241, "Marshal Windsor"), (2278, "The Platinum Discs")):
+            if not f(qid)[0].startswith(name) or not f(qid)[13]:
+                p.append("%s (%d) carries no flag: it would be rated solo" % (name, qid))
+        # ordinary quests must not: a cooking quest is not "too high" for
+        # the mob that drops its meat a little more often three zones away
+        for qid, name, lo, hi in ((22, "Goretusk Liver Pie", 10, 14), (38, "Westfall Stew", 10, 15), (418, "Thelsamar Blood Sausages", 9, 14),
+                                  (385, "Crocolisk Hunting", 10, 16), (488, "Zenn's Bidding", 3, 7), (102, "Patrolling Westfall", 12, 15)):
+            r = f(qid)
+            if not r[0].startswith(name) or r[13] or not (lo <= int(r[14] or 0) <= hi):
+                p.append("%s (%d): flags %r, mob level %r (expected none, %d-%d)" % (name, qid, r[13], r[14], lo, hi))
+        # a quest started by an object takes its faction from who it is handed in to
+        if f(398)[12] != "2" or f(2933)[12] != "2":
+            p.append("Wanted: Maggot Eye (398) and Venom Bottles (2933) are not Horde quests: %r %r" % (f(398)[12], f(2933)[12]))
         deadmines = [q for q in Q.q.keys() if str(Q.q[q]).startswith("Collecting Memories|")]
         if not deadmines or not f(deadmines[0])[13]:
             p.append("Collecting Memories (the Deadmines) is not marked as a group quest")
@@ -1903,6 +2002,14 @@ def main():
                 continue
             if Q[qid]:
                 p.append("quest %s is in QuestData.lua too" % qid)
+            if int(qid) < 20000:
+                p.append("quest %s is a Classic id, not one Forever added" % qid)
+            if int(f[0] or 0) < 1:
+                p.append("quest %s has no level: it would be offered at every level" % qid)
+            # one side only in the starting zones and capitals
+            if (f[3] in ("1420", "1412", "1411", "1454", "1456", "1458") and f[1] != "2") or \
+               (f[3] in ("1429", "1426", "1438", "1453", "1455", "1457") and f[1] != "1"):
+                p.append("quest %s on map %s has faction %r" % (qid, f[3], f[1]))
             xy = f[4].split(",")
             if not f[3].isdigit() or len(xy) != 2 or not all(0 <= float(v) <= 100 for v in xy):
                 p.append("quest %s: no map or a point off the map: %r %r" % (qid, f[3], f[4]))
@@ -1941,6 +2048,7 @@ def main():
             (t(level=15, mob=0, flags=""), 12, None, "hard"),
             (t(level=14, mob=14, flags=""), 12, None, "solo"),
             (t(level=12, mob=12, flags="E"), 12, None, "group"),
+            (t(level=12, mob=0, flags="U"), 12, None, "unsure"),
             (t(level=18, mob=19, flags="D"), 25, None, "group"),
             (t(level=5, mob=5, flags=""), 12, None, "low"),
             (t(level=12, mob=12, flags=""), 12, t(group=True), "group"),
@@ -1995,6 +2103,37 @@ def main():
         best = ns.QH.Refresh(14)
         if best and best[2].kind != "hand" and best[2].rate in ("group", "hard"):
             p.append("the hint names a %s quest: %s" % (best[2].rate, ns.QH.Hint(False)))
+        return p
+
+    @S.test("solo: a finished quest handed in on another map does not break the list; no quest of the other side is offered")
+    def _():
+        p = []
+        # The People's Militia is done; the player stands in Elwynn
+        setup = ('STUB.quests = { { questID = 12, title = "The People\'s Militia", level = 12 }, '
+                 '{ questID = 999002, title = "Odd One", level = 12 } } STUB.questDone = { [12] = true, [999002] = true }')
+        lua, ns, errs = quest_session(12, 1429, 42, 65, setup)
+        p += errs
+        ns.QH.Refresh(12)
+        ok, plan = lua.eval("pcall")(ns.QH.Plan, False)
+        if not ok:
+            return p + ["QH.Plan raised: %s" % plan]
+        heads = [str(r.sep or r.head) for r in plan.values()]
+        if not any("Elsewhere" in h for h in heads) or not any("The People's Militia" in h for h in heads):
+            p.append("the hand-in on another map is not listed under Elsewhere: %r" % heads[-4:])
+        ns.QL.Toggle()
+        ok, err = ns.QL.Refresh(True)
+        if not ok or len(list(ns.QL.Rows().values())) < 2:
+            p.append("the list window does not draw: %r" % err)
+        # an Alliance night elf in Tirisfal, a Horde orc in Teldrassil
+        for fac, race, mapid, lvl, x, y in (("Alliance", 4, 1420, 10, 60, 52), ("Horde", 2, 1438, 6, 56, 60)):
+            lua, ns, errs = quest_session(lvl, mapid, x, y)
+            lua.execute('STUB.faction = "%s" STUB.raceId = %d' % (fac, race))
+            ns, errs2 = load_addon(lua, ["QuestData.lua", "QuestDataNew.lua", "QuestHelp.lua"])
+            p += errs + errs2
+            ns.QH.Refresh(lvl)
+            rows = [r for r in ns.QH.Plan(False).values() if not r.sep and r.e.kind == "take" and r.e.d < 999]
+            if rows:
+                p.append("%s on map %d is offered %d quests of the other side, e.g. %s" % (fac, mapid, len(rows), rows[0].head))
         return p
 
     @S.test("solo: a quest the game tags for a group is left apart, and Hogger is named elite before you take it")

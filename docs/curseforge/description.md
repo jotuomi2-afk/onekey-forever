@@ -35,4 +35,4 @@ Class rotations follow the usual leveling advice: the warlock and priest put the
 
 Please use the GitHub issues: https://github.com/jotuomi2-afk/onekey-forever/issues (bug report and feedback forms). A few lines of the session log around the problem help most; the log keeps other players' names out.
 
-Source, tests and security policy: https://github.com/jotuomi2-afk/onekey-forever — MIT licence. Quest data from pfQuest (MIT).
+Source, tests and security policy: https://github.com/jotuomi2-afk/onekey-forever — MIT licence. Quest data from pfQuest and All The Things (MIT).

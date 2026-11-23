@@ -27,7 +27,7 @@ Tested in the simulated client only; nothing here has been played yet.
   there is one you can do alone.
 - Quest data: every Classic quest to level 60 (it stopped at about 45),
   with each mob's level and rank, elite and dungeon quests marked, and
-  the task line (pfQuest, MIT). New: where 1 046 quests that Forever added
+  the task line (pfQuest, MIT). New: where about 1 000 quests that Forever added
   start, Zephras Isle and the other new zones among them (All The Things,
   MIT; no titles or texts, the game supplies the title). Quests of your log
   that neither file knows use the place the game's own map shows.
@@ -49,7 +49,41 @@ Mage, from play on 23.11.:
   the guides do. `/okd opener 0|1|2` sets the number of Fireballs for every
   level; `/okd opener auto` goes back to this.
 
-Fixes from the review:
+Fixes from the second independent review (of the quest guide):
+
+- The list no longer breaks when a finished quest is handed in on another
+  map (it showed no rows at all); such hand-ins are under "Elsewhere".
+- Dungeon quests were rated fine alone: pfQuest has no position for most
+  dungeon mobs. A quest whose target, whose item's every source, or whose
+  hand-in has no place outdoors is now listed apart ("no place outdoors
+  known: a dungeon?"). Still not caught before you take the quest: a few
+  dungeon or elite quests the data gives no sign of (WANTED: Murkdeep!,
+  Jail Break!); once in your log the game's own tag marks them.
+- Ordinary quests were rated too high (Goretusk Liver Pie, Westfall Stew,
+  Zenn's Bidding): the mob level came from whichever mob drops the item
+  most, anywhere. Now from ordinary mobs in the quest's own zone, near its
+  level.
+- Quests of the other side were offered (object-started quests such as
+  Wanted: Maggot Eye; Forever's quests in the starting zones). Faction now
+  also comes from who the quest is handed in to, from All The Things'
+  headers, and from the zone.
+- Forever quests: only ids Forever added (five old ones had slipped in),
+  and only with a known level.
+- The walk starts from the last hand-in, not from where you stand.
+- "Tried once": a press while mounted or dead no longer counts, and a buff
+  given up on stays away for five minutes instead of coming back after
+  every fight.
+- Rogue: the changelog of the first fix overstated it. Two strikes that
+  both miss still leave Slice and Dice without a combo point, and F then
+  waits. The HUD now says "NO COMBO POINT: Gouge: Alt+F"; Gouge gives one.
+- The mage's hints (Frost Nova, Ice Lance, Cone of Cold, Ice Barrier) also
+  name nothing from a cooldown that could not be read. Cooldowns are read
+  as a fight begins and then counted from your casts.
+- Scanner: `_G` under another name, API names spelt with escapes and code
+  inside a data file are caught; 27 planted faults, each caught.
+- `/okd solo reset` puts the list and the Q button back.
+
+Fixes from the first review:
 
 - Rogue: Slice and Dice comes after two Sinister Strikes, not one. A
   strike that misses still moves the sequence on, and a finisher with no
@@ -69,7 +103,7 @@ Fixes from the review:
 - Weakened Soul is found by its spell, not its English name.
 - The security scanner also catches a forbidden call behind another name
   (`m.RunMacroText`), a button clicked from Lua and a secret value taken
-  under another name; 23 planted faults are now checked, each caught.
+  under another name.
 - SECURITY.md says what the in-combat hints are: text, from plain values.
 
 ## 0.34.0

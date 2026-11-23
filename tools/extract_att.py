@@ -110,17 +110,54 @@ def children(t):
     return [c for c in inner if hasattr(c, "keys") and c["kind"]]
 
 
-def walk(node, out):
+# races of each side (Classic ids), and the maps where only one side quests
+ALLIANCE_RACES, HORDE_RACES = {1, 3, 4, 7}, {2, 5, 6, 8}
+ALLIANCE_MAPS = {1426, 1429, 1438, 1453, 1455, 1457, 1436, 1432, 1439}
+HORDE_MAPS = {1411, 1412, 1420, 1454, 1456, 1458, 1413, 1421}
+# quest ids Forever added start far above the Classic ones (the highest
+# Classic id is under 10 000); a lower id that pfQuest lacks is an old
+# quest pfQuest or its extractor left out on purpose (events, professions)
+FIRST_NEW_ID = 20000
+
+
+def side(t, inherited):
+    """'1' Alliance, '2' Horde, '' both or unknown: r on the node or above
+    it, else the races it names."""
+    r = num(t["r"]) or inherited.get("r", 0)
+    if r in (1, 2):
+        return {1: "2", 2: "1"}[r]
+    races = {num(x) for x in seq(t["races"])} or inherited.get("races", set())
+    if races and races <= ALLIANCE_RACES:
+        return "1"
+    if races and races <= HORDE_RACES:
+        return "2"
+    return ""
+
+
+def walk(node, out, inherited=None):
     if not node:
         return
+    inherited = dict(inherited or {})
     t = node["t"]
     kind = str(node["kind"] or "")
+    if t is not None and kind != "CreateQuest":
+        # what a header or an npc says holds for the quests under it
+        if num(t["r"]) in (1, 2):
+            inherited["r"] = num(t["r"])
+        if seq(t["races"]):
+            inherited["races"] = {num(x) for x in seq(t["races"])}
+        if isinstance(t["lvl"], (int, float)):
+            inherited["lvl"] = num(t["lvl"])
+        if seq(t["c"]):
+            inherited["c"] = [num(c) for c in seq(t["c"])]
     if kind == "CreateQuest" and t is not None:
         qid = num(node["id"])
         m, pts = first_coords(t)
         lvl = t["lvl"]
         if lvl is not None and not isinstance(lvl, (int, float)):
             lvl = seq(lvl)[0] if seq(lvl) else 0
+        if not num(lvl):
+            lvl = inherited.get("lvl", 0)
         flags = ""
         if t["isBreadcrumb"]:
             flags += "B"
@@ -130,15 +167,21 @@ def walk(node, out):
         for child in children(t):
             if str(child["kind"]) == "CreateQuestObjective" and child["t"] is not None and not opts:
                 om, opts = first_coords(child["t"])
-        if qid > 0 and m and pts and not skip:
-            r = num(t["r"])
-            cls = sum(2 ** (num(c) - 1) for c in seq(t["c"]) if 0 < num(c) < 20)
+        # no level: it would be offered at every level, as a guess
+        if qid >= FIRST_NEW_ID and m and pts and not skip and num(lvl) > 0:
+            fac = side(t, inherited)
+            if not fac and m in ALLIANCE_MAPS:
+                fac = "1"
+            elif not fac and m in HORDE_MAPS:
+                fac = "2"
+            classes = [num(c) for c in seq(t["c"])] or inherited.get("c", [])
+            cls = sum(2 ** (c - 1) for c in classes if 0 < c < 20)
             out[qid] = "%d|%s|%s|%d|%g,%g|%s|%s|%s|%s" % (
-                num(lvl), {1: "2", 2: "1"}.get(r, ""), cls or "", m, pts[0][0], pts[0][1],
+                num(lvl), fac, cls or "", m, pts[0][0], pts[0][1],
                 ",".join(str(num(p)) for p in seq(t["sourceQuests"]) if num(p) > 0), flags,
                 om or "", ",".join("%g,%g" % p for p in opts[:3]))
     for child in children(t):
-        walk(child, out)
+        walk(child, out, inherited)
 
 
 def known_ids(quest_data):

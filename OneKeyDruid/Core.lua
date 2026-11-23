@@ -2315,7 +2315,7 @@ SlashCmdList.ONEKEYDRUID = function(msg)
 			db.quests = rest == "on"
 			say("quest hints " .. rest .. ".")
 		elseif ns.QH and ns.QH.Refresh then
-			ns.QH.Refresh(UnitLevel("player"))
+			pcall(ns.QH.Refresh, UnitLevel("player"))
 			ns.QH.List(say, 5)
 		end
 	elseif cmd == "ranks" then
@@ -2330,7 +2330,7 @@ SlashCmdList.ONEKEYDRUID = function(msg)
 		end
 	elseif cmd == "go" then
 		if ns.QH and ns.QH.Go then
-			ns.QH.Refresh(UnitLevel("player"))
+			pcall(ns.QH.Refresh, UnitLevel("player"))
 			local ok, name = ns.QH.Go()
 			say(ok and ("map pin and arrow set: " .. tostring(name)) or "no place to point to.")
 		end

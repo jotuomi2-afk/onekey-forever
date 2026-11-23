@@ -7,8 +7,11 @@ the player's account and computer, and about playing by Blizzard's rules.
 
 1. **No automation.** Every spell, item, target and movement comes from a key
    the player presses. The addon only fills secure macro buttons out of
-   combat; it never calls protected functions from Lua and never runs
-   anything on a timer. (Rule R1 in `security/scan.py`.)
+   combat; it never calls protected functions from Lua, and nothing that
+   runs on a timer or an event casts, uses, targets or moves. Timers and
+   the frame update only redraw text, re-read the state for the next
+   out-of-combat macro, sound the away alarm and turn herb tracking on.
+   (Rule R1 in `security/scan.py`.)
 2. **Nothing leaves the computer.** No chat, whisper, addon, mail or channel
    messages. The session log stays in the player's SavedVariables. (R2)
 3. **No dynamic code.** No `loadstring`, `RunScript` or environment tricks;
@@ -42,7 +45,8 @@ In combat the addon shows text, and only text. A hint may name a helper
 key ("OVERPOWER: Ctrl+F") when the client itself says, in a plain value,
 that the spell can be used (`C_Spell.IsSpellUsable`) or that its cooldown
 is over; when the answer is a secret value, or there is none, no key is
-named. Two hints count the player's own finished casts, which the client
+named. Cooldowns are read once as a fight begins, while they are still
+plain, and after that counted from the player's own casts. Two hints count the player's own finished casts, which the client
 reports openly: the Winter's Chill stacks behind the Cone of Cold hint
 (`/okd cone off`) and the minute since Ice Barrier. They do not read the
 target's or the player's auras, which are secret in combat, and they
@@ -52,7 +56,9 @@ listed here so that the policy says what the addon does.
 The quest list (`/okd solo`) is made of plain frames. A click on a row
 sets the game's own map pin and arrow and prints the task; it never
 casts, targets, interacts or moves. No addon button is clicked from Lua
-(the scanner forbids `:Click`).
+(the scanner flags `Click` as a call, a field or a string; it cannot see
+a name built at run time, which is why `_G` under another name is flagged
+too).
 
 ## Reporting
 

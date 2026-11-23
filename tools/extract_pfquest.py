@@ -178,8 +178,9 @@ def main():
         the units that drop it often enough (a sixth of the best chance, 2 %
         at least), those nearest the quest's level: the spider meat of a
         level 18 quest comes from the level 15 spider next door, not from
-        the level 33 one that drops it a little more often. Units in the
-        zone the quest is given in come first."""
+        the level 33 one that drops it a little more often. Ordinary units
+        come before rares and elites, units in the zone the quest is given
+        in before others."""
         if qlvl is not None:
             item_level.setdefault(i, qlvl)
             item_home.setdefault(i, set(home))
@@ -189,7 +190,8 @@ def main():
         if drops:
             best = max(ch for ch, _ in drops)
             often = [(ch, u) for ch, u in drops if ch >= max(2.0, best / 6)] or drops
-            often.sort(key=lambda cu: (0 if home & set(zones_of(U[cu[1]])[0]) else 1,
+            often.sort(key=lambda cu: (1 if str(U[cu[1]]["rnk"] or "") else 0,
+                                       0 if home & set(zones_of(U[cu[1]])[0]) else 1,
                                        abs(top_level(U[cu[1]]) - qlvl) if qlvl and top_level(U[cu[1]]) else 99, -cu[0], cu[1]))
             drops = often[:3]
         objs = sorted(((float(ch), int(o)) for o, ch in d["O"].items()), reverse=True)[:2] if d and d["O"] else []
@@ -213,12 +215,15 @@ def main():
             fac = "2"
         # no race mask: the faction of the quest givers decides (pfQuest's
         # unit "fac": A, H or AH). A quest from Grom'gol is not for Alliance.
-        if not fac and q["start"] and q["start"]["U"]:
-            facs = {str(U[u]["fac"] or "") for u in ids(q["start"]["U"]) if U[u]}
-            if facs == {"A"}:
-                fac = "1"
-            elif facs == {"H"}:
-                fac = "2"
+        # A quest started by an object or an item has no giver to ask: then
+        # the unit it is handed in to decides.
+        for side in ("start", "end"):
+            if not fac and q[side] and q[side]["U"]:
+                facs = {str(U[u]["fac"] or "") for u in ids(q[side]["U"]) if U[u]}
+                if facs == {"A"}:
+                    fac = "1"
+                elif facs == {"H"}:
+                    fac = "2"
         starts = ["%d" % u for u in ids(q["start"]["U"] if q["start"] else None)] + \
                  ["o%d" % o for o in ids(q["start"]["O"] if q["start"] else None)]
         ends = ["%d" % u for u in ids(q["end"]["U"] if q["end"] else None)] + \
@@ -229,7 +234,11 @@ def main():
         obj = []
         # what the quest sends you against: the units to kill and the units
         # that drop its items. Elite: every source of one objective is elite,
-        # rare elite or a boss. Dungeon: one is found only indoors. The mob
+        # rare elite or a boss. Dungeon (D): one is found only indoors.
+        # Unknown place (U): a target, every source of an item, or whoever
+        # takes the quest back has no position outdoors at all; pfQuest has
+        # none for most dungeon mobs, so this is what marks a dungeon quest
+        # in practice (and a summoned boss). The mob
         # level of the quest: the highest among its objectives, each counted
         # by its lowest source.
         targets, flags, mob = [], set(), 0
@@ -244,6 +253,13 @@ def main():
                 us, os_ = item_sources(i, lvl, home)
                 if us and not os_:
                     targets.append([("n", u) for u in us])
+                # an item with sources, none of them at a known place
+                # outdoors: a dungeon drop, or a summoned boss
+                d = I[i]
+                every = [("n", int(u)) for u in d["U"].keys()] if d and d["U"] else []
+                every += [("o", int(o)) for o in d["O"].keys()] if d and d["O"] else []
+                if every and not any(zones_of((O if k == "o" else U)[x])[0] for k, x in every):
+                    flags.add("U")
             for o in ids(q["obj"]["O"]):
                 obj.append("o%d" % o)
                 need_o.add(o)
@@ -254,12 +270,17 @@ def main():
                 flags.add("E")
             if all(indoors((O if kind == "o" else U)[i]) for kind, i in group):
                 flags.add("D")
+            elif not any(zones_of((O if kind == "o" else U)[i])[0] for kind, i in group):
+                flags.add("U")
             # of several sources for one objective, the lowest will do
             tops = [top_level(d) for d in units if top_level(d) > 0]
             if tops:
                 mob = max(mob, min(tops))
         for s in starts + ends:
             (need_o if s.startswith("o") else need_u).add(int(s.lstrip("o")))
+        # handed in to someone with no place outdoors (inside a dungeon)
+        if ends and not any(zones_of((O if s.startswith("o") else U)[int(s.lstrip("o"))])[0] for s in ends):
+            flags.add("U")
         given = main_map([("o" if s.startswith("o") else "n", int(s.lstrip("o"))) for s in starts], U, O)
         where = main_map([r for g in targets for r in g], U, O, given) or given
         text = " ".join(str(loc["O"] or "").replace("$B", " ").replace("$b", " ").split())
@@ -282,7 +303,7 @@ def main():
         "-- revision %s. pfQuest data: MIT License, Copyright (c) 2017-2021 Eric Mauser (Shagu)." % rev,
         "-- See THIRD_PARTY_NOTICES.md. Do not edit by hand.",
         '-- quest: "title|level|minLevel|starters|enders|pre(one of)|preAll|excl|objectives|uiMapID|raceMask|classMask|faction(1 A, 2 H)',
-        '--         |flags(E elite, D dungeon)|highest mob level|quests it opens|what to do"',
+        '--         |flags(E elite, D dungeon, U no place outdoors)|highest mob level|quests it opens|what to do"',
         "--   starters/enders: npc ids, \"o\" before an object id; objectives: k<npc>x<n> kill, i<item>x<n> item, o<object>",
         '-- npc: "name|uiMapID|x,y,x,y...|level|rank(1 elite, 2 rare elite, 3 boss, 4 rare)"; object: "name|uiMapID|x,y,..."',
         '-- item: "name|npc,npc,npc|object,object"',

@@ -32,7 +32,10 @@ FORBIDDEN_CALLS = {
            "BuyMerchantItem", "PickupContainerItem", "PlaceAction", "PickupSpell", "C_Spell.PickupSpell",
            "CreateMacro", "EditMacro", "SetOverrideBindingSpell", "SetOverrideBindingMacro",
            "SetOverrideBindingItem", "SetBindingSpell", "SetBindingMacro", "SetBindingItem", "C_Timer.NewTicker",
-           "C_Timer.NewTimer", "SecureCmdOptionParse", "Click"],
+           "C_Timer.NewTimer", "SecureCmdOptionParse", "Click", "securecall", "securecallfunction", "RunBinding",
+           "FollowUnit", "TargetLastEnemy", "TargetLastTarget", "ClearTarget", "PetFollow", "PetPassiveMode",
+           "DoEmote", "RepopMe", "AcceptResurrect", "AcceptQuest", "CompleteQuest", "GetQuestReward",
+           "SelectGossipOption", "ChatEdit_ParseText", "MoveAndSteerStart", "ToggleRun", "SitStandOrDescendStart"],
     "R2": ["SendChatMessage", "SendAddonMessage", "C_ChatInfo.SendAddonMessage", "C_ChatInfo.SendAddonMessageLogged",
            "SendMail", "BNSendWhisper", "BNSendGameData", "GuildInvite", "InviteUnit", "JoinChannelByName",
            "C_ChatInfo.SendChatMessage", "ChatEdit_SendText", "C_Club.SendMessage", "C_BattleNet.SendWhisper"],
@@ -47,6 +50,13 @@ ALLOWED_USES = {
     ("Ranks.lua", "C_Spell.PickupSpell"): "the spell to place, see PlaceAction",
     ("Core.lua", "CreateMacro"): "/okd macros, and the OKD Prowl macro once: macros the player presses himself",
     ("Core.lua", "EditMacro"): "puts the addon's own OKD Prowl macro right (its cat form number); no other macro",
+}
+# Findings that were reviewed and are allowed, each a fixed number of times
+# in one file: one more of the same in that file is a finding again.
+ALLOWED_FINDINGS = {
+    ("Core.lua", "R3", "_G used as a value"): (1, "/okd probe walks a dotted API path to show what the client lets an addon read; it only prints"),
+    ("Core.lua", "R4", "string names UnitPower"): (1, "/okd probe prints whether the value is secret; it is never compared"),
+    ("Core.lua", "R4", "string names UnitHealth"): (1, "/okd probe, as above"),
 }
 SECRET_APIS = ["UnitHealth", "UnitPower", "UnitHealthPercent", "UnitPowerPercent", "UnitHealthMissing"]
 TOKEN_PATTERNS = [r"ghp_[A-Za-z0-9]{20,}", r"github_pat_[A-Za-z0-9_]{20,}", r"sk-[A-Za-z0-9]{20,}",
@@ -137,6 +147,9 @@ def scan_lua(name, src, findings):
                 base = toks[k - 2] if k >= 2 else ("op", "", 0)
                 if base[0] == "name" and base[1] == "_G":
                     check_name(text, line)
+                    nxt = toks[k + 1] if k + 1 < len(toks) else ("op", "", 0)
+                    if text in SECRET_APIS and nxt[1] != "(":
+                        hit(line, "R4", "takes " + text + " as a value")
                 elif base[0] == "name" and (k < 3 or toks[k - 3][1] not in (".", ":")):
                     check_name(base[1] + "." + text, line)
                 rule = FORBIDDEN_FIELDS.get(text)
@@ -156,6 +169,10 @@ def scan_lua(name, src, findings):
                     hit(line, "R4", "takes " + text + " as a value")
             if text == "_G":
                 nxt = toks[k + 1] if k + 1 < len(toks) else ("op", "", 0)
+                # _G only as _G.NAME or _G["literal"]: under another name,
+                # as an argument or as a metatable it hides every lookup
+                if nxt[1] not in (".", "["):
+                    hit(line, "R3", "_G used as a value")
                 if nxt[1] == "[":
                     key = toks[k + 2] if k + 2 < len(toks) else ("op", "", 0)
                     after = toks[k + 3] if k + 3 < len(toks) else ("op", "", 0)
@@ -165,9 +182,13 @@ def scan_lua(name, src, findings):
                     elif not (key[0] == "str" and key[1].startswith(_G_WRITE_OK)):
                         hit(line, "R3", "_G indexed with a computed key")
         elif kind == "str":
-            # an API name as a whole string is a lookup waiting to happen
-            if text in ALL_FORBIDDEN and (name, text) not in ALLOWED_USES:
-                hit(line, ALL_FORBIDDEN[text], "string names " + text)
+            # an API name as a whole string is a lookup waiting to happen;
+            # "\97" is "a", so decimal escapes are read first
+            plain = re.sub(r"\\(\d{1,3})", lambda m: chr(int(m.group(1)) % 256), text)
+            if plain in ALL_FORBIDDEN and (name, plain) not in ALLOWED_USES:
+                hit(line, ALL_FORBIDDEN[plain], "string names " + plain)
+            elif plain in SECRET_APIS:
+                hit(line, "R4", "string names " + plain)
     for i, line in blank_code(toks).items():
         for api in SECRET_APIS:
             if re.search(r"(?<![\w.])%s\s*\([^)]*\)\s*(?:[<>]=?|==|~=|[-+*/%%^]|\.\.)" % api, line) or \
@@ -181,6 +202,9 @@ def xml_scripts(src):
         yield src.count("\n", 0, m.start()) + 1, m.group(3)
     for m in re.finditer(r"\b(On\w+)\s*=\s*\"([^\"]*)\"", src):
         yield src.count("\n", 0, m.start()) + 1, m.group(2)
+
+
+DATA_FRAME = ("local _, ns = ...", "ns.QDB = { q = {", "}, n = {", "}, o = {", "}, i = {", "} }", "ns.QDBX = {", "}")
 
 
 def scan(addon_dir):
@@ -226,7 +250,14 @@ def scan(addon_dir):
             at = low.find(other, 2000 if other == "pfquest" else 0)
             if at >= 0:
                 findings.append((fname, text.count("\n", 0, at) + 1, "R6", "data from another source: " + other))
-        # data only: the file may hold tables and strings, no calls of its own
+        # data only, line by line: a comment, one of the few lines that
+        # open and close the tables, or one record [id]="text",
+        for n, ln in enumerate(text.split("\n"), 1):
+            if ln == "" or ln.startswith("--") or ln in DATA_FRAME:
+                continue
+            if not re.match(r'^\[\d+\]="(?:[^"\\]|\\.)*",$', ln):
+                findings.append((fname, n, "R3", "not a data record: " + ln[:40]))
+                break
         toks = tokenize(text)
         for k, (kind, t, line) in enumerate(toks):
             if kind == "name" and t not in ("local", "return", "true", "false", "nil", "QuestData", "ns",
@@ -235,7 +266,15 @@ def scan(addon_dir):
                 if t not in ("select",):
                     findings.append((fname, line, "R3", "data file calls " + t))
                     break
-    return findings
+    # reviewed exceptions, by count
+    seen, kept = {}, []
+    for f in findings:
+        key = (f[0], f[2], f[3])
+        seen[key] = seen.get(key, 0) + 1
+        if key in ALLOWED_FINDINGS and seen[key] <= ALLOWED_FINDINGS[key][0]:
+            continue
+        kept.append(f)
+    return kept
 
 
 if __name__ == "__main__":

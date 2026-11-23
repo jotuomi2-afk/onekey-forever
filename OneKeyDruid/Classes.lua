@@ -187,6 +187,9 @@ C.ROGUE = {
 	-- condition is passed over.
 	behind = { { "cast", "ambush", "[stealth,harm,nodead] " }, { "cast", "riposte", "[nostealth,harm,nodead] " } },
 	hints = { { spell = "riposte", key = "behind", react = true } },
+	-- Two strikes that both miss leave Slice and Dice without a combo
+	-- point, and the sequence waits on it. Gouge (Alt+F) gives a point.
+	stuck = { spell = "gouge", key = "cc" },
 	cd = { riposte = 6 },
 	sos = { { "cast", "evasion", "" }, { "potion" } },
 	free = { { "cast", "sprint", "" } },

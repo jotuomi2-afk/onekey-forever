@@ -16,6 +16,7 @@ if not (QH and QH.Plan) then return end
 
 local ROWS, ROW_H, WIDTH = 10, 30, 430
 local COLOR = { solo = "ff7fe07f", new = "ff7fd4ff", hard = "ffffa040", group = "ffff5050", low = "ff9a9a9a",
+	unsure = "ffff9050",
 	hand = "ffffe060", sep = "ffffffff" }
 local frame, toggle
 local shownRows, offset, isShown = {}, 0, false
@@ -64,13 +65,16 @@ local function paint()
 			or "Left: map pin and arrow · Right: skip · Wheel: scroll"))
 end
 
+-- force: a click or the window opening. The walk through the quest data
+-- is for a quiet moment: in a fight the list keeps what it had.
 local function refresh(force)
-	if force or QH.Age() > 5 then
-		-- the walk through the quest data is for a quiet moment
-		if not InCombatLockdown() or force then pcall(QH.Refresh, level()) end
-	end
-	paint()
+	if (force or QH.Age() > 5) and not InCombatLockdown() then pcall(QH.Refresh, level()) end
+	-- a row that cannot be drawn must not stop the window every second
+	local ok, err = pcall(paint)
+	if not ok and frame and frame.foot then frame.foot:SetText("|cffff5050" .. tostring(err):sub(1, 90) .. "|r") end
+	return ok, err
 end
+QL.Refresh = refresh
 
 -- what a click on row i does; button: "LeftButton" / "RightButton"
 function QL.Press(i, button)
@@ -190,12 +194,19 @@ end
 function QL.Slash(rest)
 	if rest == "print" then
 		pcall(QH.Refresh, level())
-		local plan = QH.Plan(fi())
+		local okP, plan = pcall(QH.Plan, fi())
+		if not okP then say(tostring(plan)) return end
 		if #plan == 0 then say(fi() and "ei mitään tällä alueella." or "nothing in this zone.") end
 		for i = 1, math.min(14, #plan) do
 			local r = plan[i]
 			say(r.sep or r.head)
 		end
+		return
+	end
+	if rest == "reset" then
+		db().qlPos, db().qbPos = nil, nil
+		if frame then frame:ClearAllPoints() frame:SetPoint("LEFT", UIParent, "LEFT", 30, 60) end
+		if toggle then toggle:ClearAllPoints() toggle:SetPoint("LEFT", UIParent, "LEFT", 4, 60) end
 		return
 	end
 	if rest == "button" then

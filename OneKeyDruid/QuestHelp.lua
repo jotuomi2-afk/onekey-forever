@@ -154,7 +154,8 @@ local function questLog()
 		if ok and type(n) == "number" then
 			for i = 1, n do
 				local okI, info = pcall(C.GetInfo, i)
-				if okI and type(info) == "table" and not info.isHeader and info.questID and info.questID > 0 then
+				if okI and type(info) == "table" and not info.isHeader and type(info.questID) == "number"
+					and not secret(info.questID) and info.questID > 0 then
 					local okC, comp = pcall(C.IsComplete, info.questID)
 					local e = live(info.questID, info)
 					e.complete = okC and not secret(comp) and comp and true or false
@@ -185,7 +186,8 @@ local function gamePoints(map)
 	local ok, list = pcall(C.GetQuestsOnMap, map)
 	if ok and type(list) == "table" then
 		for _, e in ipairs(list) do
-			if type(e) == "table" and e.questID and not secret(e.x) and type(e.x) == "number" and type(e.y) == "number" then
+			if type(e) == "table" and type(e.questID) == "number" and not secret(e.questID)
+				and not secret(e.x) and not secret(e.y) and type(e.x) == "number" and type(e.y) == "number" then
 				out[e.questID] = { e.x * 100, e.y * 100 }
 			end
 		end
@@ -269,6 +271,8 @@ end
 -- Can one player do it at this level?
 --   "group": the game tags it for a group, an objective is elite, or it
 --            is in a dungeon
+--   "unsure": a target or the hand-in has no known place outdoors; that
+--            is how most dungeon quests look in the data
 --   "hard":  its mobs, or the quest itself, are 3 or more levels over you
 --            (the fight key will not pull such mobs either)
 --   "low":   6 or more levels under you: next to no XP
@@ -279,6 +283,8 @@ function QH.Rate(q, lvl, g)
 	if g and g.group then return "group" end
 	local flags = q.flags or ""
 	if flags:find("D", 1, true) or flags:find("E", 1, true) then return "group" end
+	-- no place outdoors for a target or the hand-in: most likely a dungeon
+	if flags:find("U", 1, true) then return "unsure" end
 	local level = g and g.level or q.level or 0
 	if q.new and not g then return "new" end
 	if (q.mob or 0) >= lvl + 3 or level >= lvl + 3 then return "hard" end
@@ -534,8 +540,10 @@ function QH.Age() return GetTime() - (state.at or 0) end
 
 local WHY = {
 	en = { group = "needs a group", hard = "too high for now", low = "little XP", new = "new in Forever",
+		unsure = "no place outdoors known: a dungeon?",
 		elite = "elite", dungeon = "dungeon" },
 	fi = { group = "vaatii ryhmän", hard = "vielä liian korkea", low = "vähän XP:tä", new = "uusi Foreverissa",
+		unsure = "ei tunnettua paikkaa ulkona: dungeon?",
 		elite = "eliitti", dungeon = "dungeon" },
 }
 
@@ -576,8 +584,15 @@ function QH.Plan(fi, max)
 			head = ("[%s] %s"):format(tag, line(e, fi)) .. (why and ("  — " .. why) or ""),
 			sub = task(e) }
 	end
+	-- the walk starts where the last hand-in on this map leaves you
+	local px, py = L.x, L.y
 	for _, e in ipairs(L.hand) do
-		if e.d < 999 then row(e, rows) else row(e, far) end
+		if e.d < 999 then
+			row(e, rows)
+			if e.pt then px, py = e.pt[1], e.pt[2] end
+		else
+			far[#far + 1] = e
+		end
 	end
 	-- the walk: from where you stand, the best next stop, then from there
 	local stops = {}
@@ -590,11 +605,10 @@ function QH.Plan(fi, max)
 		if not seenWork[e.q.id] then
 			seenWork[e.q.id] = true
 			if e.d < 999 and SOLO[e.rate] then stops[#stops + 1] = e
-			elseif e.d < 999 or e.rate == "group" or e.rate == "hard" then apart[#apart + 1] = e
+			elseif e.d < 999 or e.rate == "group" or e.rate == "hard" or e.rate == "unsure" then apart[#apart + 1] = e
 			else far[#far + 1] = e end
 		end
 	end
-	local px, py = L.x, L.y
 	while #stops > 0 and #rows < max do
 		local bi, bs
 		for i, e in ipairs(stops) do

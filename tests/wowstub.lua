@@ -168,7 +168,7 @@ function GetXPExhaustion() return 1200 end
 function UnitBuff() return nil end
 function UnitDebuff() return nil end
 function UnitOnTaxi() return false end
-function IsMounted() return false end
+function IsMounted() return STUB.mounted or false end
 function IsResting() return false end
 STUB.swimming = false
 function IsSwimming() return STUB.swimming end
@@ -256,6 +256,8 @@ C_Spell = {
 	end,
 }
 function GetSpellCooldown() return 0, 0, 1 end
+-- combo points are plain values in the client: STUB.combo
+function GetComboPoints() return STUB.combo or 0 end
 -- the main hand's imbue: STUB.imbue = true / false
 function GetWeaponEnchantInfo() return STUB.imbue and true or false end
 C_UnitAuras = {
