@@ -41,6 +41,23 @@ MUTANTS = [
     ("a reactive spell is named when it cannot be used", "OneKey.lua",
      "\t\t\t\tshow = ok and not secret(usable) and usable == true\n",
      '\t\t\t\tshow = true\n', "warrior", "a hint with nothing usable"),
+    ("hammering the key holds a pre-fight offer", "OneKey.lua", "\tif t.skip then return false end\n",
+     '\tif fightPress > t.offered then t.pressed = fightPress end\n', "try once", "hammering"),
+    ("a secret usable answer read as yes", "OneKey.lua",
+     "\t\t\t\tlocal ok, usable = pcall(C_Spell.IsSpellUsable, name)\n",
+     '\t\t\t\tif secret(usable) then usable = true end\n', "hints fail closed", "a hint from a secret answer"),
+    ("automation behind an alias table", "OneKey.lua", "local function update()\n",
+     '\tlocal m = C_Macro if false then m.RunMacroText("/cast Wrath") end\n', "security", "RunMacroText as a field"),
+    ("a button clicked from Lua", "QuestList.lua", "local function paint()\n",
+     '\tif false then OneKeyMain:Click() end\n', "security", "Click as a field"),
+    ("a timer that could act", "OneKey.lua", "local function update()\n",
+     '\tif false then C_Timer.NewTimer(1, update) end\n', "security", "uses C_Timer.NewTimer"),
+    ("secret health behind another name", "Core.lua", "local function update()\n",
+     '\tlocal hp = UnitHealth\n', "security", "takes UnitHealth as a value"),
+    ("All The Things licence notice removed", "QuestDataNew.lua", "local _, ns = ...\n",
+     None, "security", "All The Things MIT notice"),
+    ("Questie data in the Forever quest file", "QuestDataNew.lua", "local _, ns = ...\n",
+     "-- merged from QuestieDB\n", "security", "another source"),
     ("pfQuest licence notice removed", "QuestData.lua", None, None, "security", "MIT notice"),
     ("data from another quest database", "QuestData.lua", "local _, ns = ...\n",
      "-- merged from QuestieDB\n", "security", "another source"),
@@ -80,6 +97,8 @@ def main():
         src = open(path, encoding="utf-8").read()
         if f == "Bindings.xml":
             src = src.replace(anchor, '\t<Binding name="X">CastSpellByName("Wrath")</Binding>\n' + anchor, 1)
+        elif insert is None and f == "QuestDataNew.lua":
+            src = src.replace("All The Things", "someone").replace("MIT", "")
         elif anchor is None:
             src = src.replace("pfQuest", "someone").replace("MIT", "")
         elif anchor == "$END":

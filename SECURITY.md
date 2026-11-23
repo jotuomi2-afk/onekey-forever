@@ -38,6 +38,22 @@ The estimate only chooses which macro sits on the key before the next
 press. The player still presses for every action, and nothing is chosen
 during combat, when the macro is locked.
 
+In combat the addon shows text, and only text. A hint may name a helper
+key ("OVERPOWER: Ctrl+F") when the client itself says, in a plain value,
+that the spell can be used (`C_Spell.IsSpellUsable`) or that its cooldown
+is over; when the answer is a secret value, or there is none, no key is
+named. Two hints count the player's own finished casts, which the client
+reports openly: the Winter's Chill stacks behind the Cone of Cold hint
+(`/okd cone off`) and the minute since Ice Barrier. They do not read the
+target's or the player's auras, which are secret in combat, and they
+change no macro. The owner decides whether such a count stays; it is
+listed here so that the policy says what the addon does.
+
+The quest list (`/okd solo`) is made of plain frames. A click on a row
+sets the game's own map pin and arrow and prints the task; it never
+casts, targets, interacts or moves. No addon button is clicked from Lua
+(the scanner forbids `:Click`).
+
 ## Reporting
 
 Please report a security problem privately: use GitHub's "Report a

@@ -32,7 +32,7 @@ the diff to the `security-reviewer` agent.
 - `Logic.lua` pure decisions and macro text (druid), testable without a client
 - `Core.lua` the druid's client side: buttons, HUD, events, log
 - `Classes.lua` + `OneKey.lua` every other class
-- `QuestData.lua` generated from pfQuest (MIT) by `tools/extract_pfquest.py` — do not hand-edit, and never add data from other quest databases (licences)
-- `QuestHelp.lua` quest hints from QuestData and the quest log
+- `QuestData.lua` generated from pfQuest (MIT) by `tools/extract_pfquest.py`, `QuestDataNew.lua` (the quests Forever added) from All The Things (MIT) by `tools/extract_att.py` — do not hand-edit either, and never add data from any other quest database (Questie is GPL, Wowhead forbids copying): the owner approved these two sources only
+- `QuestHelp.lua` the solo quest guide: rating, zone plan and hints from the two data files and the quest log; `QuestList.lua` its window (plain frames, `/okd solo`)
 - `tests/wowstub.lua` the fake client; add an API there when the addon starts
   using one

@@ -40,7 +40,7 @@ Reviewed exceptions (Ranks.lua's `PlaceAction`, `/okd macros`'s
 | R3 | no `loadstring`, `RunScript`, `getfenv`/`setfenv` | no hidden or downloaded code |
 | R4 | no comparison or arithmetic on `UnitHealth`, `UnitPower`, … | WoW: Forever keeps them secret; it would error in game |
 | R5 | no tokens, keys or e-mail addresses | secrets and personal data |
-| R6 | the quest data is pfQuest-only (MIT notice and generator named, no other quest database) | licence |
+| R6 | the quest data is pfQuest (MIT) plus, for Forever's new quests, All The Things (MIT): each file with its notice and generator named, no other quest database | licence |
 | R7 | only `.lua .toc .xml .md LICENSE` in the package | no stray scripts or data |
 
 It also runs on the staged release folder in `tools/build.py`, so the zip
@@ -128,5 +128,5 @@ addon, anything that waits on a timer to act.
 | malicious contribution hides code | R3, R7, mandatory review, CI on every PR |
 | compromised CI action or dependency | actions pinned to SHAs, `lupa` pinned with hashes, read-only permissions |
 | tampered release zip | built in CI from the tag, SHA-256 published, draft reviewed before publishing |
-| licence problem with bundled data | R6: QuestData.lua generated from pfQuest (MIT) only |
+| licence problem with bundled data | R6: QuestData.lua generated from pfQuest (MIT), QuestDataNew.lua from All The Things (MIT), nothing else |
 | SavedVariables rename loses player settings | toc test |

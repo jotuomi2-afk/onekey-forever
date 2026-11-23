@@ -16,7 +16,7 @@ if CLASS == "DRUID" then return end
 local CL = ns.CLASSES and ns.CLASSES[CLASS]
 local Logic = ns.Logic
 
-local VERSION = "0.34.0"
+local VERSION = "0.35.0"
 local PREFIX = "|cff7fd4ffOneKey|r "
 local LIMIT = 255
 local NAMES = { fight = "OneKeyMain", heal = "OneKeyHeal", cc = "OneKeyAlt", behind = "OneKeyCtrl",
@@ -32,6 +32,7 @@ local hud, warn = nil, {}
 local ready, dirty, bagsDirty = false, true, true
 local current = { text = nil }
 local clicks = {}
+local fightPress = 0 -- the last key-down of the fight key
 local live = { start = 0, times = {} }
 local adds = { n = 0, at = 0, warned = false }
 local logEvent -- the session log, further down
@@ -64,8 +65,8 @@ end
 local function hasBuff(name)
 	if not name then return false end
 	if C_UnitAuras and C_UnitAuras.GetAuraDataBySpellName then
-		local ok, a = pcall(C_UnitAuras.GetAuraDataBySpellName, "player", name, "HELPFUL")
-		if ok then return a ~= nil end
+		local ok, has = pcall(function() return C_UnitAuras.GetAuraDataBySpellName("player", name, "HELPFUL") ~= nil end)
+		if ok then return has and true or false end
 	end
 	if AuraUtil and AuraUtil.FindAuraByName then
 		local ok, a = pcall(AuraUtil.FindAuraByName, name, "player", "HELPFUL")
@@ -77,9 +78,18 @@ end
 -- a debuff on the player, by its English name (out of combat only: auras
 -- are secret in a fight)
 local function hasDebuff(name)
-	if not (C_UnitAuras and C_UnitAuras.GetAuraDataBySpellName) then return false end
-	local ok, a = pcall(C_UnitAuras.GetAuraDataBySpellName, "player", name, "HARMFUL")
-	return ok and a ~= nil
+	if not (name and C_UnitAuras and C_UnitAuras.GetAuraDataBySpellName) then return false end
+	local ok, has = pcall(function() return C_UnitAuras.GetAuraDataBySpellName("player", name, "HARMFUL") ~= nil end)
+	return ok and has and true or false
+end
+
+-- false only when the client says plainly that the spell cannot be cast
+-- now (no rage, no mana, no reagent); true when it can or will not say
+local function castable(name)
+	if not (name and C_Spell and C_Spell.IsSpellUsable) then return true end
+	local ok, usable = pcall(C_Spell.IsSpellUsable, name)
+	if ok and not secret(usable) and usable == false then return false end
+	return true
 end
 
 local function readSpells()
@@ -98,7 +108,6 @@ local function readSpells()
 	if CL.wand and IsEquippedItemType then
 		local ok, w = pcall(IsEquippedItemType, "Wands")
 		if ok and w and not secret(w) then known.wand = true end
-		if CL.wandUntil and known[CL.wandUntil] then known.wand = nil end
 	end
 end
 
@@ -309,6 +318,10 @@ end
 -- weapon imbue, the opener) must never hold the key. A press that does not
 -- help (no rage or mana, out of range, a debuff in the way) is tried once;
 -- after it the key moves on, until the target changes or a fight ends.
+-- The try is the first press of the fight key (key down, not the other
+-- keys) after the offer came up; two seconds after it the offer is over,
+-- however often the key is pressed in between. A spell the client says
+-- cannot be cast now is not offered at all.
 local tries = {}
 local cooldownLeft
 
@@ -316,8 +329,8 @@ local function mayTry(tag, now)
 	local t = tries[tag]
 	if not t then t = { offered = now } tries[tag] = t end
 	if t.skip then return false end
-	local press = clicks[#clicks] or 0
-	if press > t.offered and now - press > 2 then t.skip = true return false end
+	if not t.pressed and fightPress > t.offered then t.pressed = fightPress end
+	if t.pressed and now - t.pressed > 2 then t.skip = true return false end
 	return true
 end
 
@@ -327,7 +340,7 @@ local function missingBuff(now)
 		for _, k in ipairs(group) do
 			if known[k] then
 				if hasBuff(N[k]) then tries["buff:" .. k] = nil
-				elseif mayTry("buff:" .. k, now) then return k end
+				elseif castable(N[k]) and mayTry("buff:" .. k, now) then return k end
 				break
 			end
 		end
@@ -342,7 +355,7 @@ local function missingImbue(now)
 	if not ok or secret(has) then return nil end
 	if has then tries.imbue = nil return nil end
 	for _, k in ipairs(CL.imbue) do
-		if known[k] then return mayTry("imbue", now) and k or nil end
+		if known[k] then return castable(N[k]) and mayTry("imbue", now) and k or nil end
 	end
 end
 
@@ -354,8 +367,8 @@ local function wantShield(now)
 	local lvl = UnitLevel("player")
 	if CL.shieldFrom and (secret(lvl) or type(lvl) ~= "number" or lvl < CL.shieldFrom) then return false end
 	if hasBuff(N[k]) then tries.shield = nil return false end
-	if CL.shieldBlock and hasDebuff(CL.shieldBlock) then return false end
-	if cooldownLeft(k, now) > 0 then return false end
+	if CL.shieldBlock and hasDebuff(spellName(CL.shieldBlock)) then return false end
+	if cooldownLeft(k, now) > 0 or not castable(N[k]) then return false end
 	return mayTry("shield", now)
 end
 
@@ -363,7 +376,7 @@ end
 -- combat the key is the fight macro, which holds no cooldown spell.
 local function wantOpener(now)
 	local k = CL.opener
-	if not k or not known[k] or cooldownLeft(k, now) > 0 then return false end
+	if not k or not known[k] or cooldownLeft(k, now) > 0 or not castable(N[k]) then return false end
 	return mayTry("opener", now)
 end
 
@@ -531,14 +544,15 @@ cooldownLeft = function(key, now)
 		if ok and type(cd) == "table" and not secret(cd.startTime) and not secret(cd.duration)
 			and type(cd.startTime) == "number" and type(cd.duration) == "number" then
 			-- the global cooldown is not the spell's own
-			if cd.duration <= 1.5 then return 0 end
-			return math.max(0, cd.startTime + cd.duration - now)
+			if cd.duration <= 1.5 then return 0, true end
+			return math.max(0, cd.startTime + cd.duration - now), true
 		end
 	end
 	local t = lastCast[key]
 	local len = CL and ((CL.alert and CL.alert.cd and CL.alert.cd[key]) or (CL.cd and CL.cd[key])) or 0
-	if not t then return 0 end
-	return math.max(0, t + len - now)
+	-- nothing readable and no cast seen: "ready" is a guess (second value)
+	if not t then return 0, false end
+	return math.max(0, t + len - now), len > 0
 end
 
 local function noteCast(spellID)
@@ -599,8 +613,12 @@ local function keyHint(now)
 	local key = db.key or "F"
 	for _, r in ipairs(CL and CL.hints or {}) do
 		local name = known[r.spell] and N[r.spell]
-		if name and COMBO[r.key] and (macros[r.key] or ""):find(name, 1, true) and cooldownLeft(r.spell, now) == 0 then
-			local show = not r.react
+		local left, sure = 99, false
+		if name and COMBO[r.key] and (macros[r.key] or ""):find(name, 1, true) then left, sure = cooldownLeft(r.spell, now) end
+		if left == 0 then
+			-- a cooldown spell is named only when its cooldown could be
+			-- read or counted; a reactive one when the client says usable
+			local show = not r.react and sure
 			if r.react and C_Spell and C_Spell.IsSpellUsable then
 				local ok, usable = pcall(C_Spell.IsSpellUsable, name)
 				show = ok and not secret(usable) and usable == true
@@ -744,6 +762,7 @@ local function secureButton(name)
 	for k, v in pairs(NAMES) do if v == name then what = k end end
 	b:HookScript("PreClick", function(_, _, down)
 		clicks[#clicks + 1] = GetTime() if #clicks > 12 then table.remove(clicks, 1) end
+		if what == "fight" and down ~= false then fightPress = GetTime() end
 		-- a key held down clicks on both down and up; count one press
 		if logEvent and down ~= false then logEvent("P", (what == "fight" and not locked()) and (current.what or "out") or what) end
 	end)
@@ -1037,7 +1056,7 @@ driver:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
 	elseif event == "ZONE_CHANGED_NEW_AREA" then
 		logEvent("Z", GetRealZoneText and GetRealZoneText() or "?")
 	elseif event == "PLAYER_TARGET_CHANGED" then
-		chill.n, tries = 0, {}
+		chill.n, tries.shield, tries.opener = 0, nil, nil
 		if not locked() then
 			local name, lvl, class = logTarget()
 			if name then lg.lastName, lg.lastLevel = name, lvl logEvent("T", name, lvl, class) end
@@ -1121,6 +1140,11 @@ SlashCmdList.ONEKEYDRUID = function(msg)
 	elseif cmd == "herbs" then
 		db.herbs = rest:lower() ~= "off"
 		trackGathering()
+	elseif cmd == "solo" and ns.QL and ns.QL.Slash then
+		ns.QL.Slash(rest:lower())
+	elseif cmd == "skip" and ns.QH and ns.QH.Skip then
+		if rest:lower() == "clear" then ns.QH.ClearSkips() say("left-out quests are back.")
+		else say("left out: " .. tostring(ns.QH.Skip() or "nothing")) end
 	elseif cmd == "quests" and ns.QH and ns.QH.Refresh then
 		ns.QH.Refresh(UnitLevel("player"))
 		ns.QH.List(say, 5)
@@ -1147,6 +1171,6 @@ SlashCmdList.ONEKEYDRUID = function(msg)
 	else
 		say(VERSION .. " — " .. CLASS:lower())
 		print("  bind KEY · sos KEY|off · lang en|fi · brave on|off · alarm on|off · herbs on|off · cone on|off")
-		print("  quests · go · where · status · ranks [on|off] · log on|off|clear")
+		print("  solo [print|button] · quests · go · skip [clear] · where · status · ranks [on|off] · log on|off|clear")
 	end
 end

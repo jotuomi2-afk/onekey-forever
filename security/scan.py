@@ -16,7 +16,8 @@ What it enforces (see docs/ARCHITECTURE.md, "Security"):
   R4 no secret maths - health and power values are never compared or
                        computed on (WoW: Forever keeps them secret).
   R5 secrets/PII     - no tokens, keys or e-mail addresses in the code.
-  R6 data licence    - QuestData.lua keeps the pfQuest MIT notice.
+  R6 data licence    - QuestData.lua keeps the pfQuest MIT notice, QuestDataNew.lua
+                       the All The Things MIT notice; no other source in either.
   R7 package content - only .lua/.toc/.xml/.md/LICENSE files in the addon.
 """
 import os, re, sys
@@ -31,7 +32,7 @@ FORBIDDEN_CALLS = {
            "BuyMerchantItem", "PickupContainerItem", "PlaceAction", "PickupSpell", "C_Spell.PickupSpell",
            "CreateMacro", "EditMacro", "SetOverrideBindingSpell", "SetOverrideBindingMacro",
            "SetOverrideBindingItem", "SetBindingSpell", "SetBindingMacro", "SetBindingItem", "C_Timer.NewTicker",
-           "SecureCmdOptionParse"],
+           "C_Timer.NewTimer", "SecureCmdOptionParse", "Click"],
     "R2": ["SendChatMessage", "SendAddonMessage", "C_ChatInfo.SendAddonMessage", "C_ChatInfo.SendAddonMessageLogged",
            "SendMail", "BNSendWhisper", "BNSendGameData", "GuildInvite", "InviteUnit", "JoinChannelByName",
            "C_ChatInfo.SendChatMessage", "ChatEdit_SendText", "C_Club.SendMessage", "C_BattleNet.SendWhisper"],
@@ -53,6 +54,11 @@ TOKEN_PATTERNS = [r"ghp_[A-Za-z0-9]{20,}", r"github_pat_[A-Za-z0-9_]{20,}", r"sk
 ALLOWED_EXT = (".lua", ".toc", ".xml", ".md")
 ALLOWED_NAMES = ("LICENSE",)
 ALL_FORBIDDEN = {fn: rule for rule, names in FORBIDDEN_CALLS.items() for fn in names}
+# the last part of every forbidden name: as a field of any table
+# (m.RunMacroText, C_Item.UseItemByName, button:Click) it is the same call
+# behind another name. Lua's own library words are left to their bare form.
+FORBIDDEN_FIELDS = {fn.split(".")[-1]: rule for fn, rule in ALL_FORBIDDEN.items()
+                    if fn.split(".")[-1] not in ("load", "require", "rawget", "rawset")}
 # _G may only be written with a literal key prefix, for the binding labels
 _G_WRITE_OK = ("BINDING_HEADER_", "BINDING_NAME_")
 
@@ -133,8 +139,21 @@ def scan_lua(name, src, findings):
                     check_name(text, line)
                 elif base[0] == "name" and (k < 3 or toks[k - 3][1] not in (".", ":")):
                     check_name(base[1] + "." + text, line)
+                rule = FORBIDDEN_FIELDS.get(text)
+                if rule and not any(f == name and a.split(".")[-1] == text for f, a in ALLOWED_USES):
+                    full = (base[1] + "." if base[0] == "name" else "") + text
+                    if not any(n == name and msg == "uses " + full for n, _, _, msg in findings[-2:]):
+                        hit(line, rule, "uses " + text + " as a field of " + (base[1] if base[0] == "name" else "a value"))
                 continue
             check_name(text, line)
+            if text in SECRET_APIS:
+                # health and power may be called, or handed to pcall; taken
+                # as a value under another name they escape the R4 check
+                nxt = toks[k + 1] if k + 1 < len(toks) else ("op", "", 0)
+                in_pcall = k >= 2 and prev[1] == "(" and toks[k - 2][1] == "pcall"
+                # "if UnitHealthPercent then", "UnitHealthPercent and ...": is it there at all
+                if nxt[1] not in ("(", "and", "then") and not in_pcall:
+                    hit(line, "R4", "takes " + text + " as a value")
             if text == "_G":
                 nxt = toks[k + 1] if k + 1 < len(toks) else ("op", "", 0)
                 if nxt[1] == "[":
@@ -179,7 +198,7 @@ def scan(addon_dir):
             for m in re.finditer(pat, raw):
                 line = raw.count("\n", 0, m.start()) + 1
                 findings.append((name, line, "R5", "looks like a secret or an address: " + m.group(0)[:12] + "..."))
-        if name.endswith(".lua") and name != "QuestData.lua":
+        if name.endswith(".lua") and name not in ("QuestData.lua", "QuestDataNew.lua"):
             scan_lua(name, raw, findings)
         elif name.endswith(".xml"):
             for line, body in xml_scripts(raw):
@@ -190,17 +209,23 @@ def scan(addon_dir):
                     findings.append((name, line, "R3", "script loaded from a file"))
             for m in re.finditer(r"<Script[^>]*\bfile\s*=", raw):
                 findings.append((name, raw.count("\n", 0, m.start()) + 1, "R3", "XML loads a script file"))
-    qd = os.path.join(addon_dir, "QuestData.lua")
-    if os.path.exists(qd):
+    # the two data files: each from one named MIT source, by its generator
+    for fname, marks, what in (("QuestData.lua", ("pfQuest", "MIT", "extract_pfquest.py"), "pfQuest"),
+                               ("QuestDataNew.lua", ("All The Things", "MIT", "extract_att.py"), "All The Things")):
+        qd = os.path.join(addon_dir, fname)
+        if not os.path.exists(qd):
+            continue
         text = open(qd, encoding="utf-8").read()
         head = text[:2000]
-        if "pfQuest" not in head or "MIT" not in head or "extract_pfquest.py" not in head:
-            findings.append(("QuestData.lua", 1, "R6", "pfQuest MIT notice or generator line missing"))
+        if any(m not in head for m in marks):
+            findings.append((fname, 1, "R6", what + " MIT notice or generator line missing"))
         low = text.lower()
-        for other in ("questie", "polestar", "wago.tools", "wowhead", "classicdb", "aowow"):
-            at = low.find(other)
+        others = ["questie", "polestar", "wago.tools", "wowhead", "classicdb", "aowow"]
+        others += ["allthethings", "all the things"] if fname == "QuestData.lua" else ["pfquest"]
+        for other in others:
+            at = low.find(other, 2000 if other == "pfquest" else 0)
             if at >= 0:
-                findings.append(("QuestData.lua", text.count("\n", 0, at) + 1, "R6", "data from another source: " + other))
+                findings.append((fname, text.count("\n", 0, at) + 1, "R6", "data from another source: " + other))
         # data only: the file may hold tables and strings, no calls of its own
         toks = tokenize(text)
         for k, (kind, t, line) in enumerate(toks):
@@ -208,7 +233,7 @@ def scan(addon_dir):
                                              "select", "Q", "N", "O", "I", "_", "ADDON", "addon") \
                     and k + 1 < len(toks) and toks[k + 1][1] == "(":
                 if t not in ("select",):
-                    findings.append(("QuestData.lua", line, "R3", "data file calls " + t))
+                    findings.append((fname, line, "R3", "data file calls " + t))
                     break
     return findings
 

@@ -30,6 +30,14 @@ update from an older version.
 | Shift+G | cat ↔ bear (also breaks roots) | get away (mage: Blink) |
 | Ctrl+G | hide before going away (Shadowmeld) | Stealth / Shadowmeld (mage: Ice Barrier) |
 
+## Quests on your own
+
+`/okd solo` (or the small "Q" button) lists what to do in the zone you are
+in, for a player without a group: hand-ins, then the quests to take and work
+on in walking order, each rated; quests that need a group or are too high
+are listed apart with the reason. Click a row and the game's map pin and
+arrow point the way.
+
 ## On screen
 
 - your health and mana from the game itself (WoW: Forever keeps them secret
@@ -72,5 +80,5 @@ Releasing: [docs/RELEASE.md](docs/RELEASE.md); CurseForge: [docs/curseforge/](do
 
 ## Licence
 
-MIT, see [LICENSE](LICENSE). The quest data comes from pfQuest (MIT); see
+MIT, see [LICENSE](LICENSE). The quest data comes from pfQuest (MIT) and, for the quests Forever added, All The Things (MIT); see
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

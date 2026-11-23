@@ -27,7 +27,7 @@ ALLOWED_GLOBALS = {"OneKeyDruidDB", "SLASH_ONEKEYDRUID1", "SLASH_ONEKEYDRUID2", 
                    "BINDING_HEADER_ONEKEYDRUID", "BINDING_NAME_CLICK OneKeyDruidButton:LeftButton"}
 CLASSES = [("DRUID", 11), ("MAGE", 8), ("WARRIOR", 1), ("ROGUE", 4), ("HUNTER", 3),
            ("PRIEST", 5), ("WARLOCK", 9), ("PALADIN", 2), ("SHAMAN", 7)]
-JUNK = ["", " ", "bind", "bind ", "bind SHIFT-F", "bind ctrl-alt-x", "sos off", "sos G", "lang xx", "mode",
+JUNK = ["solo", "solo print", "solo button", "skip", "skip clear", "", " ", "bind", "bind ", "bind SHIFT-F", "bind ctrl-alt-x", "sos off", "sos G", "lang xx", "mode",
         "mode cat", "mode bear", "mode auto", "nuke off", "nuke on", "prowl off", "quests off", "quests on",
         "skip", "skip clear", "go", "where", "ranks", "ranks off", "ranks on", "hpregen 3", "hpregen -1",
         "manaregen 999", "status", "report", "%s%s%n", "ää ö €", "x" * 300, "brave on", "brave off",

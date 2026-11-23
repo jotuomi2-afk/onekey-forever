@@ -1190,8 +1190,10 @@ def main():
             p += lua_list(lua.eval("STUB.tick")(2, 0.25))
             fight = ns.OneKeyMacros.fight or ""
             seq = next((l for l in fight.split("\n") if l.startswith("/castsequence")), "")
-            if level >= 10 and not seq.split("reset=target ")[-1].startswith("Sinister Strike, Slice and Dice, "):
-                p.append("level %d: Slice and Dice is not the first finisher: %r" % (level, seq))
+            # two strikes before the first finisher: one that misses still
+            # moves the sequence on, and a finisher with no point holds the key
+            if level >= 10 and not seq.split("reset=target ")[-1].startswith("Sinister Strike, Sinister Strike, Slice and Dice, "):
+                p.append("level %d: Slice and Dice is not the first finisher, after two strikes: %r" % (level, seq))
             if level >= 26 and "/cast [stealth] Cheap Shot\n" not in fight:
                 p.append("level %d: no Cheap Shot opener from stealth" % level)
             if level >= 30:
@@ -1233,7 +1235,9 @@ def main():
     # usable-check (no mana, not learned, reactive not ready) or a false
     # [condition] skips a line. So anything that can fail that way may only
     # be the last thing a macro tries.
-    MAY_FAIL = ("Fire Blast", "Frost Nova", "Cone of Cold", "Ice Lance", "Mind Blast", "Arcane Shot",
+    MAY_FAIL = ("Aimed Shot", "Summon Hawk", "Mortal Strike", "Bloodthirst", "Holy Strike", "Kidney Shot",
+                "Slice and Dice",
+                "Fire Blast", "Frost Nova", "Cone of Cold", "Ice Lance", "Mind Blast", "Arcane Shot",
                 "Stormstrike", "Enrage", "Feral Charge", "Bash", "Nature's Grasp", "Hibernate",
                 "Ice Barrier", "Evasion", "Feign Death", "Divine Shield", "Divine Protection", "Lay on Hands",
                 "Retaliation", "Intimidating Shout", "Psychic Scream", "Death Coil", "Stoneclaw Totem", "Gouge",
@@ -1293,9 +1297,8 @@ def main():
         for cls, cid in (("MAGE", 8), ("WARRIOR", 1), ("ROGUE", 4), ("HUNTER", 3), ("PRIEST", 5),
                          ("WARLOCK", 9), ("PALADIN", 2), ("SHAMAN", 7)):
             CL = probe.CLASSES[cls]
-            # a character has one strike talent; the priest's wand is its
-            # filler until Shadowform
-            spells = {v[1]: v[2] for v in CL.spells.values() if v[2] not in ("Bloodthirst", "Shadowform")}
+            # a character has one strike talent
+            spells = {v[1]: v[2] for v in CL.spells.values() if v[2] != "Bloodthirst"}
             # the main spell: the last fight line that names a spell
             last = None
             for i in range(1, len(CL.fight) + 1):
@@ -1414,7 +1417,7 @@ def main():
                 p.append("no Execute hint: %r" % a)
         return p
 
-    @S.test("priest: Shadow Word: Pain once, then the wand; Smite only with no wand; Mind Flay from Shadowform")
+    @S.test("priest: Shadow Word: Pain once, then the wand; Smite only with no wand; the wand stays with Shadowform")
     def _():
         p = []
         for wand in (True, False):
@@ -1434,11 +1437,13 @@ def main():
                 p.append("the wand twice: %r" % f)
             if "Mind Blast" in f:
                 p.append("Mind Blast (a cooldown) is in the fight macro: %r" % f)
+        # Shadowform changes nothing: out of mana a Mind Flay line would
+        # leave the key with nothing it can cast
         lua, ns, errs, fire, tick = class_session("PRIEST", 5, 40, setup="STUB.wand = true")
         p += errs
         f = ns.OneKeyMacros.fight or ""
-        if "Mind Flay" not in f or "Shoot" in f:
-            p.append("with Shadowform the filler is not Mind Flay: %r" % f)
+        if not f.endswith("!Shoot") or "Mind Flay" in f:
+            p.append("with Shadowform the wand is not the last line of F: %r" % f)
         return p
 
     @S.test("priest: before the pull F shields, then opens with Mind Blast; in the fight the HUD names Ctrl+F when it is ready")
@@ -1453,11 +1458,11 @@ def main():
         if main() != "/cast [@player] Power Word: Shield":
             p.append("with an enemy picked F is not the shield first: %r" % main())
         # Weakened Soul: no shield, the opener
-        lua.execute('STUB.buffs["Weakened Soul"] = true')
+        lua.execute('STUB.names[6788] = "Weakened Soul" STUB.debuffs = { ["Weakened Soul"] = true }')
         p += lua_list(tick(2, 0.25))
         if "Power Word: Shield" in main():
             p.append("F asks for the shield under Weakened Soul: %r" % main())
-        lua.execute('STUB.buffs["Weakened Soul"] = nil')
+        lua.execute('STUB.debuffs = {}')
         p += lua_list(tick(2, 0.25))
         lua.execute('STUB.buffs["Power Word: Shield"] = true')
         p += lua_list(tick(2, 0.25))
@@ -1489,6 +1494,81 @@ def main():
         f = ns.OneKeyMacros.fight or ""
         if "/cast [nocombat,harm,nodead] Smite" not in f:
             p.append("before Mind Blast Smite does not open: %r" % f)
+        return p
+
+    @S.test("try once: hammering the key, a key-up or another key do not hold or cancel what F offers before a fight")
+    def _():
+        p = []
+        click, main = None, None
+        def session(setup):
+            lua, ns, errs, fire, tick = class_session("PRIEST", 5, 24, drop=("Shadowform",), setup=setup)
+            return lua, errs, fire, tick, lua.eval("STUB.click"), (lambda: macro_attrs(lua).get("OneKeyMain:macrotext", ""))
+        base = ('STUB.wand = true STUB.buffs = { ["Power Word: Fortitude"] = true, ["Inner Fire"] = true } '
+                'STUB.targetName = "Murloc" STUB.targetLevel = 24')
+        # the shield never comes (silenced): F pressed twice a second lets go of it
+        lua, errs, fire, tick, click, main = session(base)
+        p += errs
+        if "Power Word: Shield" not in main():
+            return p + ["no shield offered: %r" % main()]
+        for i in range(8):
+            p += lua_list(click("OneKeyMain", True))
+            p += lua_list(click("OneKeyMain", False))
+            p += lua_list(tick(2, 0.25))
+        if "Power Word: Shield" in main():
+            p.append("hammering the key holds the shield offer after 4 s: %r" % main())
+        # a key-up alone is not a try, and neither is another key
+        lua, errs, fire, tick, click, main = session(base)
+        p += errs
+        p += lua_list(click("OneKeyMain", False))
+        p += lua_list(click("OneKeyAlt", True))
+        p += lua_list(tick(16, 0.25))
+        if "Power Word: Shield" not in main():
+            p.append("a key-up or Alt+F took the shield offer away: %r" % main())
+        # a buff given up on is not offered again for every new target
+        lua, errs, fire, tick, click, main = session('STUB.wand = true STUB.targetName = "Murloc" STUB.targetLevel = 24')
+        p += errs
+        first = main()
+        p += lua_list(click("OneKeyMain", True))
+        p += lua_list(tick(12, 0.25))
+        p += lua_list(fire("PLAYER_TARGET_CHANGED"))
+        p += lua_list(tick(2, 0.25))
+        if main() == first:
+            p.append("a buff that failed comes back with every new target: %r" % first)
+        # what the client says cannot be cast now is not offered at all
+        lua, ns, errs, fire, tick = class_session("WARRIOR", 1, 20, drop=("Mortal Strike", "Bloodthirst"),
+                                                  setup='STUB.targetName = "Boar" STUB.usable = { ["Battle Shout"] = false }')
+        p += errs
+        m = macro_attrs(lua).get("OneKeyMain:macrotext", "")
+        if "Battle Shout" in m:
+            p.append("a warrior with no rage is offered Battle Shout: %r" % m)
+        return p
+
+    @S.test("hints fail closed: a secret usable answer names no key, a secret cooldown is counted from the cast")
+    def _():
+        p = []
+        lua, ns, errs, fire, tick = class_session("WARRIOR", 1, 30, drop=("Mortal Strike", "Bloodthirst"),
+                                                  setup='STUB.targetName = "Boar" STUB.secretUsable = true')
+        p += errs
+        p += in_combat(lua, fire, tick)
+        p += lua_list(tick(8, 0.25))
+        if ns.OneKeyAlert():
+            p.append("a hint from a secret answer: %r" % ns.OneKeyAlert())
+        # priest: the cooldown is secret in a fight
+        lua, ns, errs, fire, tick = class_session(
+            "PRIEST", 5, 24, drop=("Shadowform",),
+            setup='STUB.wand = true STUB.targetName = "Murloc" STUB.targetLevel = 24 STUB.secretCooldown = true')
+        p += errs
+        p += in_combat(lua, fire, tick)
+        p += lua_list(tick(8, 0.25))
+        if ns.OneKeyAlert():
+            p.append("Mind Blast named ready with nothing to read and no cast seen: %r" % ns.OneKeyAlert())
+        p += lua_list(lua.eval("STUB.castDone")(8092))
+        p += lua_list(tick(8, 0.25))
+        if ns.OneKeyAlert():
+            p.append("Mind Blast named ready 2 s after its cast: %r" % ns.OneKeyAlert())
+        p += lua_list(tick(28, 0.25))
+        if "MIND BLAST" not in (ns.OneKeyAlert() or ""):
+            p.append("Mind Blast not named 9 s after its cast (counted from the cast): %r" % ns.OneKeyAlert())
         return p
 
     @S.test("rogue: Riposte on Ctrl+F in a fight, named after a parry")
@@ -1680,9 +1760,11 @@ def main():
         for qid in Q.q.keys():
             n += 1
             f = str(Q.q[qid]).split("|")
-            if len(f) != 13:
+            if len(f) != 17:
                 p.append("quest %s: %d fields" % (qid, len(f)))
                 continue
+            if not re.match(r"^[DE]*$", f[13]) or not re.match(r"^\d*$", f[14]) or not re.match(r"^\d$", f[15]):
+                p.append("quest %s: bad flags, mob level or chain count: %r" % (qid, f[13:16]))
             starts = [s for s in f[3].split(",") if s]
             if not starts:
                 continue
@@ -1696,8 +1778,22 @@ def main():
                     p.append("quest %s: bad objective %r" % (qid, o))
                 elif m.group(1) == "i" and not items[int(m.group(2))]:
                     pass  # items without a known source exist in the data
-        if n < 1000:
+        if n < 3000:
             p.append("only %d quests" % n)
+        # what the solo rating stands on, checked against well-known quests
+        f = lambda qid: str(Q.q[qid]).split("|")
+        if "E" not in f(176)[13]:
+            p.append("Wanted: Hogger (176) is not marked elite: %r" % f(176)[13:15])
+        if f(12)[13] != "" or f(12)[14] != "13" or "15 Defias Trappers" not in f(12)[16]:
+            p.append("The People's Militia (12): flags, mob level or task line wrong: %r" % f(12)[13:])
+        if f(12)[9] != "1436":
+            p.append("The People's Militia (12) is not placed in Westfall (1436): %r" % f(12)[9])
+        deadmines = [q for q in Q.q.keys() if str(Q.q[q]).startswith("Collecting Memories|")]
+        if not deadmines or not f(deadmines[0])[13]:
+            p.append("Collecting Memories (the Deadmines) is not marked as a group quest")
+        hogger = str(npcs[448]).split("|")
+        if hogger[0] != "Hogger" or hogger[3] != "11" or hogger[4] != "1":
+            p.append("Hogger: level and rank not in the npc record: %r" % hogger)
         # positions checked in the game (WoW: Forever): Chef Breanna in Lakeshire
         # stood 36 yards from a player at 17.9, 46.3 on the Redridge map
         cb = str(npcs[343] or "")
@@ -1745,6 +1841,211 @@ def main():
             for t in sorted(horde_only - alliance):
                 if t in text or t in (hint or ""):
                     p.append("%s level %d: Horde quest offered: %s" % (zone, level, t))
+        return p
+
+    @S.test("questdatanew: the Forever quests from All The Things parse, carry their notice and repeat nothing")
+    def _():
+        p = []
+        lua = new_lua()
+        ns, errs = load_addon(lua, ["QuestData.lua", "QuestDataNew.lua"])
+        if errs:
+            return errs
+        X, Q = ns.QDBX, ns.QDB.q
+        n = 0
+        for qid in X.keys():
+            n += 1
+            f = str(X[qid]).split("|")
+            if len(f) != 9:
+                p.append("quest %s: %d fields" % (qid, len(f)))
+                continue
+            if Q[qid]:
+                p.append("quest %s is in QuestData.lua too" % qid)
+            xy = f[4].split(",")
+            if not f[3].isdigit() or len(xy) != 2 or not all(0 <= float(v) <= 100 for v in xy):
+                p.append("quest %s: no map or a point off the map: %r %r" % (qid, f[3], f[4]))
+            if f[1] not in ("", "1", "2") or not re.match(r"^\d+$", f[0]) or not re.match(r"^B?$", f[6]):
+                p.append("quest %s: bad level, faction or flags: %r" % (qid, f))
+        if n < 500:
+            p.append("only %d quests" % n)
+        head = read(os.path.join(ADDON, "QuestDataNew.lua"))[:900]
+        for need in ("All The Things", "MIT", "extract_att.py", "revision"):
+            if need not in head:
+                p.append("QuestDataNew.lua does not name %s in its header" % need)
+        text = read(os.path.join(ADDON, "QuestDataNew.lua"))
+        if "lore" in text or "description" in text:
+            p.append("QuestDataNew.lua holds text fields; only ids, levels and positions belong there")
+        return p
+
+    def quest_session(level, mapid, x, y, setup="", cls=("DRUID", 11)):
+        lua = new_lua()
+        set_class(lua, cls[0], cls[1], level, druid_spells(level) if cls[0] == "DRUID" else {})
+        lua.execute('STUB.map = %d STUB.x = %f STUB.y = %f STUB.quests = {} STUB.flagged = {} '
+                    'STUB.faction = "Alliance" STUB.raceId = 4 STUB.race = "NightElf" %s' % (mapid, x / 100.0, y / 100.0, setup))
+        ns, errs = load_addon(lua, ["QuestData.lua", "QuestDataNew.lua", "QuestHelp.lua", "QuestList.lua"])
+        errs += lua_list(lua.eval("STUB.fire")("PLAYER_LOGIN"))
+        return lua, ns, errs
+
+    @S.test("solo: the rating - elite and dungeon need a group, mobs 3 levels over are too hard, the game's tag wins")
+    def _():
+        p = []
+        lua, ns, errs = quest_session(12, 1436, 56, 47)
+        p += errs
+        rate = ns.QH.Rate
+        t = lambda **kw: lua.table_from(kw)
+        cases = [
+            (t(level=12, mob=13, flags=""), 12, None, "solo"),
+            (t(level=12, mob=15, flags=""), 12, None, "hard"),
+            (t(level=16, mob=0, flags=""), 12, None, "hard"),
+            (t(level=12, mob=12, flags="E"), 12, None, "group"),
+            (t(level=18, mob=19, flags="D"), 25, None, "group"),
+            (t(level=5, mob=5, flags=""), 12, None, "low"),
+            (t(level=12, mob=12, flags=""), 12, t(group=True), "group"),
+            (t(level=0, mob=0, flags="", new=True, min=10), 12, None, "new"),
+            (t(level=0, mob=0, flags="", new=True, min=10), 12, t(level=13, group=False), "solo"),
+        ]
+        for q, lvl, g, want in cases:
+            got = rate(q, lvl, g)
+            if got != want:
+                p.append("level %s mob %s flags %r at %d: %s, expected %s" % (q.level, q.mob, q.flags, lvl, got, want))
+        return p
+
+    @S.test("solo: the plan for Westfall - hand-ins first, one walk through the solo quests, group quests apart with the reason")
+    def _():
+        p = []
+        # level 14 at Sentinel Hill; The People's Militia (12) is done and
+        # ready to hand in, The Defias Brotherhood chain is in the log
+        setup = ('STUB.quests = { { questID = 12, title = "The People\'s Militia", level = 12 }, '
+                 '{ questID = 102, title = "Patrolling Westfall", level = 14 } } '
+                 'STUB.questDone = { [12] = true } '
+                 'STUB.objectives = { [102] = { { text = "Gnoll Paw: 3/8", finished = false } } }')
+        lua, ns, errs = quest_session(14, 1436, 56, 47, setup)
+        p += errs
+        ns.QH.Refresh(14)
+        plan = [r for r in ns.QH.Plan(False).values()]
+        if not plan:
+            return p + ["no plan for Westfall at level 14"]
+        heads = [str(r.sep or r.head) for r in plan]
+        if "Hand in: The People's Militia" not in heads[0]:
+            p.append("the hand-in is not the first row: %r" % heads[0])
+        sep = next((i for i, h in enumerate(heads) if h.startswith("Not on your own")), None)
+        walk = plan[:sep] if sep is not None else plan
+        if len(walk) < 4:
+            p.append("only %d rows before the group quests: %r" % (len(walk), heads[:6]))
+        for r in walk:
+            if r.rate in ("group", "hard") and r.e.kind != "hand":
+                p.append("a %s quest is in the walk: %s" % (r.rate, r.head))
+        # the quest in the log shows the game's own count of what is left
+        mine = [r for r in plan if not r.sep and r.e.q.id == 102]
+        if not mine or "Gnoll Paw: 3/8" not in str(mine[0].sub):
+            p.append("Patrolling Westfall does not show what is left: %r" % [str(r.sub) for r in mine])
+        # the walk never doubles back: each stop is the best next from the last
+        if sep is not None:
+            apart = plan[sep + 1:]
+            if not apart or any(not r.sep and " — " not in str(r.head) for r in apart[:3]):
+                p.append("the rows left apart do not say why: %r" % [str(r.head) for r in apart[:3]])
+        # nothing for the Horde
+        for h in heads:
+            if "Grom'gol" in h:
+                p.append("a Horde quest in the plan: %s" % h)
+        # the hint never names a quest that needs a group while a solo one is there
+        best = ns.QH.Refresh(14)
+        if best and best[2].kind != "hand" and best[2].rate in ("group", "hard"):
+            p.append("the hint names a %s quest: %s" % (best[2].rate, ns.QH.Hint(False)))
+        return p
+
+    @S.test("solo: a quest the game tags for a group is left apart, and Hogger is named elite before you take it")
+    def _():
+        p = []
+        setup = ('STUB.quests = { { questID = 102, title = "Patrolling Westfall", level = 14, suggestedGroup = 3 } } '
+                 'STUB.questTag = { [102] = 1 }')
+        lua, ns, errs = quest_session(14, 1436, 56, 47, setup)
+        p += errs
+        ns.QH.Refresh(14)
+        plan = [r for r in ns.QH.Plan(False).values()]
+        heads = [str(r.sep or r.head) for r in plan]
+        sep = next((i for i, h in enumerate(heads) if h.startswith("Not on your own")), None)
+        at = next((i for i, r in enumerate(plan) if not r.sep and r.e.q.id == 102), None)
+        if sep is None or at is None or at < sep or "needs a group" not in heads[at]:
+            p.append("the group quest is not left apart with its reason: %r" % heads)
+        # Elwynn at level 10, by the Hogger poster
+        lua, ns, errs = quest_session(10, 1429, 24, 78)
+        p += errs
+        ns.QH.Refresh(10)
+        rows = [r for r in ns.QH.Plan(False).values() if not r.sep and "Hogger" in str(r.head)]
+        if not rows or rows[0].rate != "group" or "elite" not in str(rows[0].head):
+            p.append("Wanted: Hogger is not offered as an elite quest: %r" % [str(r.head) for r in rows])
+        return p
+
+    @S.test("solo: quests Forever added are offered where they start, with the server's title or a plain name")
+    def _():
+        p = []
+        lua, ns, errs = quest_session(6, 2521, 48, 78, 'STUB.questTitles = {}')
+        p += errs
+        ns.QH.Refresh(6)
+        plan = [r for r in ns.QH.Plan(False).values() if not r.sep]
+        new = [r for r in plan if r.rate == "new"]
+        if not new:
+            return p + ["no Forever quest offered on Zephras Isle (map 2521) at level 6: %r" % [str(r.head) for r in plan[:5]]]
+        if "New Forever quest #" not in str(new[0].head) or "new in Forever" not in str(new[0].head):
+            p.append("a new quest without a title is not named plainly: %r" % str(new[0].head))
+        qid = new[0].e.q.id
+        lua.execute('STUB.questTitles[%d] = "A Wind From The Isle"' % qid)
+        ns.QH.Refresh(6)
+        plan = [r for r in ns.QH.Plan(False).values() if not r.sep and r.e.q.id == qid]
+        if not plan or "A Wind From The Isle" not in str(plan[0].head):
+            p.append("the server's title is not used once known: %r" % [str(r.head) for r in plan])
+        # a quest of the log no data file knows: the game's own point is the place
+        setup = ('STUB.quests = { { questID = 999001, title = "Strange Tides", level = 6 } } '
+                 'STUB.objectives = { [999001] = { { text = "Tide Crawler slain: 0/6", finished = false } } } '
+                 'STUB.questPoi = { [2521] = { { questID = 999001, x = 0.52, y = 0.71 } } }')
+        lua, ns, errs = quest_session(6, 2521, 48, 78, setup)
+        p += errs
+        ns.QH.Refresh(6)
+        rows = [r for r in ns.QH.Plan(False).values() if not r.sep and r.e.q.id == 999001]
+        if not rows or "Tide Crawler slain: 0/6" not in str(rows[0].head) or "52,71" not in str(rows[0].head) or not rows[0].go:
+            p.append("an unknown quest does not use the game's point and count: %r" % [str(r.head) for r in rows])
+        return p
+
+    @S.test("solo: the list window - a left click sets the map pin and says what to do, a right click leaves the quest out; in a fight too")
+    def _():
+        p = []
+        lua, ns, errs = quest_session(14, 1436, 56, 47)
+        p += errs
+        QL = ns.QL
+        lua.eval("STUB.slash") if False else None
+        QL.Toggle()
+        rows = [r for r in QL.Rows().values()]
+        if not QL.IsShown() or len(rows) < 3:
+            return p + ["the list does not open with rows: %d" % len(rows)]
+        first = next(i for i, r in enumerate(rows, 1) if not r.sep)
+        lua.execute("STUB.waypoint = nil STUB.printed = {}")
+        if QL.Press(first, "LeftButton") != "go" or not lua.eval("STUB.waypoint"):
+            p.append("a left click does not set the game's waypoint")
+        wp = lua.eval("STUB.waypoint")
+        if wp and (wp[1] != 1436 or not (0 <= wp[2] <= 1 and 0 <= wp[3] <= 1)):
+            p.append("the waypoint is not a point on the Westfall map: %r" % [wp[1], wp[2], wp[3]])
+        said = "\n".join(str(x) for x in lua.eval("STUB.printed").values())
+        if "map pin and arrow" not in said or str(rows[first - 1].head) not in said:
+            p.append("the chat does not say what to do: %r" % said[:200])
+        head = str(rows[first - 1].head)
+        if QL.Press(first, "RightButton") != "skip":
+            p.append("a right click does not leave the quest out")
+        if any(str(r.head) == head for r in QL.Rows().values() if not r.sep):
+            p.append("the quest left out is still in the list: %s" % head)
+        # in a fight: clicking and closing are plain frames, nothing secure
+        lua.execute("STUB.combat = true STUB.violations = {}")
+        QL.Press(first, "LeftButton")
+        QL.Toggle()
+        QL.Toggle()
+        v = [str(x) for x in lua.eval("STUB.violations").values()]
+        if v:
+            p.append("the list touched secure state in a fight: %r" % v[:2])
+        # a row that is only a heading does nothing
+        lua.execute("STUB.combat = false")
+        rows = [r for r in QL.Rows().values()]
+        seps = [i for i, r in enumerate(rows, 1) if r.sep]
+        if seps and QL.Press(seps[0], "LeftButton") is not None:
+            p.append("a heading row answers a click")
         return p
 
     @S.test("performance: QuestHelp.Refresh stays inside its frame budget")

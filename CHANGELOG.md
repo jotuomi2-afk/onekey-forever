@@ -1,5 +1,61 @@
 # Changelog
 
+## 0.35.0
+
+The solo quest guide, and the fixes from the independent review of 0.34.0.
+Tested in the simulated client only; nothing here has been played yet.
+
+- `/okd solo`, or the small "Q" button at the left edge of the screen: a
+  list of what to do in the zone you are in, for a player on their own.
+  - Hand-ins first, then one walk through the quests you can take and work
+    on here: always the best next stop from the last one.
+  - Every row is rated. Green: fine alone. Blue: a quest Forever added
+    (where it starts is known, its mobs are not). Under "Not on your own
+    right now": quests with an elite target or in a dungeon, quests the
+    game tags for a group, and quests whose mobs are 3 or more levels over
+    you, each with the reason.
+  - Under each row, what to do: for a quest in your log the game's own
+    count of what is left ("Gnoll Paw: 3/8"), otherwise the quest's task
+    line. Mobs are named with their level ("kill Defias Trapper (11-12)").
+  - Left click: the game's map pin and arrow go to the place, and the chat
+    says what to do there. Right click: leave the quest out (`/okd skip
+    clear` brings all back). The mouse wheel scrolls. `/okd solo print`
+    writes the rows to the chat; `/okd solo button` hides the "Q" button.
+  - The addon does not walk for you and puts no markers of its own on the
+    world map: the pin and the arrow are the game's.
+- The HUD's one-line hint no longer names a quest that needs a group while
+  there is one you can do alone.
+- Quest data: every Classic quest to level 60 (it stopped at about 45),
+  with each mob's level and rank, elite and dungeon quests marked, and
+  the task line (pfQuest, MIT). New: where 1 046 quests that Forever added
+  start, Zephras Isle and the other new zones among them (All The Things,
+  MIT; no titles or texts, the game supplies the title). Quests of your log
+  that neither file knows use the place the game's own map shows.
+- `/okd skip` now works for every class, not only the druid.
+
+Fixes from the review:
+
+- Rogue: Slice and Dice comes after two Sinister Strikes, not one. A
+  strike that misses still moves the sequence on, and a finisher with no
+  combo point would have held F for the rest of the fight.
+- "Tried once" (0.34.0) did not hold when F was hammered: the offer stayed
+  as long as the key was pressed. Now it is over two seconds after the
+  first press of F. A key-up or another key no longer counts as the try, a
+  buff given up on does not come back with every new target, and a spell
+  the game says cannot be cast now (Battle Shout with no rage) is not
+  offered at all.
+- Priest: the wand stays the last line of F with Shadowform too. With
+  Mind Flay there instead, F had nothing it could cast once the mana was
+  gone. Mind Flay is on your own action bar.
+- Hints fail closed: a helper key is named only when the game gave a plain
+  answer. When the cooldown is hidden in a fight it is counted from your
+  own cast, and with neither nothing is named.
+- Weakened Soul is found by its spell, not its English name.
+- The security scanner also catches a forbidden call behind another name
+  (`m.RunMacroText`), a button clicked from Lua and a secret value taken
+  under another name; 23 planted faults are now checked, each caught.
+- SECURITY.md says what the in-combat hints are: text, from plain values.
+
 ## 0.34.0
 
 The other seven classes, set against the WoW Forever levelling guides

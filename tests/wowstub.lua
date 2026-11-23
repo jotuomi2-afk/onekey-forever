@@ -232,7 +232,9 @@ C_Spell = {
 	end,
 	GetSpellPowerCost = function() return { { type = 0, cost = 40 } } end,
 	-- STUB.usable[name] = false: a reactive spell that cannot be used now
+	-- STUB.secretUsable: the answer is a secret value in combat
 	IsSpellUsable = function(name)
+		if STUB.secretUsable and STUB.combat then return STUB_secret(), STUB_secret() end
 		if STUB.usable and STUB.usable[name] ~= nil then return STUB.usable[name], false end
 		return true, false
 	end,
@@ -242,7 +244,11 @@ C_Spell = {
 	IsSpellInRange = function(name) return STUB.inRange and STUB.inRange[name] end,
 	-- cooldowns as the client keeps them: STUB.cooldown[name] = seconds
 	-- starts one when the spell is cast (STUB.castDone)
+	-- STUB.secretCooldown: start and duration are secret values in combat
 	GetSpellCooldown = function(x)
+		if STUB.secretCooldown and STUB.combat then
+			return { startTime = STUB_secret(), duration = STUB_secret(), isEnabled = true }
+		end
 		local name = type(x) == "number" and STUB.names and STUB.names[x] or x
 		local c = STUB.cds and STUB.cds[name]
 		if c and STUB.now < c.start + c.dur then return { startTime = c.start, duration = c.dur, isEnabled = true } end
@@ -253,8 +259,10 @@ function GetSpellCooldown() return 0, 0, 1 end
 -- the main hand's imbue: STUB.imbue = true / false
 function GetWeaponEnchantInfo() return STUB.imbue and true or false end
 C_UnitAuras = {
-	GetAuraDataBySpellName = function(unit, name)
-		if STUB.buffs[name] then return { name = name, expirationTime = 0 } end
+	-- buffs in STUB.buffs, debuffs in STUB.debuffs: the filter decides
+	GetAuraDataBySpellName = function(unit, name, filter)
+		local from = filter == "HARMFUL" and (STUB.debuffs or {}) or STUB.buffs
+		if from[name] then return { name = name, expirationTime = 0 } end
 		return nil
 	end,
 	GetAuraDataByIndex = function() return nil end,
@@ -319,7 +327,7 @@ C_Map = {
 	GetBestMapForUnit = function() return STUB.map end,
 	GetPlayerMapPosition = function() return { GetXY = function() return STUB.x, STUB.y end } end,
 	GetMapInfo = function(id) return { name = "map" .. tostring(id) } end,
-	SetUserWaypoint = function() end,
+	SetUserWaypoint = function(p) STUB.waypoint = p end,
 }
 UiMapPoint = { CreateFromCoordinates = function(m, x, y) return { m, x, y } end }
 C_SuperTrack = { SetSuperTrackedUserWaypoint = function() end }
@@ -328,6 +336,17 @@ C_QuestLog = {
 	GetInfo = function(i) return STUB.quests[i] end,
 	IsComplete = function(id) return STUB.questDone and STUB.questDone[id] or false end,
 	IsQuestFlaggedCompleted = function(id) return STUB.flagged and STUB.flagged[id] or false end,
+	-- STUB.objectives[id] = { { text = "Wolves slain: 2/8", finished = false }, ... }
+	GetQuestObjectives = function(id) return STUB.objectives and STUB.objectives[id] or {} end,
+	-- STUB.questTag[id] = 1 (group), 81 (dungeon), 62 (raid)
+	GetQuestTagInfo = function(id)
+		local t = STUB.questTag and STUB.questTag[id]
+		return t and { tagID = t, tagName = "tag" } or nil
+	end,
+	-- STUB.questPoi[map] = { { questID = 1, x = 0.5, y = 0.5 }, ... }
+	GetQuestsOnMap = function(map) return STUB.questPoi and STUB.questPoi[map] or {} end,
+	-- titles come from the server: known only once asked for (STUB.questTitles)
+	GetTitleForQuestID = function(id) return STUB.questTitles and STUB.questTitles[id] or nil end,
 }
 C_Minimap = {
 	GetNumTrackingTypes = function() return 1 end,

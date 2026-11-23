@@ -147,9 +147,11 @@ C.ROGUE = {
 	buffs = {},
 	-- The guides (combat): Cheap Shot from stealth, Sinister Strike to
 	-- build, Slice and Dice as soon as possible, Eviscerate at 3-5 points.
-	-- So Slice and Dice is the first finisher: after one Sinister Strike
-	-- (one point, or three behind a Cheap Shot). Then the stun chain:
-	-- Sinister Strike to 3 points, Kidney Shot, one more Sinister Strike
+	-- So Slice and Dice is the first finisher, after two Sinister Strikes:
+	-- a strike that misses still moves the sequence on, and a finisher with
+	-- no combo point would hold the key, so one strike before it is too
+	-- few. Then the stun chain: two more Sinister Strikes, Kidney Shot, one
+	-- more Sinister Strike
 	-- while it is stunned, Gouge as the stun ends (it breaks on damage, so
 	-- the energy comes back while it holds), then Sinister Strike and
 	-- Eviscerate. In one /castsequence: Kidney Shot and Gouge have
@@ -162,9 +164,9 @@ C.ROGUE = {
 	-- sequence back, so the sequence needs no [nostealth].
 	pull = { { "cast", "cs", "[stealth] " } },
 	fight = {
-		{ "seq", { "ss", "snd", "ss", "ss", "ss", "kidney", "ss", "gouge", "ss", "ss", "evis" },
+		{ "seq", { "ss", "ss", "snd", "ss", "ss", "kidney", "ss", "gouge", "ss", "ss", "evis" },
 			"", "target", need = "kidney" },
-		{ "seq", { "ss", "snd", "ss", "ss", "ss", "evis", "gouge", "ss", "ss", "ss", "evis" },
+		{ "seq", { "ss", "ss", "snd", "ss", "ss", "evis", "gouge", "ss", "ss", "ss", "evis" },
 			"", "target", without = "kidney" },
 	},
 	heal = { { "cast", "kick", H } },
@@ -234,21 +236,23 @@ C.PRIEST = {
 	buffs = { { "fort" }, { "inner" } },
 	-- The guides (shadow): Power Word: Shield and Mind Blast before the
 	-- pull, Shadow Word: Pain, then the wand; Mind Blast again when it is
-	-- ready. From Shadowform (level 40) Mind Flay fills instead of the wand.
+	-- ready. (From Shadowform the guides fill with Mind Flay. The wand stays
+	-- on F all the same: with the mana gone a Mind Flay line would leave the
+	-- key with nothing it can cast. Mind Flay is on your own action bar.)
 	-- Out of combat, with an enemy picked, F gives the shield and then
 	-- casts Mind Blast (OneKey.lua, decide); in the fight Mind Blast is on
 	-- Ctrl+F, and the HUD says when it is ready: it has a cooldown, and the
 	-- client stops a macro at the first spell that fails.
 	-- The shield from level 10 (the guides wand without it before), and
 	-- not while Weakened Soul forbids it.
-	shield = "pws", shieldFrom = 10, shieldBlock = "Weakened Soul", opener = "mb",
+	shield = "pws", shieldFrom = 10, shieldBlock = 6788, opener = "mb", -- 6788: Weakened Soul
 	-- Before Mind Blast (level 10) Smite opens, from range.
 	pull = { { "cast", "smite", "[nocombat,harm,nodead] ", without = "mb" } },
 	-- Shadow Word: Pain once per target, then the wand, which costs no
 	-- mana. Mind Flay and Smite are the filler only with no wand on: as the
 	-- last line the wand was never reached (a spell with no mana stops the
 	-- macro; it is not skipped), so the mana ran dry. "wand" is known with
-	-- a wand on, until Shadowform is learned.
+	-- a wand on.
 	fight = {
 		-- [nochanneling]: a press during Mind Flay must not cut it short
 		{ "once", "swp", "[harm,nodead,nochanneling] " },
@@ -256,7 +260,7 @@ C.PRIEST = {
 		{ "cast", "smite", "[harm,nodead,nochanneling] ", without = "wand" },
 		{ "cast", "shoot", "[harm,nodead,nochanneling] ", bang = true, need = "wand" },
 	},
-	wandFiller = true, wandUntil = "form",
+	wandFiller = true,
 	heal = { { "cast", "flash", "[@player]" }, { "cast", "heal", "[@player]" }, { "cast", "lheal", "[@player]" } },
 	cc = { { "cast", "scream", "" } },
 	behind = { { "cast", "mb", H } },

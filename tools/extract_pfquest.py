@@ -41,7 +41,7 @@ MAP_FIX = {
     1453: (0.7699, 19.82, 0.7670, 24.85),  # Stormwind City
 }
 ALLIANCE, HORDE = 1 | 4 | 8 | 64, 2 | 16 | 32 | 128
-MAX_MIN_LEVEL, MAX_LEVEL = 45, 48
+MAX_MIN_LEVEL, MAX_LEVEL = 60, 63
 PINNED = "104f35678ca39ab1fb78b655f815cc7016f5e0c8"
 
 
@@ -80,18 +80,49 @@ def esc(s):
     return "".join("\\%03d" % ord(c) if ord(c) < 32 else c for c in s)
 
 
-def place(name, data):
-    """name|uiMap|x,y,... : up to three points in the zone where most of it is."""
+def zones_of(data):
+    """(outdoor points by zone, number of points in zones with no outdoor map)."""
     coords = data["coords"] if data else None
     pts = [tuple(c.values()) for c in coords.values()] if coords else []
-    by_zone = collections.defaultdict(list)
+    by_zone, inside = collections.defaultdict(list), 0
     for p in pts:
         if len(p) >= 3 and int(p[2]) in ZONE_TO_UIMAP:
             by_zone[int(p[2])].append(p)
+        elif len(p) >= 3:
+            inside += 1
+    return by_zone, inside
+
+
+def indoors(data):
+    """Only found where there is no outdoor map: a dungeon or a raid."""
+    by_zone, inside = zones_of(data)
+    return inside > 0 and not by_zone
+
+
+def top_level(data):
+    """The highest level of a unit ("14-15" -> 15), 0 when unknown."""
+    lvl = str(data["lvl"] or "") if data else ""
+    nums = [int(x) for x in lvl.replace("-", " ").split() if x.isdigit()]
+    return max(nums) if nums else 0
+
+
+def place(name, data, unit=False):
+    """name|uiMap|x,y,...|level|rank : the middle of its spawns in the zone
+    where most of it is, then up to three spawns across that zone. Level
+    ("14-15") and rank (1 elite, 2 rare elite, 3 boss, 4 rare) for units."""
+    by_zone, _ = zones_of(data)
+    tail = ""
+    if unit and data:
+        tail = "|%s|%s" % (esc(data["lvl"] or ""), esc(data["rnk"] or ""))
     if not by_zone:
-        return esc(name)
+        return esc(name) + ("||" + tail if tail.strip("|") else "")
     zone, zp = max(by_zone.items(), key=lambda kv: len(kv[1]))
-    pick = [zp[0], zp[len(zp) // 2], zp[-1]] if len(zp) >= 3 else zp
+    pick = [zp[0], zp[len(zp) // 2], zp[-1]] if len(zp) >= 3 else list(zp)
+    if len(zp) >= 3:
+        xs, ys = sorted(p[0] for p in zp), sorted(p[1] for p in zp)
+        mid = (xs[len(xs) // 2], ys[len(ys) // 2])
+        # the spawn nearest the middle: a real place, not a point in a lake
+        pick.insert(0, min(zp, key=lambda p: (p[0] - mid[0]) ** 2 + (p[1] - mid[1]) ** 2))
     ax, bx, ay, by = MAP_FIX.get(ZONE_TO_UIMAP[zone], (1.0, 0.0, 1.0, 0.0))
     seen, out = set(), []
     for p in pick:
@@ -99,7 +130,17 @@ def place(name, data):
         if k not in seen:
             seen.add(k)
             out.append("%g,%g" % k)
-    return "%s|%d|%s" % (esc(name), ZONE_TO_UIMAP[zone], ",".join(out))
+    return "%s|%d|%s%s" % (esc(name), ZONE_TO_UIMAP[zone], ",".join(out), tail)
+
+
+def main_map(refs, U, O):
+    """The uiMap where most of these units and objects are."""
+    count = collections.Counter()
+    for kind, i in refs:
+        by_zone, _ = zones_of((O if kind == "o" else U)[i])
+        for z, pts in by_zone.items():
+            count[ZONE_TO_UIMAP[z]] += len(pts)
+    return count.most_common(1)[0][0] if count else 0
 
 
 def main():
@@ -112,6 +153,26 @@ def main():
     pf = load(db)
     Q, U, O, I = pf["quests"]["data"], pf["units"]["data"], pf["objects"]["data"], pf["items"]["data"]
     QN, UN, ON, IN = pf["quests"]["enUS"], pf["units"]["enUS"], pf["objects"]["enUS"], pf["items"]["enUS"]
+
+    # how many quests a quest opens, down its chain (at most 9)
+    after = collections.defaultdict(set)
+    for qid, q in Q.items():
+        for pre in ids(q["pre"]):
+            after[pre].add(int(qid))
+
+    def opens(qid, seen=None, depth=0):
+        seen = seen if seen is not None else set()
+        for n in after.get(qid, ()):
+            if n not in seen and depth < 6:
+                seen.add(n)
+                opens(n, seen, depth + 1)
+        return min(9, len(seen))
+
+    def item_sources(i):
+        d = I[i]
+        drops = sorted(((float(ch), int(u)) for u, ch in d["U"].items()), reverse=True)[:3] if d and d["U"] else []
+        objs = sorted(((float(ch), int(o)) for o, ch in d["O"].items()), reverse=True)[:2] if d and d["O"] else []
+        return [u for _, u in drops], [o for _, o in objs]
 
     quests, need_u, need_o, items = {}, set(), set(), {}
     for qid, q in Q.items():
@@ -142,39 +203,61 @@ def main():
         ends = ["%d" % u for u in ids(q["end"]["U"] if q["end"] else None)] + \
                ["o%d" % o for o in ids(q["end"]["O"] if q["end"] else None)]
         obj = []
+        # what the quest sends you against: the units to kill and the units
+        # that drop its items. Elite: every source of one objective is elite,
+        # rare elite or a boss. Dungeon: one is found only indoors.
+        targets, flags, mob = [], set(), 0
         if q["obj"]:
             for u in ids(q["obj"]["U"]):
                 obj.append("k%dx1" % u)
                 need_u.add(u)
+                targets.append([("n", u)])
             for i in ids(q["obj"]["I"]):
                 obj.append("i%dx1" % i)
                 items[i] = None
+                us, os_ = item_sources(i)
+                if us and not os_:
+                    targets.append([("n", u) for u in us])
             for o in ids(q["obj"]["O"]):
                 obj.append("o%d" % o)
                 need_o.add(o)
+                targets.append([("o", o)])
+        for group in targets:
+            units = [U[i] for kind, i in group if kind == "n" and U[i]]
+            if units and all(str(d["rnk"] or "") in ("1", "2", "3") for d in units):
+                flags.add("E")
+            if all(indoors((O if kind == "o" else U)[i]) for kind, i in group):
+                flags.add("D")
+            for d in units:
+                mob = max(mob, top_level(d))
         for s in starts + ends:
             (need_o if s.startswith("o") else need_u).add(int(s.lstrip("o")))
-        quests[qid] = "%s|%d|%d|%s|%s|%s||%s|%s||%s|%s|%s" % (
+        where = main_map([r for g in targets for r in g], U, O) or \
+            main_map([("o" if s.startswith("o") else "n", int(s.lstrip("o"))) for s in starts], U, O)
+        text = " ".join(str(loc["O"] or "").replace("$B", " ").replace("$b", " ").split())
+        quests[qid] = "%s|%d|%d|%s|%s|%s||%s|%s|%s|%s|%s|%s|%s|%s|%d|%s" % (
             esc(title), lvl, mn, ",".join(starts), ",".join(ends),
             ",".join(str(p) for p in ids(q["pre"])), ",".join(str(c) for c in ids(q["close"])),
-            ",".join(obj), race or "", cls or "", fac)
+            ",".join(obj), where or "", race or "", cls or "", fac,
+            "".join(sorted(flags)), mob or "", opens(qid), esc(text))
 
-    # items: the three npcs that drop it most often
+    # items: the three npcs that drop it most often, the two objects that hold it
     for i in list(items):
-        d = I[i]
-        drops = sorted(((float(ch), int(u)) for u, ch in d["U"].items()), reverse=True)[:3] if d and d["U"] else []
-        for _, u in drops:
-            need_u.add(u)
-        items[i] = (IN[i] or "item %d" % i, [u for _, u in drops])
+        us, os_ = item_sources(i)
+        need_u.update(us)
+        need_o.update(os_)
+        items[i] = (IN[i] or "item %d" % i, us, os_)
 
     lines = [
-        "-- OneKeyDruid/QuestData.lua: quests up to level ~45, both factions.",
+        "-- OneKeyDruid/QuestData.lua: the Classic quests, both factions.",
         "-- Generated by tools/extract_pfquest.py from pfQuest (https://github.com/shagu/pfQuest),",
         "-- revision %s. pfQuest data: MIT License, Copyright (c) 2017-2021 Eric Mauser (Shagu)." % rev,
         "-- See THIRD_PARTY_NOTICES.md. Do not edit by hand.",
-        '-- quest: "title|level|minLevel|starters|enders|pre(one of)|preAll|excl|objectives|zone|raceMask|classMask|faction(1 A, 2 H)"',
+        '-- quest: "title|level|minLevel|starters|enders|pre(one of)|preAll|excl|objectives|uiMapID|raceMask|classMask|faction(1 A, 2 H)',
+        '--         |flags(E elite, D dungeon)|highest mob level|quests it opens|what to do"',
         "--   starters/enders: npc ids, \"o\" before an object id; objectives: k<npc>x<n> kill, i<item>x<n> item, o<object>",
-        '-- npc/object: "name|uiMapID|x,y,x,y..."; item: "name|npc,npc,npc"',
+        '-- npc: "name|uiMapID|x,y,x,y...|level|rank(1 elite, 2 rare elite, 3 boss, 4 rare)"; object: "name|uiMapID|x,y,..."',
+        '-- item: "name|npc,npc,npc|object,object"',
         "local _, ns = ...",
         "ns.QDB = { q = {",
     ]
@@ -183,15 +266,15 @@ def main():
     lines.append("}, n = {")
     for u in sorted(need_u):
         if UN[u]:
-            lines.append('[%d]="%s",' % (u, place(UN[u], U[u])))
+            lines.append('[%d]="%s",' % (u, place(UN[u], U[u], True)))
     lines.append("}, o = {")
     for o in sorted(need_o):
         if ON[o]:
             lines.append('[%d]="%s",' % (o, place(ON[o], O[o])))
     lines.append("}, i = {")
     for i in sorted(items):
-        name, srcs = items[i]
-        lines.append('[%d]="%s|%s",' % (i, esc(name), ",".join(str(u) for u in srcs)))
+        name, us, os_ = items[i]
+        lines.append('[%d]="%s|%s|%s",' % (i, esc(name), ",".join(str(u) for u in us), ",".join(str(o) for o in os_)))
     lines.append("} }")
     with open(out_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
