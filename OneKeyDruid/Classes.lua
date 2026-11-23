@@ -8,7 +8,9 @@
 --   { "once", "spell", "[conditions] " }          once per target
 --   { "seq",  { "spell", ... }, "[conditions] ", reset }
 --   { "raw",  "text", needs = { "spell", ... } }  as it is
---   { "opener", "spell", "[conditions] ", count = n }  n times per target
+--   { "opener", "spell", "[conditions] ", count = n, slow = "spell", near = "spell" }
+--       up to n times per target, as many as fit before the slow spell
+--       lands (by the distance: "near" is a spell with a short range)
 -- need / without = "spell": the line only when the spell is (not) learned;
 -- below / from = level: only under, or from, that character level.
 -- The key's own buttons: fight (F), heal (Shift+F), cc (Alt+F),
@@ -51,18 +53,21 @@ C.MAGE = {
 	shield = "barrier",
 	-- The client stops a macro at the first spell that fails (on cooldown,
 	-- out of range), so F holds only spells without a cooldown.
-	-- The opener (from play, 23.11.): there is time for two Fireballs
-	-- before the mob arrives. Fireball reaches 35 yd and hits harder than a
-	-- low Frostbolt. Twice, once per target, then every press is Frostbolt.
-	-- From level 15 (Improved Frostbolt done, Frostbite learned) the guides
-	-- open with Frostbolt: the faster cast, the mob slowed from the first
-	-- hit, and every hit can freeze it, give Fingers of Frost and build
-	-- Winter's Chill. /okd opener 0|1|2 sets the number of Fireballs for
-	-- every level; /okd opener auto goes back to this.
+	-- The opener (from play, 23.11.): from far off there is time for two
+	-- Fireballs before the mob arrives, from nearer for one; then the
+	-- Frostbolt that slows it, and every press after that is Frostbolt.
+	-- Fireball reaches 35 yd and hits harder than a low Frostbolt. How many
+	-- fit is worked out before each pull from how far the target is and
+	-- how long the two spells take to cast now (OneKey.lua, openerFor):
+	-- the slow must land while the mob is still some yards away. With the
+	-- 3 s Fireball of the higher levels that is one from range and none up
+	-- close. /okd opener 0|1|2 fixes the number; /okd opener auto goes back
+	-- to the distance. The macro is chosen out of combat and stays for the
+	-- fight: a mob that joins later gets the same opener.
 	-- Before Frostbolt is learned, Fireball is the filler.
 	pull = {},
 	fight = {
-		{ "opener", "fireball", H, need = "frostbolt", count = 2, below = 15 },
+		{ "opener", "fireball", H, need = "frostbolt", count = 2, slow = "frostbolt", near = "fireblast" },
 		{ "cast", "fireball", H, without = "frostbolt" },
 		{ "cast", "frostbolt", H },
 	},

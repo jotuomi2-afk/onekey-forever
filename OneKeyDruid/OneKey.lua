@@ -16,7 +16,7 @@ if CLASS == "DRUID" then return end
 local CL = ns.CLASSES and ns.CLASSES[CLASS]
 local Logic = ns.Logic
 
-local VERSION = "0.35.0"
+local VERSION = "0.35.1"
 local PREFIX = "|cff7fd4ffOneKey|r "
 local LIMIT = 255
 local NAMES = { fight = "OneKeyMain", heal = "OneKeyHeal", cc = "OneKeyAlt", behind = "OneKeyCtrl",
@@ -173,6 +173,10 @@ local function M(name)
 	return name
 end
 
+local openerN -- how many openers the fight macro being built gets
+local fightBy = {} -- the fight macro for 0, 1, 2 ... openers
+ns.OneKeyFightBy = function() return fightBy end -- read by the tests
+
 -- one line of a class list as macro text, or nil when not learned
 local function line(e)
 	-- need / without: the line only when a spell is (not) known, for
@@ -180,17 +184,16 @@ local function line(e)
 	if e.need and not known[e.need] then return nil end
 	if e.without and known[e.without] then return nil end
 	local kind = e[1]
-	-- the opener's count is the player's to set (/okd opener); unset, the
-	-- class list's count below its level
-	local openers = kind == "opener" and db and tonumber(db.opener) or nil
-	if (e.below or e.from) and not openers then
+	if e.below or e.from then
 		local lvl = UnitLevel("player")
 		if secret(lvl) or type(lvl) ~= "number" then lvl = 1 end
 		if e.below and lvl >= e.below then return nil end
 		if e.from and lvl < e.from then return nil end
 	end
 	if kind == "opener" then
-		local n = math.min(3, openers or e.count or 1)
+		-- as often as the variant being built says (rebuild: one fight
+		-- macro for each number of openers)
+		local n = openerN or 0
 		if n < 1 or not known[e[2]] then return nil end
 		local list = {}
 		for i = 1, n do list[i] = M(N[e[2]]) end
@@ -260,12 +263,30 @@ local function rebuild()
 	for _, e in ipairs(CL.pull or {}) do all[#all + 1] = e end
 	for _, e in ipairs(CL.fight or {}) do all[#all + 1] = e end
 	-- with nothing learned that hits, the wand or the white swing does it
-	macros.fight = build(all, head)
-	if CL.wand and known.shoot and not CL.melee and not CL.wandFiller then
-		-- out of mana the spells above are skipped (not stopped on) and the
-		-- wand shoots; "!" keeps a second press from turning it off
-		macros.fight = fit({ { macros.fight, 1 }, { ("/cast [harm,nodead,nochanneling] !%s"):format(N.shoot), 2 } })
+	local function fightWith(n)
+		openerN = n
+		local text = build(all, head)
+		if CL.wand and known.shoot and not CL.melee and not CL.wandFiller then
+			-- out of mana the spells above are skipped (not stopped on) and the
+			-- wand shoots; "!" keeps a second press from turning it off
+			text = fit({ { text, 1 }, { ("/cast [harm,nodead,nochanneling] !%s"):format(N.shoot), 2 } })
+		end
+		return text
 	end
+	-- one fight macro per number of openers; which one sits on the key is
+	-- chosen before each pull (decide). With no opener in the class list
+	-- there is the one macro.
+	local top = 0
+	for _, e in ipairs(CL.fight or {}) do
+		if e[1] == "opener" and known[e[2]] and (not e.need or known[e.need]) then
+			top = math.max(e.count or 1, math.min(3, tonumber(db.opener) or 0))
+		end
+	end
+	fightBy = {}
+	for n = 0, top do fightBy[n] = fightWith(n) end
+	openerN = nil
+	-- the fight macro when nothing was chosen (attacked first): no opener
+	macros.fight = fightBy[0]
 	macros.heal = build(CL.heal)
 	-- Alt: the class's stop, and out of combat with no enemy: eat and drink
 	local REST = "[nocombat,noharm][nocombat,dead]"
@@ -325,6 +346,7 @@ local function apply(text, label)
 	current.text = text
 	current.what = "out"
 	for k, v in pairs(macros) do if v == text then current.what = k end end
+	for _, v in pairs(fightBy) do if v == text then current.what = "fight" end end
 	buttons.fight:SetAttribute("macrotext", text or "")
 end
 
@@ -399,6 +421,58 @@ local function wantOpener(now)
 	return mayTry("opener", now)
 end
 
+-- How many opening casts fit before the slowing spell lands with the mob
+-- still some way off. The mob starts to run when the first opener lands
+-- and covers about 7 yards a second; a bolt flies about 22. From d yards,
+-- with n openers of cOpen seconds each and the slow of cSlow seconds, the
+-- slow lands while the mob is still 8 yards away when
+--   n * cOpen + cSlow + 0.5 - (cOpen + d / 22) <= (d - 8) / 7
+local function openerCount(d, cOpen, cSlow, max)
+	if cOpen <= 0 then return 0 end
+	local n = math.floor(((d - 8) / 7 + d / 22 - cSlow - 0.5) / cOpen + 1)
+	return math.max(0, math.min(max, n))
+end
+ns.OneKeyOpenerCount = openerCount -- read by the tests
+
+local function castSeconds(name, fallback)
+	if name and C_Spell and C_Spell.GetSpellInfo then
+		local ok, info = pcall(C_Spell.GetSpellInfo, name)
+		if ok and type(info) == "table" and type(info.castTime) == "number" and not secret(info.castTime)
+			and info.castTime > 0 then
+			return info.castTime / 1000
+		end
+	end
+	return fallback
+end
+
+local function reaches(key)
+	if not (known[key] and C_Spell and C_Spell.IsSpellInRange) then return nil end
+	local ok, r = pcall(C_Spell.IsSpellInRange, N[key], "target")
+	if not ok or secret(r) or r == nil then return nil end
+	return r == true or r == 1
+end
+
+-- The opener for this pull: /okd opener N when set, else by how far the
+-- target is. The client only says which spells reach: the short one (Fire
+-- Blast, 20 yd) means close, the slow (Frostbolt, 30 yd) the middle, only
+-- the opener (Fireball, 35 yd) far. Returns the count and the distance used.
+local function openerFor()
+	local top = 0
+	for n in pairs(fightBy) do if n > top then top = n end end
+	if top == 0 then return 0 end
+	if tonumber(db.opener) then return math.min(top, tonumber(db.opener)), nil end
+	local O
+	for _, e in ipairs(CL.fight or {}) do if e[1] == "opener" then O = e end end
+	if not O then return 0 end
+	local d
+	if O.near and reaches(O.near) then d = 12
+	elseif O.slow and reaches(O.slow) then d = 25
+	elseif reaches(O[2]) then d = 32
+	elseif reaches(O[2]) == false then d = 33 -- too far yet: the pull will be from the edge of the range
+	else return math.min(top, 1), nil end -- the client does not say
+	return openerCount(d, castSeconds(N[O[2]], 3), castSeconds(O.slow and N[O.slow], 2.5), math.min(top, O.count or 1)), d
+end
+
 local function decide()
 	local key = db.key or "F"
 	if UnitIsDeadOrGhost("player") then return "", tr("dead") end
@@ -432,6 +506,12 @@ local function decide()
 		end
 		if wantOpener(now) then
 			return TARGET .. "\n/cast [harm,nodead] " .. N[CL.opener], tr("fight", key), "opener"
+		end
+		local n = openerFor()
+		if n > 0 then
+			local O
+			for _, e in ipairs(CL.fight or {}) do if e[1] == "opener" then O = e end end
+			return fightBy[n], tr("fight", key) .. (" (%dx %s)"):format(n, N[O[2]])
 		end
 		return macros.fight, tr("fight", key)
 	end
@@ -991,8 +1071,14 @@ local function enterCombat()
 		alarmTick()
 	end
 	if not locked() then
-		current.text = macros.fight
-		buttons.fight:SetAttribute("macrotext", macros.fight or "")
+		-- the fight macro chosen for this pull stays (its opener count);
+		-- anything else on the key (a buff, the target line) gives way
+		local chosen = false
+		for _, t in pairs(fightBy) do if t == current.text then chosen = true end end
+		if not chosen then
+			current.text = macros.fight
+			buttons.fight:SetAttribute("macrotext", macros.fight or "")
+		end
 	end
 	if hud then hud.text:SetText(tr("cFight", db.key or "F")) end
 end
@@ -1214,7 +1300,7 @@ SlashCmdList.ONEKEYDRUID = function(msg)
 		local n = tonumber(rest)
 		if rest:lower() == "auto" then db.opener = nil
 		elseif n and n >= 0 and n <= 3 then db.opener = math.floor(n)
-		else say("opener 0|1|2|3 — how many times the opening spell is cast before the filler; auto — by level.") return end
+		else say("opener 0|1|2|3 — how many times the opening spell is cast before the filler; auto — by the distance to the target.") return end
 		dirty = true
 		say("opener: " .. (db.opener and tostring(db.opener) or "auto") .. ".")
 	elseif cmd == "cone" then

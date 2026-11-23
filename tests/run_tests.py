@@ -1030,7 +1030,7 @@ def main():
         errs += lua_list(tick(2, 0.25))
         return lua, ns, errs, fire, tick
 
-    @S.test("macro: mage opens with two Fireballs below level 15 and with Frostbolt from 15; no cooldown on F")
+    @S.test("macro: mage F is Frostbolt with up to two Fireballs before it, one macro per count; no cooldown on F")
     def _():
         p = []
         for level in (1, 4, 6, 10, 14, 15, 20, 26, 40):
@@ -1039,24 +1039,23 @@ def main():
             M = ns.OneKeyMacros
             fight, heal, behind = M.fight or "", M.heal or "", M.behind or ""
             casts = [l for l in fight.split("\n") if l.startswith("/cast")]
+            by = ns.OneKeyFightBy()
             if level < 4:
                 if not casts or "Fireball" not in casts[0]:
                     p.append("level %d: Fireball is not the filler before Frostbolt: %r" % (level, casts[:1]))
-            elif level < 15:
-                # Fireball once per target, then only Frostbolt: the slow never lapses
-                if "reset=target Fireball, Fireball, null" not in fight or "Fireball" not in casts[0]:
-                    p.append("level %d: Fireball is not a once-per-target opener: %r" % (level, fight))
-                after = casts[1:]
-                if not after or "Frostbolt" not in after[0]:
-                    p.append("level %d: Frostbolt is not the filler after the opener: %r" % (level, fight))
-                if any("Fireball" in l for l in after):
-                    p.append("level %d: Fireball is cast again mid-fight (the slow can lapse)" % level)
             else:
-                # the guides' frost opener: Frostbolt from the first press
-                if "Fireball" in fight:
-                    p.append("level %d: Fireball is still on F: %r" % (level, fight))
-                if not casts or "Frostbolt" not in casts[0]:
-                    p.append("level %d: the first spell is not Frostbolt: %r" % (level, casts[:1]))
+                # the macro with no opener (attacked first): Frostbolt from the first press
+                if "Fireball" in fight or not casts or "Frostbolt" not in casts[0]:
+                    p.append("level %d: the plain fight macro is not Frostbolt first: %r" % (level, fight))
+                # and one each for one and two Fireballs, once per target, then only
+                # Frostbolt: the slow never lapses
+                for n, want in ((1, "reset=target Fireball, null"), (2, "reset=target Fireball, Fireball, null")):
+                    t = str(by[n] or "")
+                    lines = [l for l in t.split("\n") if l.startswith("/cast")]
+                    if want not in t or len(lines) < 2 or "Frostbolt" not in lines[1] or any("Fireball" in l for l in lines[1:]):
+                        p.append("level %d: the macro for %d Fireball(s) is wrong: %r" % (level, n, t))
+                    if len(t) > MACRO_LIMIT:
+                        p.append("level %d: %d openers: %d chars" % (level, n, len(t)))
             for cd in ("Fire Blast", "Frost Nova", "Cone of Cold", "Ice Lance", "Ice Barrier"):
                 if cd in fight:
                     p.append("level %d: %s (a cooldown) is on F and can stop the macro" % (level, cd))
@@ -1211,27 +1210,77 @@ def main():
                 p.append("level %d: %d chars" % (level, len(fight)))
         return p
 
-    @S.test("mage: /okd opener sets the number of Fireballs for every level; G keeps the potion reachable")
+    @S.test("mage: the opener by distance - two Fireballs from far with a short cast, one from the middle, none up close; /okd opener fixes it; G keeps the potion reachable")
     def _():
         p = []
-        lua, ns, errs, fire, tick = mage_session(20, ("icelance", "manashield"))
+        count = None
+        # the arithmetic: d yards, opener cast, slow cast, at most
+        lua, ns, errs, fire, tick = mage_session(10, drop=("water", "food"))
         p += errs
+        count = ns.OneKeyOpenerCount
+        for d, c_open, c_slow, want in ((32, 2.0, 1.8, 2), (25, 2.0, 1.8, 1), (12, 2.0, 1.8, 0),
+                                        (32, 3.0, 2.5, 1), (25, 3.0, 2.5, 1), (12, 3.0, 2.5, 0),
+                                        (33, 1.5, 1.5, 2), (32, 3.5, 3.0, 1)):
+            got = count(d, c_open, c_slow, 2)
+            if got != want:
+                p.append("%d yd, Fireball %.1f s, Frostbolt %.1f s: %d openers, expected %d" % (d, c_open, c_slow, got, want))
+        # on the key: a level 10 mage (2.0 s Fireball, 1.8 s Frostbolt) and a target
+        lua.execute('STUB.buffs = { ["Arcane Intellect"] = true, ["Frost Armor"] = true } '
+                    'STUB.targetName = "Wolf" STUB.targetLevel = 10 '
+                    'STUB.castTime = { Fireball = 2000, Frostbolt = 1800 }')
+        main = lambda: macro_attrs(lua).get("OneKeyMain:macrotext", "")
+        def at(inrange):
+            lua.execute("STUB.inRange = { %s }" % ", ".join('["%s"] = %s' % (k, "true" if v else "false") for k, v in inrange.items()))
+            return lua_list(tick(2, 0.25))
+        cases = (("far: only Fireball reaches", {"Fireball": True, "Frostbolt": False, "Fire Blast": False}, "Fireball, Fireball, null"),
+                 ("middle: Frostbolt reaches", {"Fireball": True, "Frostbolt": True, "Fire Blast": False}, "reset=target Fireball, null"),
+                 ("close: Fire Blast reaches", {"Fireball": True, "Frostbolt": True, "Fire Blast": True}, None),
+                 ("too far yet", {"Fireball": False, "Frostbolt": False, "Fire Blast": False}, "Fireball, Fireball, null"))
+        for what, inrange, want in cases:
+            p += at(inrange)
+            m = main()
+            if (want and want not in m) or (not want and "Fireball" in m) or "Frostbolt" not in m:
+                p.append("%s: %r" % (what, m))
+        # the macro chosen for the pull stays when the fight begins
+        p += at(cases[0][1])
+        chosen = main()
+        p += lua_list(fire("PLAYER_REGEN_DISABLED"))
+        lua.execute("STUB.combat = true")
+        p += lua_list(tick(2, 0.25))
+        if main() != chosen or "Fireball, Fireball, null" not in chosen:
+            p.append("the opener chosen for the pull is replaced as the fight begins: %r" % main())
+        v = [str(x) for x in lua.eval("STUB.violations").values()]
+        if v:
+            p.append("the opener touched secure state in the fight: %r" % v[:2])
+        lua.execute("STUB.combat = false")
+        p += lua_list(fire("PLAYER_REGEN_ENABLED"))
+        # attacked first, with a buff still on the key: the plain fight macro
+        lua.execute('STUB.buffs = {} STUB.targetName = nil')
+        p += lua_list(tick(2, 0.25))
+        p += lua_list(fire("PLAYER_REGEN_DISABLED"))
+        if "Fireball" in main() or "Frostbolt" not in main():
+            p.append("attacked first: the key is not the plain fight macro: %r" % main())
+        lua.execute('STUB.combat = false')
+        p += lua_list(fire("PLAYER_REGEN_ENABLED"))
+        # the client does not say what reaches: one Fireball
+        lua.execute('STUB.buffs = { ["Arcane Intellect"] = true, ["Frost Armor"] = true } STUB.targetName = "Wolf" STUB.inRange = nil')
+        p += lua_list(tick(2, 0.25))
+        if "reset=target Fireball, null" not in main():
+            p.append("no range answer: not one Fireball: %r" % main())
+        # /okd opener N fixes the count, whatever the distance
         slash = lua.eval("STUB.slash")
-        f = lambda: ns.OneKeyMacros.fight or ""
-        if "Fireball" in f():
-            p.append("level 20, auto: Fireball opens: %r" % f())
-        for n, want in ((2, "reset=target Fireball, Fireball, null"), (1, "reset=target Fireball, null"), (0, None)):
+        p += at(cases[2][1])
+        for n, want in ((2, "Fireball, Fireball, null"), (1, "reset=target Fireball, null"), (0, None)):
             slash("opener %d" % n)
             p += lua_list(tick(2, 0.25))
-            if (want and want not in f()) or (not want and "Fireball" in f()):
-                p.append("/okd opener %d: %r" % (n, f()))
-            if not f().split("\n")[-2].endswith("Frostbolt"):
-                p.append("/okd opener %d: Frostbolt is not the filler: %r" % (n, f()))
+            m = main()
+            if (want and want not in m) or (not want and "Fireball" in m):
+                p.append("/okd opener %d up close: %r" % (n, m))
         slash("opener auto")
         slash("opener 99")
         p += lua_list(tick(2, 0.25))
-        if "Fireball" in f():
-            p.append("/okd opener auto does not go back to the level's opener: %r" % f())
+        if "Fireball" in main():
+            p.append("/okd opener auto does not go back to the distance: %r" % main())
         # G: the sequence ends in null, so once through it lets the potion
         # line run; its reset (25 s) is not shorter than its longest cooldown
         CL = ns.CLASSES.MAGE

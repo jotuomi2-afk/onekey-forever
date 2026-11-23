@@ -224,7 +224,10 @@ C_Spell = {
 	GetSpellName = function(id) return STUB.names and STUB.names[id] end,
 	GetSpellInfo = function(x)
 		if type(x) == "string" then
-			for _, n in pairs(STUB.known) do if n == x then return { name = x } end end
+			-- STUB.castTime[name]: milliseconds, as the client gives it
+			for _, n in pairs(STUB.known) do
+				if n == x then return { name = x, castTime = STUB.castTime and STUB.castTime[x] or 0 } end
+			end
 			return nil
 		end
 		local n = STUB.names and STUB.names[x]

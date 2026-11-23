@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.35.1
+
+- Mage, F: the opener now goes by how far the target is. Before each pull
+  the addon works out how many Fireballs fit before the Frostbolt that
+  slows the mob lands with it still some yards away: from what reaches the
+  target (only Fireball: far; Frostbolt too: the middle; Fire Blast too:
+  close) and from how long Fireball and Frostbolt take to cast right now.
+  - With the short casts of the low levels: two Fireballs from far, one
+    from the middle, none up close.
+  - With the 3 s Fireball of the higher levels: one from range, none up
+    close.
+  - Attacked first: Frostbolt straight away.
+  - The HUD says what is on the key: "F: attack (2x Fireball)".
+  - `/okd opener 0|1|2` fixes the number; `/okd opener auto` goes back to
+    the distance. The level-15 rule of 0.35.0 is gone.
+  - The macro is chosen before the pull and stays for the fight (macros
+    are locked in combat): a mob that joins later gets the same opener.
+
 ## 0.35.0
 
 The solo quest guide, and the fixes from the independent review of 0.34.0.
