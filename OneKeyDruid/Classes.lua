@@ -61,7 +61,7 @@ C.MAGE = {
 	-- how long the two spells take to cast now (OneKey.lua, openerFor):
 	-- the slow must land while the mob is still some yards away. With the
 	-- 3 s Fireball of the higher levels that is one from range and none up
-	-- close. /okd opener 0|1|2 fixes the number; /okd opener auto goes back
+	-- close. /okd opener 0-3 fixes the number; /okd opener auto goes back
 	-- to the distance. The macro is chosen out of combat and stays for the
 	-- fight: a mob that joins later gets the same opener.
 	-- Before Frostbolt is learned, Fireball is the filler.
@@ -91,10 +91,12 @@ C.MAGE = {
 	-- then Mana Shield, one press each, and the potion with the first.
 	-- One sequence that ends (null): after the three it stays out of the
 	-- way, so the potion line is still reached, and 25 s after the last
-	-- press it starts over, when Frost Nova is ready again. Frost Nova and
-	-- Blink are on no other key: a spell that another key had put on
-	-- cooldown would hold this one.
-	sos = { { "seq", { "nova", "blink", "manashield" }, "", "25/combat", stop = true }, { "potion" } },
+	-- press it starts over, when Frost Nova is ready again. Only the time
+	-- resets it: the end of a fight must not (Frost Nova's cooldown runs
+	-- on into the next fight, and a sequence back on a spell that is not
+	-- ready holds the key and the potion behind it). Frost Nova and Blink
+	-- are on no other key, for the same reason.
+	sos = { { "seq", { "nova", "blink", "manashield" }, "", "25", stop = true }, { "potion" } },
 	-- Shift+G: Counterspell
 	free = { { "cast", "cs", H } },
 	-- Ctrl+G: Ice Barrier again in a long fight (the HUD says when)
@@ -195,7 +197,7 @@ C.ROGUE = {
 	-- Two strikes that both miss leave Slice and Dice without a combo
 	-- point, and the sequence waits on it. Gouge (Alt+F) gives a point.
 	stuck = { spell = "gouge", key = "cc" },
-	cd = { riposte = 6 },
+	cd = { riposte = 6, gouge = 10 },
 	sos = { { "cast", "evasion", "" }, { "potion" } },
 	free = { { "cast", "sprint", "" } },
 	hide = { { "cast", "stealth", "[nocombat,nostealth]" } },

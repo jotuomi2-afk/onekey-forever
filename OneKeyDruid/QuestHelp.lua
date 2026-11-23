@@ -540,10 +540,10 @@ function QH.Age() return GetTime() - (state.at or 0) end
 
 local WHY = {
 	en = { group = "needs a group", hard = "too high for now", low = "little XP", new = "new in Forever",
-		unsure = "no place outdoors known: a dungeon?",
+		unsure = "place not known: a dungeon, or a summoned target",
 		elite = "elite", dungeon = "dungeon" },
 	fi = { group = "vaatii ryhmän", hard = "vielä liian korkea", low = "vähän XP:tä", new = "uusi Foreverissa",
-		unsure = "ei tunnettua paikkaa ulkona: dungeon?",
+		unsure = "paikkaa ei tiedetä: dungeon tai kutsuttava kohde",
 		elite = "eliitti", dungeon = "dungeon" },
 }
 

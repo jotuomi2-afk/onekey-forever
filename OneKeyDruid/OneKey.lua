@@ -33,6 +33,7 @@ local ready, dirty, bagsDirty = false, true, true
 local current = { text = nil }
 local clicks = {}
 local fightPress = 0 -- the last key-down of the fight key
+local sosPress = 0 -- and of the emergency key
 local live = { start = 0, times = {} }
 local adds = { n = 0, at = 0, warned = false }
 local logEvent -- the session log, further down
@@ -279,7 +280,7 @@ local function rebuild()
 	local top = 0
 	for _, e in ipairs(CL.fight or {}) do
 		if e[1] == "opener" and known[e[2]] and (not e.need or known[e.need]) then
-			top = math.max(e.count or 1, math.min(3, tonumber(db.opener) or 0))
+			top = math.max(e.count or 1, math.min(3, math.floor(tonumber(db.opener) or 0)))
 		end
 	end
 	fightBy = {}
@@ -460,7 +461,7 @@ local function openerFor()
 	local top = 0
 	for n in pairs(fightBy) do if n > top then top = n end end
 	if top == 0 then return 0 end
-	if tonumber(db.opener) then return math.min(top, tonumber(db.opener)), nil end
+	if tonumber(db.opener) then return math.max(0, math.min(top, math.floor(tonumber(db.opener)))), nil end
 	local O
 	for _, e in ipairs(CL.fight or {}) do if e[1] == "opener" then O = e end end
 	if not O then return 0 end
@@ -470,6 +471,9 @@ local function openerFor()
 	elseif reaches(O[2]) then d = 32
 	elseif reaches(O[2]) == false then d = 33 -- too far yet: the pull will be from the edge of the range
 	else return math.min(top, 1), nil end -- the client does not say
+	-- with no short-range spell learned "close" cannot be told from the
+	-- middle: one opener at most
+	if O.near and not known[O.near] then top = math.min(top, 1) end
 	return openerCount(d, castSeconds(N[O[2]], 3), castSeconds(O.slow and N[O.slow], 2.5), math.min(top, O.count or 1)), d
 end
 
@@ -508,7 +512,7 @@ local function decide()
 			return TARGET .. "\n/cast [harm,nodead] " .. N[CL.opener], tr("fight", key), "opener"
 		end
 		local n = openerFor()
-		if n > 0 then
+		if n > 0 and fightBy[n] then
 			local O
 			for _, e in ipairs(CL.fight or {}) do if e[1] == "opener" then O = e end end
 			return fightBy[n], tr("fight", key) .. (" (%dx %s)"):format(n, N[O[2]])
@@ -762,8 +766,15 @@ local function stuckHint(now)
 	local S = CL and CL.stuck
 	if not S or not known[S.spell] or not GetComboPoints then return nil end
 	local ok, cp = pcall(GetComboPoints, "player", "target")
-	if not ok or secret(cp) or cp ~= 0 then return nil end
-	if now - live.start < 5 or now - (lastOwnCast or 0) < 5 or now - fightPress > 2 then return nil end
+	if not ok or secret(cp) or cp ~= 0 or targetKind() ~= "hostile" then return nil end
+	-- seven seconds: longer than waiting for the energy of one strike
+	if now - live.start < 7 or now - (lastOwnCast or 0) < 7 or now - fightPress > 2 then return nil end
+	local left, sure = cooldownLeft(S.spell, now)
+	if left > 0 or not sure then return nil end
+	if C_Spell and C_Spell.IsSpellUsable then
+		local okU, usable = pcall(C_Spell.IsSpellUsable, N[S.spell])
+		if not okU or secret(usable) or usable ~= true then return nil end
+	end
 	return tr("aKey", (S.label or "NO COMBO POINT") .. ": " .. N[S.spell], COMBO[S.key] or "", db.key or "F")
 end
 
@@ -792,11 +803,12 @@ local function alertText(now)
 	local fLeft, fSure = cooldownLeft(A.freeze, now)
 	if hit and fLeft == 0 and fSure then
 		-- the freeze is on the emergency key (mage), or on Shift+F
-		if A.freezeKey == "sos" then
-			if not db.sos then return nil end
+		if A.freezeKey ~= "sos" then return tr("aNova", key, N[A.freeze]) end
+		-- the key's sequence starts over 25 s after its last press: until
+		-- then its next press is not the freeze
+		if db.sos and now - sosPress > 25 then
 			return tr("aNovaKey", db.sos, N[A.freeze], known.blink and N.blink or key)
 		end
-		return tr("aNova", key, N[A.freeze])
 	end
 	local W = A.chill
 	local wLeft, wSure = 99, false
@@ -914,7 +926,11 @@ local function secureButton(name)
 	for k, v in pairs(NAMES) do if v == name then what = k end end
 	b:HookScript("PreClick", function(_, _, down)
 		clicks[#clicks + 1] = GetTime() if #clicks > 12 then table.remove(clicks, 1) end
-		if what == "fight" and down ~= false then fightPress, pressedOffer = GetTime(), onKey end
+		if what == "fight" and down ~= false then
+			-- in a fight the key holds the fight macro, whatever was offered before it
+			fightPress, pressedOffer = GetTime(), (not locked()) and onKey or nil
+		end
+		if what == "sos" and down ~= false then sosPress = GetTime() end
 		-- a key held down clicks on both down and up; count one press
 		if logEvent and down ~= false then logEvent("P", (what == "fight" and not locked()) and (current.what or "out") or what) end
 	end)
@@ -1061,6 +1077,7 @@ local function alarmTick()
 end
 
 local function enterCombat()
+	onKey, pressedOffer = nil, nil
 	logCombat(true)
 	lastCast = {}
 	if readCooldowns then readCooldowns() end
@@ -1300,7 +1317,7 @@ SlashCmdList.ONEKEYDRUID = function(msg)
 		local n = tonumber(rest)
 		if rest:lower() == "auto" then db.opener = nil
 		elseif n and n >= 0 and n <= 3 then db.opener = math.floor(n)
-		else say("opener 0|1|2|3 — how many times the opening spell is cast before the filler; auto — by the distance to the target.") return end
+		else say("opener 0-3 — how many times the opening spell is cast before the filler; auto — by the distance to the target.") return end
 		dirty = true
 		say("opener: " .. (db.opener and tostring(db.opener) or "auto") .. ".")
 	elseif cmd == "cone" then

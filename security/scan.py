@@ -159,6 +159,14 @@ def scan_lua(name, src, findings):
                         hit(line, rule, "uses " + text + " as a field of " + (base[1] if base[0] == "name" else "a value"))
                 continue
             check_name(text, line)
+            # /okd probe's helper calls a global by its dotted path: the
+            # path must be written out, never put together
+            nxt0 = toks[k + 1] if k + 1 < len(toks) else ("op", "", 0)
+            arg0 = toks[k + 2] if k + 2 < len(toks) else ("op", "", 0)
+            after0 = toks[k + 3] if k + 3 < len(toks) else ("op", "", 0)
+            if text == "call" and nxt0[1] == "(" and prev[1] != "function" and \
+                    not (arg0[0] == "str" and after0[1] in (",", ")")):
+                hit(line, "R3", "call with a path that is not a literal")
             if text in SECRET_APIS:
                 # health and power may be called, or handed to pcall; taken
                 # as a value under another name they escape the R4 check
@@ -204,7 +212,8 @@ def xml_scripts(src):
         yield src.count("\n", 0, m.start()) + 1, m.group(2)
 
 
-DATA_FRAME = ("local _, ns = ...", "ns.QDB = { q = {", "}, n = {", "}, o = {", "}, i = {", "} }", "ns.QDBX = {", "}")
+DATA_FRAME = {"QuestData.lua": ("local _, ns = ...", "ns.QDB = { q = {", "}, n = {", "}, o = {", "}, i = {", "} }"),
+              "QuestDataNew.lua": ("local _, ns = ...", "ns.QDBX = {", "}")}
 
 
 def scan(addon_dir):
@@ -253,7 +262,7 @@ def scan(addon_dir):
         # data only, line by line: a comment, one of the few lines that
         # open and close the tables, or one record [id]="text",
         for n, ln in enumerate(text.split("\n"), 1):
-            if ln == "" or ln.startswith("--") or ln in DATA_FRAME:
+            if ln == "" or ln.startswith("--") or ln in DATA_FRAME[fname]:
                 continue
             if not re.match(r'^\[\d+\]="(?:[^"\\]|\\.)*",$', ln):
                 findings.append((fname, n, "R3", "not a data record: " + ln[:40]))

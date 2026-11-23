@@ -113,7 +113,8 @@ def children(t):
 # races of each side (Classic ids), and the maps where only one side quests
 ALLIANCE_RACES, HORDE_RACES = {1, 3, 4, 7}, {2, 5, 6, 8}
 ALLIANCE_MAPS = {1426, 1429, 1438, 1453, 1455, 1457, 1436, 1432, 1439}
-HORDE_MAPS = {1411, 1412, 1420, 1454, 1456, 1458, 1413, 1421}
+# (not the Barrens: Ratchet gives quests to both sides)
+HORDE_MAPS = {1411, 1412, 1420, 1454, 1456, 1458, 1421}
 # quest ids Forever added start far above the Classic ones (the highest
 # Classic id is under 10 000); a lower id that pfQuest lacks is an old
 # quest pfQuest or its extractor left out on purpose (events, professions)

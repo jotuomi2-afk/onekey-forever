@@ -1067,7 +1067,9 @@ def main():
             if "Frost Nova" in others or "Blink" in others:
                 p.append("level %d: Frost Nova or Blink is on a key besides G" % level)
             want = [n for n, l in (("Frost Nova", 10), ("Blink", 20)) if level >= l]
-            if want and not (sos.startswith("/castsequence reset=25/combat " + ", ".join(want)) and sos.split("\n")[0].endswith(", null")):
+            # reset by time only: the end of a fight must not put the sequence
+            # back on Frost Nova while its cooldown still runs
+            if want and not (sos.startswith("/castsequence reset=25 " + ", ".join(want)) and sos.split("\n")[0].endswith(", null")):
                 p.append("level %d: G is not %s once through, starting over after 25 s: %r" % (level, ", ".join(want), sos))
             if level >= 6 and "Fire Blast" not in behind:
                 p.append("level %d: Ctrl+F has no Fire Blast: %r" % (level, behind))
@@ -1267,6 +1269,21 @@ def main():
         p += lua_list(tick(2, 0.25))
         if "reset=target Fireball, null" not in main():
             p.append("no range answer: not one Fireball: %r" % main())
+        # below level 6 there is no Fire Blast to tell "close": one Fireball at most
+        lua5, ns5, errs5, fire5, tick5 = mage_session(5, drop=("water", "food"))
+        p += errs5
+        lua5.execute('STUB.buffs = { ["Frost Armor"] = true } STUB.targetName = "Wolf" STUB.targetLevel = 5 '
+                     'STUB.castTime = { Fireball = 1500, Frostbolt = 1500 } STUB.inRange = { Fireball = true, Frostbolt = false }')
+        p += lua_list(tick5(2, 0.25))
+        m5 = macro_attrs(lua5).get("OneKeyMain:macrotext", "")
+        if "Fireball, Fireball" in m5 or "reset=target Fireball, null" not in m5:
+            p.append("level 5 (no Fire Blast): not one Fireball: %r" % m5)
+        # a count that is not a whole number (a hand-edited setting) still gives a macro
+        lua.execute("OneKeyDruidDB.opener = 1.5")
+        p += lua_list(tick(2, 0.25))
+        if "Frostbolt" not in main():
+            p.append("opener 1.5: the key has no fight macro: %r" % main())
+        lua.execute("OneKeyDruidDB.opener = nil")
         # /okd opener N fixes the count, whatever the distance
         slash = lua.eval("STUB.slash")
         p += at(cases[2][1])
@@ -1286,6 +1303,8 @@ def main():
         CL = ns.CLASSES.MAGE
         seq = CL.sos[1]
         longest = max(CL.alert.cd[k] or 0 for k in seq[2].values())
+        if not str(seq[4]).isdigit():
+            p.append("G: the sequence resets on more than time (%r): after a fight it would stand on a spell still cooling" % seq[4])
         reset = int(str(seq[4]).split("/")[0])
         if not seq.stop or reset < longest:
             p.append("G: the sequence does not end, or resets (%d s) before its longest cooldown (%d s)" % (reset, longest))
@@ -1336,6 +1355,14 @@ def main():
         acts = [l for l in text.split("\n") if l.startswith(("/cast", "/use"))]
         out = []
         for l in acts[:-1]:
+            # The one exception: a sequence that ends (", null") and is reset
+            # by time alone, no shorter than its longest cooldown, whose
+            # spells are on no other key (the mage's G; both conditions are
+            # tested in "mage: the opener by distance" and "macro: mage F").
+            # It stands on a spell that is not ready only if another key
+            # used that spell, or the reset came early.
+            if re.match(r"^/castsequence reset=\d+ [^\n]*, null$", l):
+                continue
             for cd in MAY_FAIL:
                 if cd in l:
                     out.append("%r can fail and comes before %r" % (l, acts[-1]))
@@ -1716,6 +1743,44 @@ def main():
             p.append("a buff given up on is back after one fight: %r" % main())
         return p
 
+    @S.test("try once: a fight's presses are no try for a buff that was on the key when it began; G's hint waits for its sequence")
+    def _():
+        p = []
+        lua, ns, errs, fire, tick = mage_session(10, drop=("water", "food"))
+        p += errs
+        lua.execute('STUB.buffs = { ["Frost Armor"] = true }')
+        click = lua.eval("STUB.click")
+        main = lambda: macro_attrs(lua).get("OneKeyMain:macrotext", "")
+        p += lua_list(tick(2, 0.25))
+        if "Arcane Intellect" not in main():
+            return p + ["Arcane Intellect not offered: %r" % main()]
+        # attacked first: six presses of F in the fight
+        p += in_combat(lua, fire, tick)
+        for i in range(6):
+            p += lua_list(click("OneKeyMain", True))
+            p += lua_list(tick(2, 0.25))
+        # hit in melee, G never pressed: the hint names G and Frost Nova
+        p += lua_list(fire("UNIT_COMBAT", "player", "WOUND", "", 30, 1))
+        p += lua_list(tick(2, 0.25))
+        if "IN MELEE: G " not in (ns.OneKeyAlert() or ""):
+            p.append("no Frost Nova hint: %r" % ns.OneKeyAlert())
+        # G pressed (Frost Nova cast), a new hit 10 s later with Nova read as ready
+        # again by mistake: the hint must wait for the sequence's 25 s
+        p += lua_list(click("OneKeySOS", True))
+        lua.execute('STUB.cooldown["Frost Nova"] = 1')
+        p += lua_list(lua.eval("STUB.castDone")(122))
+        p += lua_list(tick(44, 0.25))
+        p += lua_list(fire("UNIT_COMBAT", "player", "WOUND", "", 30, 1))
+        p += lua_list(tick(2, 0.25))
+        if "IN MELEE: G " in (ns.OneKeyAlert() or ""):
+            p.append("the Frost Nova hint shows 11 s after a G press, while G's next press is not Frost Nova: %r" % ns.OneKeyAlert())
+        lua.execute("STUB.combat = false")
+        p += lua_list(fire("PLAYER_REGEN_ENABLED"))
+        p += lua_list(tick(12, 0.25))
+        if "Arcane Intellect" not in main():
+            p.append("attacked first: the fight's presses took the Arcane Intellect offer away: %r" % main())
+        return p
+
     @S.test("rogue: with no combo point and a key that casts nothing the HUD names Gouge")
     def _():
         p = []
@@ -1729,12 +1794,24 @@ def main():
             p += lua_list(tick(2, 0.25))
         if ns.OneKeyAlert():
             p.append("a hint 4 s after the last cast: %r" % ns.OneKeyAlert())
-        for i in range(6):
+        for i in range(8):
             p += lua_list(click("OneKeyMain", True))
             p += lua_list(tick(2, 0.25))
         a = ns.OneKeyAlert() or ""
         if "NO COMBO POINT" not in a or "Gouge" not in a or "Alt+F" not in a:
-            p.append("no Gouge hint with no combo point and no cast for 7 s: %r" % a)
+            p.append("no Gouge hint with no combo point and no cast for 8 s: %r" % a)
+        # not while Gouge cannot be used, and not with no target
+        lua.execute("STUB.usable.Gouge = false")
+        p += lua_list(click("OneKeyMain", True))
+        p += lua_list(tick(2, 0.25))
+        if "NO COMBO POINT" in (ns.OneKeyAlert() or ""):
+            p.append("the hint names Gouge while it cannot be used: %r" % ns.OneKeyAlert())
+        lua.execute("STUB.usable.Gouge = true STUB.targetName = nil")
+        p += lua_list(click("OneKeyMain", True))
+        p += lua_list(tick(2, 0.25))
+        if "NO COMBO POINT" in (ns.OneKeyAlert() or ""):
+            p.append("the hint shows with no target: %r" % ns.OneKeyAlert())
+        lua.execute('STUB.targetName = "Boar"')
         lua.execute("STUB.combo = 2")
         p += lua_list(click("OneKeyMain", True))
         p += lua_list(tick(2, 0.25))
@@ -2056,6 +2133,9 @@ def main():
             if int(f[0] or 0) < 1:
                 p.append("quest %s has no level: it would be offered at every level" % qid)
             # one side only in the starting zones and capitals
+            # Ratchet gives quests to both sides: no side from the zone in the Barrens
+            if int(qid) in (92706, 97253) and f[1] != "":
+                p.append("quest %s at Ratchet got a side from its zone: %r" % (qid, f[1]))
             if (f[3] in ("1420", "1412", "1411", "1454", "1456", "1458") and f[1] != "2") or \
                (f[3] in ("1429", "1426", "1438", "1453", "1455", "1457") and f[1] != "1"):
                 p.append("quest %s on map %s has faction %r" % (qid, f[3], f[1]))

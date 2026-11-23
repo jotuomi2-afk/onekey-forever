@@ -36,7 +36,9 @@ accounts at risk.
 
 What the addon does use, and why it stays within the rules: out of combat
 it estimates health and mana from numbers the client hands out as plain
-values (the damage meter's totals, `IsSpellUsable`, the maximum health).
+values (the damage meter's totals, `IsSpellUsable`, the maximum health),
+and it looks at which spells reach the target and how long they take to
+cast (the mage's opener).
 The estimate only chooses which macro sits on the key before the next
 press. The player still presses for every action, and nothing is chosen
 during combat, when the macro is locked.

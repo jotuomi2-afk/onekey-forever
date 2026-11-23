@@ -13,10 +13,31 @@
     close.
   - Attacked first: Frostbolt straight away.
   - The HUD says what is on the key: "F: attack (2x Fireball)".
-  - `/okd opener 0|1|2` fixes the number; `/okd opener auto` goes back to
+  - `/okd opener 0-3` fixes the number; `/okd opener auto` goes back to
     the distance. The level-15 rule of 0.35.0 is gone.
   - The macro is chosen before the pull and stays for the fight (macros
     are locked in combat): a mob that joins later gets the same opener.
+- Mage, G: the sequence (Frost Nova, Blink, Mana Shield) is reset by time
+  only, 25 s after the last press. In 0.35.0 the end of a fight also reset
+  it, back onto Frost Nova while its cooldown still ran: in the next fight
+  G, and the potion behind it, could do nothing for up to 20 seconds. The
+  "IN MELEE: G" hint now waits until G is back at Frost Nova.
+- A buff that was on F when a mob attacked first is no longer given up on
+  for five minutes because F was pressed in the fight.
+- Rogue: the "NO COMBO POINT" hint needs a target, Gouge ready and usable,
+  and seven seconds without a cast (it showed during ordinary waits for
+  energy).
+- Quest list: Ratchet's new quests are for both sides again (the Barrens
+  were counted as a Horde zone). A quest with no known place says "place
+  not known: a dungeon, or a summoned target".
+- Known gaps of the solo rating: the data gives no sign that these are
+  dungeon or elite quests until they are in your log, where the game's tag
+  marks them: Knowledge in the Deeps, the Gnomeregan quests (Data Rescue,
+  A Fine Mess, Gnogaine), Uldaman Reagent Run, Into The Temple of
+  Atal'Hakkar, Mother's Milk, Kibler's Exotic Pets, WANTED: Murkdeep!,
+  Wanted: Lieutenant Fangore, Jail Break!. And some class and summon
+  quests are listed apart as "place not known" although one player can do
+  them (Curing the Sick, Call of Water, Ulag the Cleaver).
 
 ## 0.35.0
 
