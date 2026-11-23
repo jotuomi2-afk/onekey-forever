@@ -107,7 +107,7 @@ point to several tests; names are matched on their beginning.
 | REQ-17 | /okd bind and /okd sos take only real keys, and never each other's key | keys: |
 | REQ-18 | After a /reload in combat the keys work once the fight ends | reload in combat: |
 | REQ-19 | Every class keeps its main spell in the fight macro | macro: every class |
-| REQ-21 | The mage pulls with Fireball (the longest range) below level 15 and with Frostbolt from 15, as the Forever frost guides do; cooldown spells sit on Shift+F and Ctrl+F | macro: mage opens |
+| REQ-21 | The mage opens with two Fireballs (the longest range) below level 15 and with Frostbolt from 15, as the Forever frost guides do; /okd opener sets the count; cooldown spells sit on the helper keys | macro: mage opens; mage: /okd opener |
 | REQ-22 | No macro (F, G, the druid keys) tries anything that can fail (cooldown, range, target type, position, a potion) before another spell: the client stops a macro at the first failed cast | macro: nothing that can fail |
 | REQ-24 | The rogue chains its stuns: Cheap Shot, Kidney Shot, Gouge, inside one sequence | macro: rogue chains |
 | REQ-26 | Rooted, the druid breaks free with Shift+G in any form (cat and bear swap: Forever has no powershift); from caster form the HUD offers Ctrl+G back | druid: rooted |
@@ -126,7 +126,7 @@ point to several tests; names are matched on their beginning.
 | REQ-39 | Druid cat F: Rip is the first finisher, Ferocious Bite the second once learned, with three Claws before the Bite; F stays within 255 characters | druid: cat finishers are Rip first |
 | REQ-40 | Warrior: F holds no spell that is usable only now and then (Overpower, Execute); they have Ctrl+F and Shift+F | warrior: F is Rend once |
 | REQ-41 | Druid F out of combat: in cat or bear form with a target it does not leave the form to renew a Mark with time left; a party member in range without Mark of the Wild gets it ([@partyN]) | logic: a cat with a target keeps its form |
-| REQ-25 | The mage keeps the Frostbolt slow up: Fireball only opens, and only below level 15. Shift+F is Frost Nova, Frostbolt, Ice Lance, and starts over after 10 s | macro: mage opens |
+| REQ-25 | The mage keeps the Frostbolt slow up: Fireball only opens. Shift+F is Frostbolt, Ice Lance for a frozen mob. G is the way out: Frost Nova, Blink, Mana Shield once through with the potion, starting over after 25 s; Frost Nova and Blink are on no other key | macro: mage opens; mage: /okd opener |
 | REQ-42 | Mage: out of combat with an enemy picked F casts Ice Barrier first when it is not up and not on cooldown; a press that does not bring the buff does not hold the key; Ice Armor comes before Mage Armor; Ctrl+G is Ice Barrier | mage: Ice Barrier before the pull |
 | REQ-43 | Mage HUD: five Frostbolt or Ice Lance casts on a target ask for Cone of Cold (Winter's Chill, level 35; /okd cone off); a minute after Ice Barrier it asks for it again | hud: mage with five Frostbolts |
 | REQ-44 | What F offers before a fight (buff, shield, imbue, opener) is tried once: two seconds after the first press of the fight key it is over, however the key is hammered; a key-up or another key is no try; what the client says cannot be cast is not offered | mage: Ice Barrier before the pull; priest: before the pull; shaman: the weapon imbue; try once: |
@@ -136,7 +136,7 @@ point to several tests; names are matched on their beginning.
 | REQ-48 | Shaman: out of combat F puts the weapon imbue on (Windfury over Rockbiter); F is Lightning Bolt to pull, then Flame Shock, Stormstrike, Earth Shock in one sequence | shaman: the weapon imbue |
 | REQ-49 | Priest: from level 10 F shields before the pull (not under Weakened Soul) and opens with Mind Blast; the wand stays the last line of F with Shadowform too | priest: before the pull; priest: Shadow Word: Pain once |
 | REQ-50 | Rogue: Slice and Dice is the first finisher, after two Sinister Strikes (one that misses must not leave a finisher without a combo point); the chain with Cheap Shot fits 255 characters | macro: rogue chains |
-| REQ-23 | The HUD tells a mage in melee to Frost Nova, then Ice Lance and step back | hud: mage hit in melee |
+| REQ-23 | The HUD tells a mage in melee to press the emergency key (Frost Nova, then Blink), then Shift+F for Frostbolt and Ice Lance | hud: mage hit in melee |
 | REQ-20 | With no enemy targeted, the key only targets; the next update checks the target before attacking | macro: every class; smoke: |
 | REQ-51 | The solo rating: a quest the game tags for a group, with an elite objective or in a dungeon needs a group; mobs or a quest 3 levels over the player is too hard; 6 under gives little XP | solo: the rating; questdata: |
 | REQ-52 | The zone plan: hand-ins first, then one walk through what one player can take and do (nearest next, by worth), group and too-hard quests apart with the reason; the hint never names a group quest while a solo one is there; Horde quests never for the Alliance | solo: the plan; solo: a quest the game tags |

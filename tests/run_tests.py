@@ -1030,7 +1030,7 @@ def main():
         errs += lua_list(tick(2, 0.25))
         return lua, ns, errs, fire, tick
 
-    @S.test("macro: mage opens with Fireball below level 15 and with Frostbolt from 15; no cooldown on F")
+    @S.test("macro: mage opens with two Fireballs below level 15 and with Frostbolt from 15; no cooldown on F")
     def _():
         p = []
         for level in (1, 4, 6, 10, 14, 15, 20, 26, 40):
@@ -1044,7 +1044,7 @@ def main():
                     p.append("level %d: Fireball is not the filler before Frostbolt: %r" % (level, casts[:1]))
             elif level < 15:
                 # Fireball once per target, then only Frostbolt: the slow never lapses
-                if "reset=target Fireball, null" not in fight or "Fireball" not in casts[0]:
+                if "reset=target Fireball, Fireball, null" not in fight or "Fireball" not in casts[0]:
                     p.append("level %d: Fireball is not a once-per-target opener: %r" % (level, fight))
                 after = casts[1:]
                 if not after or "Frostbolt" not in after[0]:
@@ -1060,10 +1060,16 @@ def main():
             for cd in ("Fire Blast", "Frost Nova", "Cone of Cold", "Ice Lance", "Ice Barrier"):
                 if cd in fight:
                     p.append("level %d: %s (a cooldown) is on F and can stop the macro" % (level, cd))
-            if level >= 10 and not heal.startswith("/castsequence reset=10/combat Frost Nova, Frostbolt"):
-                p.append("level %d: Shift+F is not Frost Nova, then Frostbolt, starting over after 10 s: %r" % (level, heal))
-            if level >= 20 and not heal.endswith("Frost Nova, Frostbolt, Ice Lance"):
-                p.append("level %d: Shift+F does not end Nova, Frostbolt with Ice Lance: %r" % (level, heal))
+            if level >= 20 and heal != "/castsequence [harm,nodead] reset=6/combat Frostbolt, Ice Lance":
+                p.append("level %d: Shift+F is not Frostbolt, then Ice Lance, starting over after 6 s: %r" % (level, heal))
+            # Frost Nova and Blink are on G only: a spell another key had put
+            # on cooldown would hold G's sequence
+            sos, others = M.sos or "", "\n".join([fight, heal, behind, M.cc or "", M.free or "", M.hide or ""])
+            if "Frost Nova" in others or "Blink" in others:
+                p.append("level %d: Frost Nova or Blink is on a key besides G" % level)
+            want = [n for n, l in (("Frost Nova", 10), ("Blink", 20)) if level >= l]
+            if want and not (sos.startswith("/castsequence reset=25/combat " + ", ".join(want)) and sos.split("\n")[0].endswith(", null")):
+                p.append("level %d: G is not %s once through, starting over after 25 s: %r" % (level, ", ".join(want), sos))
             if level >= 6 and "Fire Blast" not in behind:
                 p.append("level %d: Ctrl+F has no Fire Blast: %r" % (level, behind))
             if "!Shoot" not in fight:
@@ -1205,6 +1211,39 @@ def main():
                 p.append("level %d: %d chars" % (level, len(fight)))
         return p
 
+    @S.test("mage: /okd opener sets the number of Fireballs for every level; G keeps the potion reachable")
+    def _():
+        p = []
+        lua, ns, errs, fire, tick = mage_session(20, ("icelance", "manashield"))
+        p += errs
+        slash = lua.eval("STUB.slash")
+        f = lambda: ns.OneKeyMacros.fight or ""
+        if "Fireball" in f():
+            p.append("level 20, auto: Fireball opens: %r" % f())
+        for n, want in ((2, "reset=target Fireball, Fireball, null"), (1, "reset=target Fireball, null"), (0, None)):
+            slash("opener %d" % n)
+            p += lua_list(tick(2, 0.25))
+            if (want and want not in f()) or (not want and "Fireball" in f()):
+                p.append("/okd opener %d: %r" % (n, f()))
+            if not f().split("\n")[-2].endswith("Frostbolt"):
+                p.append("/okd opener %d: Frostbolt is not the filler: %r" % (n, f()))
+        slash("opener auto")
+        slash("opener 99")
+        p += lua_list(tick(2, 0.25))
+        if "Fireball" in f():
+            p.append("/okd opener auto does not go back to the level's opener: %r" % f())
+        # G: the sequence ends in null, so once through it lets the potion
+        # line run; its reset (25 s) is not shorter than its longest cooldown
+        CL = ns.CLASSES.MAGE
+        seq = CL.sos[1]
+        longest = max(CL.alert.cd[k] or 0 for k in seq[2].values())
+        reset = int(str(seq[4]).split("/")[0])
+        if not seq.stop or reset < longest:
+            p.append("G: the sequence does not end, or resets (%d s) before its longest cooldown (%d s)" % (reset, longest))
+        if CL.sos[2][1] != "potion":
+            p.append("G: the potion is not the last line")
+        return p
+
     @S.test("hud: mage hit in melee is told to Frost Nova, then Ice Lance")
     def _():
         lua, ns, p, fire, tick = mage_session(20, ("icelance",))
@@ -1216,8 +1255,8 @@ def main():
         p += lua_list(fire("UNIT_COMBAT", "player", "WOUND", "", 30, 1))
         p += lua_list(tick(2, 0.25))
         a = ns.OneKeyAlert() or ""
-        if "Frost Nova" not in a or "Shift+F" not in a:
-            p.append("no Frost Nova hint after a melee hit: %r" % a)
+        if "Frost Nova" not in a or "IN MELEE: G " not in a:
+            p.append("no Frost Nova hint on the emergency key after a melee hit: %r" % a)
         p += lua_list(fire("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-1", 122))
         p += lua_list(tick(2, 0.25))
         a = ns.OneKeyAlert() or ""

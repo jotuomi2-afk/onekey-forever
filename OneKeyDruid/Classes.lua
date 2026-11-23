@@ -8,6 +8,7 @@
 --   { "once", "spell", "[conditions] " }          once per target
 --   { "seq",  { "spell", ... }, "[conditions] ", reset }
 --   { "raw",  "text", needs = { "spell", ... } }  as it is
+--   { "opener", "spell", "[conditions] ", count = n }  n times per target
 -- need / without = "spell": the line only when the spell is (not) learned;
 -- below / from = level: only under, or from, that character level.
 -- The key's own buttons: fight (F), heal (Shift+F), cc (Alt+F),
@@ -50,37 +51,47 @@ C.MAGE = {
 	shield = "barrier",
 	-- The client stops a macro at the first spell that fails (on cooldown,
 	-- out of range), so F holds only spells without a cooldown.
-	-- Below level 15 Fireball opens, once per target: it reaches 35 yd and
-	-- hits harder than a low Frostbolt. From 15 (Improved Frostbolt done,
-	-- Frostbite learned) every press is Frostbolt, as in the guides: it is
-	-- the faster cast, the mob is slowed from the first hit, and every hit
-	-- can freeze it, give Fingers of Frost and build Winter's Chill.
+	-- The opener (from play, 23.11.): there is time for two Fireballs
+	-- before the mob arrives. Fireball reaches 35 yd and hits harder than a
+	-- low Frostbolt. Twice, once per target, then every press is Frostbolt.
+	-- From level 15 (Improved Frostbolt done, Frostbite learned) the guides
+	-- open with Frostbolt: the faster cast, the mob slowed from the first
+	-- hit, and every hit can freeze it, give Fingers of Frost and build
+	-- Winter's Chill. /okd opener 0|1|2 sets the number of Fireballs for
+	-- every level; /okd opener auto goes back to this.
 	-- Before Frostbolt is learned, Fireball is the filler.
 	pull = {},
 	fight = {
-		{ "once", "fireball", H, need = "frostbolt", below = 15 },
+		{ "opener", "fireball", H, need = "frostbolt", count = 2, below = 15 },
 		{ "cast", "fireball", H, without = "frostbolt" },
 		{ "cast", "frostbolt", H },
 	},
-	-- Shift+F, when the mob reaches you (the HUD says when): Frost Nova,
-	-- step back during the global cooldown, then Frostbolt with Ice Lance
-	-- right behind it, so both land on the frozen mob (Shatter). Left alone
-	-- for 10 s the sequence starts over, so the next Nova is the first
-	-- press again.
-	heal = { { "seq", { "nova", "frostbolt", "icelance" }, "", "10/combat" } },
+	-- Shift+F, on a frozen mob (after G's Frost Nova, or when the game
+	-- lights up Ice Lance): Frostbolt with Ice Lance right behind it, so
+	-- both land while it is frozen (Shatter). Left alone for 6 s it starts
+	-- over at Frostbolt.
+	heal = { { "seq", { "frostbolt", "icelance" }, H, "6/combat" } },
 	-- Ctrl+F: instant damage while you move: Fire Blast, then Cone of Cold.
 	-- With five stacks of Winter's Chill the HUD asks for the Cone.
 	behind = { { "seq", { "fireblast", "cone" }, H, "combat" } },
-	alert = { freeze = "nova", lance = "icelance", bolt = "frostbolt",
-		cd = { nova = 25, icelance = 8, cone = 10, barrier = 30 },
+	alert = { freeze = "nova", freezeKey = "sos", lance = "icelance", bolt = "frostbolt",
+		cd = { nova = 25, icelance = 8, cone = 10, barrier = 30, blink = 15 },
 		-- Winter's Chill (talent, level 35): Frostbolt and Ice Lance casts
 		-- build it, Cone of Cold spends it at five
 		chill = { level = 35, build = { "frostbolt", "icelance" }, spend = "cone", stacks = 5 },
 		-- Frigid Power lasts a minute from the Ice Barrier cast
 		shield = { spell = "barrier", every = 57 } },
 	cc = { { "cast", "poly", H } },
-	sos = { { "cast", "manashield", "" }, { "potion" } },
-	free = { { "cast", "blink", "" } },
+	-- G, the way out when a mob is on you: Frost Nova, then Blink away,
+	-- then Mana Shield, one press each, and the potion with the first.
+	-- One sequence that ends (null): after the three it stays out of the
+	-- way, so the potion line is still reached, and 25 s after the last
+	-- press it starts over, when Frost Nova is ready again. Frost Nova and
+	-- Blink are on no other key: a spell that another key had put on
+	-- cooldown would hold this one.
+	sos = { { "seq", { "nova", "blink", "manashield" }, "", "25/combat", stop = true }, { "potion" } },
+	-- Shift+G: Counterspell
+	free = { { "cast", "cs", H } },
 	-- Ctrl+G: Ice Barrier again in a long fight (the HUD says when)
 	hide = { { "cast", "barrier", "" } }, hideIsSpell = true,
 }

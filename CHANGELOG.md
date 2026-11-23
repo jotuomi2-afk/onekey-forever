@@ -33,6 +33,22 @@ Tested in the simulated client only; nothing here has been played yet.
   that neither file knows use the place the game's own map shows.
 - `/okd skip` now works for every class, not only the druid.
 
+Mage, from play on 23.11.:
+
+- G did nothing below level 20 (its only spell was Mana Shield). G is now
+  the way out when a mob is on you: Frost Nova, then Blink, then Mana
+  Shield, one press each, with the healing potion on the first press. The
+  HUD says "IN MELEE: G  Frost Nova, then Blink". 25 seconds after the
+  last press G starts over at Frost Nova.
+- Frost Nova and Blink are on G only, so that no other key can leave G
+  waiting on a cooldown. Shift+F is now Frostbolt, then Ice Lance, for a
+  frozen mob (after G, or when the game lights up Ice Lance). Shift+G is
+  Counterspell.
+- F opens with two Fireballs, not one, below level 15: there is time for
+  both before the mob arrives. From level 15 it opens with Frostbolt, as
+  the guides do. `/okd opener 0|1|2` sets the number of Fireballs for every
+  level; `/okd opener auto` goes back to this.
+
 Fixes from the review:
 
 - Rogue: Slice and Dice comes after two Sinister Strikes, not one. A

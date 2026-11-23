@@ -179,13 +179,23 @@ local function line(e)
 	-- chains that change shape as the class learns spells
 	if e.need and not known[e.need] then return nil end
 	if e.without and known[e.without] then return nil end
-	if e.below or e.from then
+	local kind = e[1]
+	-- the opener's count is the player's to set (/okd opener); unset, the
+	-- class list's count below its level
+	local openers = kind == "opener" and db and tonumber(db.opener) or nil
+	if (e.below or e.from) and not openers then
 		local lvl = UnitLevel("player")
 		if secret(lvl) or type(lvl) ~= "number" then lvl = 1 end
 		if e.below and lvl >= e.below then return nil end
 		if e.from and lvl < e.from then return nil end
 	end
-	local kind = e[1]
+	if kind == "opener" then
+		local n = math.min(3, openers or e.count or 1)
+		if n < 1 or not known[e[2]] then return nil end
+		local list = {}
+		for i = 1, n do list[i] = M(N[e[2]]) end
+		return ("/castsequence %sreset=target %s, null"):format(e[3] or "", table.concat(list, ", "))
+	end
 	if kind == "potion" then
 		return potion and ("/use [combat] item:%d"):format(potion) or nil
 	elseif kind == "raw" then
@@ -201,6 +211,10 @@ local function line(e)
 		local list = {}
 		for _, k in ipairs(e[2]) do if known[k] then list[#list + 1] = M(N[k]) end end
 		if #list == 0 then return nil end
+		-- stop: once through, then the line is passed over until its reset
+		if e.stop and e[4] then
+			return ("/castsequence %sreset=%s %s, null"):format(e[3] or "", e[4], table.concat(list, ", "))
+		end
 		if #list == 1 and e.once then return ("/castsequence %sreset=target %s, null"):format(e[3] or "", list[1]) end
 		if #list == 1 then return ("/cast %s%s"):format(e[3] or "", list[1]) end
 		-- stop: once through per target, then the line is passed over
@@ -288,7 +302,7 @@ local TEXT = {
 		afk = "Going AFK? Ctrl+%s: hide", noClass = "no list for this class yet",
 		aMelee = "IN MELEE: Ctrl+%s  %s, then step back and %s", aNova = "IN MELEE: Shift+%s  %s", aLance = "FROZEN: step back, Shift+%s x2  %s + %s",
 		aBack = "FROZEN: step back, %s", aCone = "WINTER'S CHILL x%d: close in, Ctrl+%s until %s",
-		aShield = "%s: Ctrl+%s", aKey = "%s: %s%s" },
+		aShield = "%s: Ctrl+%s", aKey = "%s: %s%s", aNovaKey = "IN MELEE: %s  %s, then %s" },
 	fi = { target = "%s: etsi kohde", fight = "%s: hyökkää", buff = "%s: buffaa (%s)", conjure = "%s: loihdi (%s)",
 		hold = "ÄLÄ VEDÄ: liian vahva (%s). /okd brave on", dead = "Olet kuollut", mounted = "Ratsailla",
 		cFight = "%s: taistele", cMany = "%d vihollista: paina %s tai pakene", run = "PAKENE!  %s",
@@ -296,7 +310,7 @@ local TEXT = {
 		afk = "Menossa AFK? Ctrl+%s: piiloon", noClass = "tälle luokalle ei vielä ole listaa",
 		aMelee = "LÄHITAISTELU: Ctrl+%s  %s, sitten taakse ja %s", aNova = "LÄHITAISTELU: Shift+%s  %s", aLance = "JÄÄSSÄ: peräänny, Shift+%s x2  %s + %s",
 		aBack = "JÄÄSSÄ: peräänny, %s", aCone = "WINTER'S CHILL x%d: lähelle, Ctrl+%s kunnes %s",
-		aShield = "%s: Ctrl+%s", aKey = "%s: %s%s" },
+		aShield = "%s: Ctrl+%s", aKey = "%s: %s%s", aNovaKey = "LÄHITAISTELU: %s  %s, sitten %s" },
 }
 local function tr(key, ...)
 	local t = TEXT[db and db.lang] or TEXT.en
@@ -648,7 +662,14 @@ local function alertText(now)
 	for i = #live.times, 1, -1 do
 		if now - live.times[i] <= 2.5 then hit = true break end
 	end
-	if hit and cooldownLeft(A.freeze, now) == 0 then return tr("aNova", key, N[A.freeze]) end
+	if hit and cooldownLeft(A.freeze, now) == 0 then
+		-- the freeze is on the emergency key (mage), or on Shift+F
+		if A.freezeKey == "sos" then
+			if not db.sos then return nil end
+			return tr("aNovaKey", db.sos, N[A.freeze], known.blink and N.blink or key)
+		end
+		return tr("aNova", key, N[A.freeze])
+	end
 	local W = A.chill
 	if W and chillStacks(now) >= W.stacks and cooldownLeft(W.spend, now) == 0 then
 		return tr("aCone", W.stacks, key, N[W.spend])
@@ -1134,6 +1155,14 @@ SlashCmdList.ONEKEYDRUID = function(msg)
 			pcall(SetCVar, "Sound_EnableSoundWhenGameIsInBG", db.bgSoundWas)
 			db.bgSoundWas = nil
 		end
+	elseif cmd == "opener" then
+		if locked() then say("not in combat.") return end
+		local n = tonumber(rest)
+		if rest:lower() == "auto" then db.opener = nil
+		elseif n and n >= 0 and n <= 3 then db.opener = math.floor(n)
+		else say("opener 0|1|2|3 — how many times the opening spell is cast before the filler; auto — by level.") return end
+		dirty = true
+		say("opener: " .. (db.opener and tostring(db.opener) or "auto") .. ".")
 	elseif cmd == "cone" then
 		db.cone = rest:lower() ~= "off"
 		say("Cone of Cold hint " .. (db.cone and "on" or "off") .. ".")
@@ -1170,7 +1199,7 @@ SlashCmdList.ONEKEYDRUID = function(msg)
 		end
 	else
 		say(VERSION .. " — " .. CLASS:lower())
-		print("  bind KEY · sos KEY|off · lang en|fi · brave on|off · alarm on|off · herbs on|off · cone on|off")
+		print("  bind KEY · sos KEY|off · lang en|fi · brave on|off · alarm on|off · herbs on|off · cone on|off · opener 0-3|auto")
 		print("  solo [print|button] · quests · go · skip [clear] · where · status · ranks [on|off] · log on|off|clear")
 	end
 end
