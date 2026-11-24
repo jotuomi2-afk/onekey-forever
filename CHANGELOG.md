@@ -1,11 +1,14 @@
 # Changelog
 
-## 0.36.1
+## 0.36.2
+
+(0.36.1 was never published: the release checks stopped it.)
 
 - Druid, in the water: with a living enemy as the target F no longer goes
   into Aquatic Form; it is what it is on land, so a cat stays a cat and
   fights. With no target, a friend or a corpse as the target, F goes into
-  Aquatic Form as before. (In 0.36.0 and before, every press of F out of
+  Aquatic Form as before. In Aquatic Form with a living enemy F is the
+  fighting form first. (In 0.36.0 and before, every press of F out of
   combat in the water went back to Aquatic Form.)
 
 ## 0.36.0

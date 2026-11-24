@@ -92,8 +92,8 @@ MUTANTS = [
     ("druid: the elite hint reads the class unguarded", "Core.lua", "local function targetElite()\n",
      '\tif UnitClassification("target") == "elite" then return true end\n', "druid: Alt+G runs", "on a friendly target"),
     ("druid: in the water the HUD sends a fighting cat into Aquatic Form", "Core.lua",
-     "\tif okF and not secret(foe) and not secret(dead) and foe and not dead then swimming = nil end\n",
-     "\tif okS and IsSwimming and not secret(IsSwimming()) then swimming = IsSwimming() end\n", "druid: in water F holds", "an enemy as the target"),
+     '\t\treturn UnitCanAttack and UnitCanAttack("player", "target"), UnitIsDead and UnitIsDead("target")\n\tend)\n',
+     "\tfoe = false\n", "druid: in water F holds", "an enemy as the target"),
 ]
 
 
