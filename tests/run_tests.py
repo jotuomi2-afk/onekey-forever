@@ -972,8 +972,8 @@ def main():
         def main():
             return macro_attrs(lua).get("OneKeyDruidButton:macrotext", "")
         # the game decides by [swimming] when you press; the addon only sets it up
-        want = ["/cast [swimming,noform:2] Aquatic Form", "/stopmacro [swimming]",
-                "/cast [noswimming,form:2] Cat Form", "/stopmacro [form:2]"]
+        want = ["/cast [swimming,noharm,noform:2][swimming,dead,noform:2] Aquatic Form", "/stopmacro [swimming,noharm][swimming,dead]",
+                "/cast [noswimming,form:2] Cat Form", "/stopmacro [noswimming,form:2]"]
         if main().split("\n")[:4] != want:
             p.append("out of combat F does not start with the water lines: %r" % main()[:160])
         # in water the label says so (where the client tells)
@@ -988,7 +988,35 @@ def main():
         p += lua_list(tick(2, 0.25))
         if main().split("\n")[:2] != want[:2]:
             p.append("with a secret swim state F holds %r" % main())
-        lua.execute("STUB.swimming = false")
+        # fighting in the water (owner, 24.11.): with a living enemy as the target
+        # the HUD does not send you into Aquatic Form; with its corpse it does again
+        lua.execute('STUB.swimming = true STUB.targetName = "Murloc" STUB.targetLevel = 20')
+        p += lua_list(fire("PLAYER_TARGET_CHANGED"))
+        p += lua_list(tick(2, 0.25))
+        if "Aquatic Form" in (ns.DruidHud() or ""):
+            p.append("an enemy as the target in the water and the HUD says %r" % ns.DruidHud())
+        # in Aquatic Form with a living enemy: F is the fighting form first
+        lua.execute("STUB.form = 2")
+        p += lua_list(fire("UPDATE_SHAPESHIFT_FORM"))
+        p += lua_list(tick(2, 0.25))
+        if main().split("\n")[-1] != "/cast [form:2] Cat Form" or "Cat Form" not in (ns.DruidHud() or ""):
+            p.append("Aquatic Form and an enemy: F holds %r, the HUD says %r" % (main()[-60:], ns.DruidHud()))
+        if len(main()) > 255:
+            p.append("the water macro is %d characters" % len(main()))
+        lua.execute("STUB.form = 3")
+        p += lua_list(fire("UPDATE_SHAPESHIFT_FORM"))
+        # a secret answer about the target: the land logic, not a key that does nothing
+        lua.execute("local ca = UnitCanAttack STUB.ca2 = ca UnitCanAttack = function(a, b) if b == 'target' then return STUB_secret() end return ca(a, b) end")
+        p += lua_list(tick(2, 0.25))
+        if main().strip() in ("", "\n".join(want[:2])) or "Aquatic Form" in (ns.DruidHud() or ""):
+            p.append("a secret target answer in the water leaves F with %r (HUD %r)" % (main()[:80], ns.DruidHud()))
+        lua.execute("UnitCanAttack = STUB.ca2")
+        lua.execute("UnitIsDead = function(u) return u == 'target' end")
+        p += lua_list(tick(2, 0.25))
+        if "Aquatic Form" not in (ns.DruidHud() or ""):
+            p.append("a corpse as the target in the water and the HUD says %r" % ns.DruidHud())
+        lua.execute("UnitIsDead = function() return false end STUB.targetName = nil STUB.swimming = false")
+        p += lua_list(fire("PLAYER_TARGET_CHANGED"))
         # in combat nothing changes
         lua.execute("STUB.swimming = true STUB.combat = true")
         p += lua_list(tick(2, 0.25))

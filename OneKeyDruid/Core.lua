@@ -16,7 +16,7 @@ local Logic = ns.Logic
 local _, CLASS = UnitClass("player")
 if CLASS ~= "DRUID" then return end
 
-local VERSION = "0.36.0"
+local VERSION = "0.36.1"
 local BUTTON = "OneKeyDruidButton"
 -- The buttons of the modifier keys.
 local NAMES = { heal = "OneKeyDruidHeal", cc = "OneKeyDruidStop", behind = "OneKeyDruidBehind",
@@ -480,14 +480,19 @@ end
 -- in Aquatic Form it goes back into your fighting form. Only out of
 -- combat, and only where it fits in the 255 characters (not on the long
 -- fight macro).
+-- Not when you mean to fight in the water (owner, 24.11.): with a living
+-- enemy as the target F is what it is on land, so the cat stays a cat.
+-- No target, a friend or a corpse: Aquatic Form as before.
 local function swimPrefix()
 	if not (known.aquatic and forms.A) then return nil end
 	local land = (Logic.Mode(db, known) == "bear" and known.bear) and (known.direbear and N.direbear or N.bear)
 		or (known.cat and N.cat) or nil
-	local t = { ("/cast [swimming,noform:%d] %s"):format(forms.A, N.aquatic), "/stopmacro [swimming]" }
+	local t = { ("/cast [swimming,noharm,noform:%d][swimming,dead,noform:%d] %s"):format(forms.A, forms.A, N.aquatic),
+		"/stopmacro [swimming,noharm][swimming,dead]" }
 	if land then
 		t[#t + 1] = ("/cast [noswimming,form:%d] %s"):format(forms.A, land)
-		t[#t + 1] = ("/stopmacro [form:%d]"):format(forms.A)
+		-- on land only: in the water with an enemy the fight lines below must run
+		t[#t + 1] = ("/stopmacro [noswimming,form:%d]"):format(forms.A)
 	end
 	return table.concat(t, "\n")
 end
@@ -1222,6 +1227,23 @@ local function update()
 	local okS, swimming = pcall(function() return IsSwimming and IsSwimming() end)
 	if not okS or secret(swimming) then swimming = nil end
 	local fnow = formNow()
+	-- fighting in the water: with a living enemy as the target F is what it
+	-- is on land (the macro says the same with [noharm] and [dead])
+	local okF, foe, dead = pcall(function()
+		return UnitCanAttack and UnitCanAttack("player", "target"), UnitIsDead and UnitIsDead("target")
+	end)
+	if not okF or secret(foe) or secret(dead) then
+		swimming = nil -- not known: the land logic, never a key that does nothing
+	elseif foe and not dead then
+		-- from Aquatic Form the fight lines do nothing: first the fighting form
+		local land = (Logic.Mode(db, known) == "bear" and known.bear) and (known.direbear and N.direbear or N.bear)
+			or (known.cat and N.cat) or nil
+		if swimming and fnow == "aquatic" and land and forms.A then
+			apply(("/cast [form:%d] %s"):format(forms.A, land), tr("swim", key, land), "swim")
+			return
+		end
+		swimming = nil
+	end
 	if swimming and known.aquatic and fnow ~= "aquatic" then
 		apply("", tr("swim", key, N.aquatic), "swim")
 		return

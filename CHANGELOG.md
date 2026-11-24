@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.36.1
+
+- Druid, in the water: with a living enemy as the target F no longer goes
+  into Aquatic Form; it is what it is on land, so a cat stays a cat and
+  fights. With no target, a friend or a corpse as the target, F goes into
+  Aquatic Form as before. (In 0.36.0 and before, every press of F out of
+  combat in the water went back to Aquatic Form.)
+
 ## 0.36.0
 
 - Druid: Alt+G runs. G stands and heals (Rejuvenation, Nature's Grasp, the
