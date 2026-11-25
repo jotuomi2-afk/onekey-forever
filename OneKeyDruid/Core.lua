@@ -16,7 +16,7 @@ local Logic = ns.Logic
 local _, CLASS = UnitClass("player")
 if CLASS ~= "DRUID" then return end
 
-local VERSION = "0.36.2"
+local VERSION = "0.37.0"
 local BUTTON = "OneKeyDruidButton"
 -- The buttons of the modifier keys.
 local NAMES = { heal = "OneKeyDruidHeal", cc = "OneKeyDruidStop", behind = "OneKeyDruidBehind",
@@ -33,7 +33,7 @@ local SPELLS = {
 	travel = { 783, "Travel Form" }, aquatic = { 1066, "Aquatic Form" }, dash = { 1850, "Dash" },
 	hibernate = { 2637, "Hibernate" }, enrage = { 5229, "Enrage" }, grasp = { 16689, "Nature's Grasp" }, maul = { 6807, "Maul" }, roar = { 99, "Demoralizing Roar" }, bash = { 5211, "Bash" }, claw = { 1082, "Claw" }, rake = { 1822, "Rake" },
 	rip = { 1079, "Rip" }, fb = { 22568, "Ferocious Bite" }, pounce = { 9005, "Pounce" },
-	shred = { 5221, "Shred" }, ravage = { 6785, "Ravage" },
+	shred = { 5221, "Shred" }, ravage = { 6785, "Ravage" }, swipe = { 779, "Swipe" },
 	ff = { 16857, "Faerie Fire (Feral)", 770, "Faerie Fire" },
 	charge = { 49376, "Feral Charge - Cat", false, "Feral Charge (Cat)", 16979, "Feral Charge" },
 	chargeBear = { 16979, "Feral Charge", false, "Feral Charge - Bear", false, "Feral Charge (Bear)" },
@@ -411,7 +411,7 @@ local TEXT = {
 		cMany = "%d enemies: press %s or run", cManyRun = "%d ENEMIES: Alt+%s runs (%s to stand)", cElite = "ELITE: Alt+%s runs (%s to stand)", mHeal = "Shift held: healing", mStop = "Alt held: stop the mob",
 		mRest = "Alt held: eat and drink", mLeave = "Ctrl held: leave the form", mBehind = "Ctrl held: leave form / attack from behind",
 		low = "LOW HEALTH   press %s", lowNoSos = "LOW HEALTH   Shift+%s", healHint = "Heal: Shift+%s", drinkHint = "Low mana: Alt+%s to drink",
-		enemies = "%d ENEMIES", run = "RUN AWAY!  %s", catProwl = "%s: Prowl", swim = "%s: %s", swimming = "in the water", toBear = "bear: Shift+%s", catOpen = "%s: Pounce/Claw · behind the mob: Ctrl+%s Ravage/Shred", hold = "DO NOT PULL: too strong (%s). /okd brave on", camp = "DO NOT PULL: %d more mobs close. /okd brave on", crowd = "%s: careful, %d more mobs close",
+		enemies = "%d ENEMIES", run = "RUN AWAY!  %s", catProwl = "%s: Prowl", swim = "%s: %s", swimming = "in the water", toBear = "BEAR: Shift+%s (press again: Swipe)", catOpen = "%s: Pounce/Claw · behind the mob: Ctrl+%s Ravage/Shred", prowlBehind = "BEHIND the mob: Ctrl+%s = %s", hold = "DO NOT PULL: too strong (%s). /okd brave on", camp = "DO NOT PULL: %d more mobs close. /okd brave on", crowd = "%s: careful, %d more mobs close",
 		afk = "Going AFK? Ctrl+%s: Shadowmeld", mHide = "Ctrl held: hide (Shadowmeld)",
 	},
 	fi = {
@@ -425,7 +425,7 @@ local TEXT = {
 		cMany = "%d vihollista: paina %s tai pakene", cManyRun = "%d VIHOLLISTA: Alt+%s pakenee (%s kestää)", cElite = "ELIITTI: Alt+%s pakenee (%s kestää)", mHeal = "Shift pohjassa: parannat", mStop = "Alt pohjassa: pysäytä kohde",
 		mRest = "Alt pohjassa: syö ja juo", mLeave = "Ctrl pohjassa: muodosta pois", mBehind = "Ctrl pohjassa: muodosta pois / lyö takaa",
 		low = "VÄHÄN HP:TA   paina %s", lowNoSos = "VÄHÄN HP:TA   Shift+%s", healHint = "Paranna: Shift+%s", drinkHint = "Mana vähissä: Alt+%s juo",
-		enemies = "%d VIHOLLISTA", run = "PAKENE!  %s", catProwl = "%s: hiivi (Prowl)", swim = "%s: %s", swimming = "vedessä", toBear = "karhuksi: Shift+%s", catOpen = "%s: Pounce/Claw · mobin takana: Ctrl+%s Ravage/Shred", hold = "ÄLÄ VEDÄ: liian vahva (%s). /okd brave on", camp = "ÄLÄ VEDÄ: %d muuta mobia lähellä. /okd brave on", crowd = "%s: varo, %d muuta mobia lähellä",
+		enemies = "%d VIHOLLISTA", run = "PAKENE!  %s", catProwl = "%s: hiivi (Prowl)", swim = "%s: %s", swimming = "vedessä", toBear = "KARHUKSI: Shift+%s (uudestaan: Swipe)", catOpen = "%s: Pounce/Claw · mobin takana: Ctrl+%s Ravage/Shred", prowlBehind = "Mobin TAKANA: Ctrl+%s = %s", hold = "ÄLÄ VEDÄ: liian vahva (%s). /okd brave on", camp = "ÄLÄ VEDÄ: %d muuta mobia lähellä. /okd brave on", crowd = "%s: varo, %d muuta mobia lähellä",
 		afk = "Menossa AFK? Ctrl+%s: Shadowmeld", mHide = "Ctrl pohjassa: piiloon (Shadowmeld)",
 	},
 }
@@ -455,6 +455,46 @@ end
 local live = { hits = 0, at = 0, times = {}, start = 0, lastKill = nil }
 
 ns.DruidHud = function() return currentLabel end -- read by the tests
+
+-- The warnings, big and in the middle of the screen (owner, 25.11.: "much
+-- bigger"). The HUD line keeps saying what the key does.
+local bigAlert
+local function setAlert(text)
+	if not bigAlert then return end
+	if db and (db.alert == 0 or db.hud == false) then text = nil end
+	if text ~= bigAlert.shown then
+		bigAlert.shown = text
+		bigAlert.text:SetText(text or "")
+	end
+end
+ns.DruidAlert = function() return bigAlert and bigAlert.shown end -- read by the tests
+
+-- Which finisher plan F holds: Rip (A) or the Bite (B). On ordinary mobs
+-- the two take turns, fight by fight, and the log notes which one ran
+-- (the last field of the fight line), so the damage meter can tell which
+-- is better. An elite or a mob two levels above you: Rip.
+-- /okd finisher rip|bite|test. The turn changes when a fight ends, never
+-- between the pull and the fight, so a sequence is not started twice.
+-- A small letter in the log means the plan was not this fight's turn but
+-- forced (a hard mob, or /okd finisher rip|bite): not part of the comparison.
+local function fightText()
+	local mode = db and db.finisher or "test"
+	if not macros.fightBite then return macros.fight, "" end
+	if mode == "rip" then return macros.fight, "a" end
+	if mode == "bite" then return macros.fightBite, "b" end
+	local okT, hard = pcall(function()
+		-- no target yet: the turn decides, as it will in the fight (else the
+		-- pull would start one sequence and the fight another)
+		if not UnitExists("target") then return false end
+		local lvl, class = UnitLevel("target"), UnitClassification and UnitClassification("target")
+		if secret(lvl) or secret(class) or type(lvl) ~= "number" then return true end
+		return lvl <= 0 or lvl >= (UnitLevel("player") or 0) + 2 or (class ~= "normal" and class ~= nil)
+	end)
+	if not okT or hard then return macros.fight, "a" end
+	if not db.biteTurn then return macros.fight, "A" end
+	return macros.fightBite, "B"
+end
+
 local function setHud(text)
 	if hud and hud.text and text ~= currentLabel then
 		currentLabel = text
@@ -1165,7 +1205,8 @@ local function combatHud()
 	fromCaster.wasRooted = isRooted and form == "none"
 	if mod and macros[mod] then
 		text = modLabel(mod)
-	elseif isRooted and macros.free then
+	elseif isRooted and macros.free and form ~= "bear" then
+		-- (a bear in a fight: the key hits there and does not shift)
 		text = "|cffff8040" .. tr("cRoot", sos) .. "|r"
 	elseif form ~= "none" and now - fromCaster.at < 8 then
 		text = "|cff80d0ff" .. tr("cBack", sos) .. "|r"
@@ -1196,6 +1237,10 @@ local function combatHud()
 		end
 	end
 	setHud(text)
+	-- red, orange and yellow lines are warnings: big as well
+	local c = type(text) == "string" and text:sub(1, 10) or ""
+	local warning = c == "|cffff4040" or c == "|cffff8040" or c == "|cffffa040" or c == "|cffffd060"
+	setAlert(warning and not (mod and macros[mod]) and text or nil)
 end
 
 local function update()
@@ -1240,15 +1285,18 @@ local function update()
 			or (known.cat and N.cat) or nil
 		if swimming and fnow == "aquatic" and land and forms.A then
 			apply(("/cast [form:%d] %s"):format(forms.A, land), tr("swim", key, land), "swim")
+			setAlert(nil)
 			return
 		end
 		swimming = nil
 	end
 	if swimming and known.aquatic and fnow ~= "aquatic" then
 		apply("", tr("swim", key, N.aquatic), "swim")
+		setAlert(nil)
 		return
 	elseif swimming and fnow == "aquatic" then
 		apply("", tr("swimming"), "none")
+		setAlert(nil)
 		return
 	end
 	local s = readState()
@@ -1326,8 +1374,20 @@ local function update()
 	elseif action == "catpull" then
 		apply(macros.catpull, label, action)
 	else
-		apply(Logic.ActionMacro(action, spell, item, macros.fight, unit), label, action)
+		apply(Logic.ActionMacro(action, spell, item, (fightText()), unit), label, action)
 	end
+	-- big, out of a fight: do not pull this; and in Prowl with an enemy
+	-- picked, where the opener is. On 24.11. F opened 16 of 21 Prowl pulls
+	-- with Faerie Fire. Shred and Ravage stay off F: from the front they
+	-- fail and stop the key (0.28.1).
+	local big = action == "hold" and label or nil
+	if not big and s.form == "cat" and macros.behind and macros.behindIsShred and (action == "attack" or action == "catpull") then
+		local okP, prowling = pcall(hasBuff, N.prowl)
+		if okP and prowling then
+			big = "|cffffd060" .. tr("prowlBehind", key, known.ravage and N.ravage or N.shred) .. "|r"
+		end
+	end
+	setAlert(big)
 end
 
 -- Combat begins: from here on the button is locked, so it gets the fight
@@ -1428,9 +1488,11 @@ local function enterCombat()
 	startAlarm()
 	live.times, live.start, live.lastKill = {}, GetTime(), nil
 	combatHud()
+	local text, variant = fightText()
+	live.variant = variant
 	if locked() or current.what == "nuke" then return end
-	current.text, current.what = macros.fight, "attack"
-	button:SetAttribute("macrotext", macros.fight)
+	current.text, current.what = text, "attack"
+	button:SetAttribute("macrotext", text)
 end
 
 local function bindKey()
@@ -1534,15 +1596,30 @@ local function createHud()
 	local y = -20
 	for _, name in ipairs({ "low", "heal", "drink" }) do
 		local f = CreateFrame("Frame", nil, hud)
-		f:SetSize(220, 18)
+		f:SetSize(520, name == "low" and 36 or 28)
 		f:SetPoint("TOP", hud, "BOTTOM", 0, y + 20)
 		f:SetAlpha(0)
 		local t = f:CreateFontString(nil, "OVERLAY", name == "low" and "GameFontNormalLarge" or "GameFontNormalSmall")
+		-- much bigger than the HUD line (owner, 25.11.)
+		pcall(t.SetFont, t, STANDARD_TEXT_FONT, name == "low" and 30 or 22, "OUTLINE")
 		t:SetPoint("CENTER")
 		warn[name] = { frame = f, text = t, at = 0, below = 1, above = 0 }
-		y = y - (name == "low" and 22 or 16)
+		y = y - (name == "low" and 38 or 28)
 	end
 	buildWarnings()
+	-- the warnings: big, in the middle, under the RUN AWAY text
+	do
+		local box = CreateFrame("Frame", nil, UIParent)
+		box:SetSize(900, 60)
+		box:SetPoint("CENTER", UIParent, "CENTER", 0, 105)
+		box:SetFrameStrata("HIGH")
+		local t = box:CreateFontString(nil, "OVERLAY")
+		t:SetPoint("CENTER")
+		if not pcall(t.SetFont, t, STANDARD_TEXT_FONT, (type(db.alert) == "number" and db.alert > 0) and db.alert or 34, "THICKOUTLINE") then
+			t:SetFontObject("GameFontNormalHuge")
+		end
+		bigAlert = { box = box, text = t }
+	end
 	-- the RUN AWAY texts: big, in the middle, above the character
 	runBox = {}
 	for i, at in ipairs(RUN_AT) do
@@ -1851,6 +1928,9 @@ local function status()
 	say(("next press: %s %s | food %s, water %s | key %s"):format(action, tostring(arg or ""),
 		tostring(food), tostring(water), tostring(db.key)))
 	say(("fight (%d of 255 characters):\n%s"):format(#macros.fight, macros.fight))
+	if macros.fightBite then
+		say(("fight, the Bite plan (%d of 255; /okd finisher %s):\n%s"):format(#macros.fightBite, tostring(db.finisher or "test"), macros.fightBite))
+	end
 	if macros.nuke then say("weak targets:\n" .. macros.nuke) end
 	say("on the key now:\n" .. tostring(button:GetAttribute("macrotext")))
 	if macros.heal then say("Shift:\n" .. macros.heal) end
@@ -2092,12 +2172,14 @@ logger:SetScript("OnEvent", function(_, event, a1, a2, a3)
 		live.times[#live.times + 1] = GetTime()
 	end
 	if event == "PLAYER_XP_UPDATE" and locked() then live.lastKill = GetTime() end
+	-- the other finisher plan for the next fight (log or no log)
+	if event == "PLAYER_REGEN_ENABLED" and db then db.biteTurn = not db.biteTurn end
 	if not db or not db.log or not db.lines then return end
 	if event == "PLAYER_REGEN_DISABLED" then
 		lg.inFight, lg.fightAt, lg.fightXp, lg.hits, lg.most, lg.kills = true, GetTime(), 0, 0, 0, 0
 		local name, lvl, class = targetInfo()
 		if name then lg.lastName, lg.lastLevel = name, lvl end
-		logEvent("C+", name, lvl, class, formNow())
+		logEvent("C+", name, lvl, class, formNow(), (select(2, fightText())))
 	elseif event == "PLAYER_REGEN_ENABLED" then
 		if lg.inFight then
 			local secs = GetTime() - (lg.fightAt or GetTime())
@@ -2482,6 +2564,16 @@ SlashCmdList.ONEKEYDRUID = function(msg)
 		currentLabel = nil
 		buildWarnings()
 		say(rest == "fi" and "tekstit suomeksi." or "texts in English.")
+	elseif cmd == "alert" and tonumber(rest) then
+		-- the size of the big warnings; 0 turns them off
+		local n = math.floor(tonumber(rest))
+		db.alert = (n <= 0) and 0 or math.max(16, math.min(72, n))
+		if bigAlert and db.alert > 0 then pcall(bigAlert.text.SetFont, bigAlert.text, STANDARD_TEXT_FONT, db.alert, "THICKOUTLINE") end
+		setAlert(nil)
+		say(db.alert == 0 and "big warnings off." or ("big warnings: size " .. db.alert .. "."))
+	elseif cmd == "finisher" and (rest == "rip" or rest == "bite" or rest == "test") then
+		db.finisher = rest
+		say("finisher plan: " .. rest .. (rest == "test" and " (Rip and the Bite take turns on ordinary mobs; the log compares them)." or "."))
 	elseif cmd == "scale" and tonumber(rest) then
 		db.scale = math.max(0.5, math.min(3, tonumber(rest)))
 		if hud then hud:SetScale(db.scale) end

@@ -470,8 +470,11 @@ def main():
         free = next((v for k, v in attrs.items() if "Free" in k or "free" in k), "")
         hide = next((v for k, v in attrs.items() if "Hide" in k or "hide" in k), "")
         # Forever has no powershifting: the key swaps forms
-        if free.strip() != "/cast [form:3] Bear Form; Cat Form":
-            p.append("break-free key: want cat to bear, anything else to cat: %r" % free)
+        # Forever has no powershifting: the key swaps forms. In a fight it is one
+        # way, into the bear, and as a bear it hits (pressed 69 times on 24.11.)
+        if free.strip().split("\n") != ["/startattack [combat]",
+                "/cast [combat,noform:1] Bear Form; [combat] !Maul; [nocombat,form:3] Bear Form; [nocombat] Cat Form"]:
+            p.append("break-free key: in a fight the bear and then its hit, out of a fight the swap: %r" % free)
         if "/cancelform" not in hide:
             p.append("Ctrl+G does not bring you back to caster form: %r" % hide)
         # caster form, in combat, rooted
@@ -847,6 +850,165 @@ def main():
         if "Dash" in run():
             p.append("secret cooldowns: Dash was cast seconds ago and is on Alt+G again: %r" % run())
         p += lua_list(lua.eval("STUB.violations") and lua_list(lua.eval("STUB.violations")) or [])
+        return p
+
+    @S.test("druid: Rip and the Bite take turns on ordinary mobs, the log notes which ran, and the analyser compares them")
+    def _():
+        p = []
+        lua = new_lua()
+        nsl, _ = load_addon(lua, ["Logic.lua"])
+        for lvl in (28, 32, 40):
+            o = druid_macros(lua, nsl, lvl, "cat")
+            a = [l for l in o.fight.split("\n") if l.startswith("/castsequence [form:3]")]
+            b = [l for l in (o.fightBite or "").split("\n") if l.startswith("/castsequence [form:3]")]
+            if not a or not b:
+                p.append("level %d: no second finisher plan: %r" % (lvl, o.fightBite))
+                continue
+            if "Rip" not in a[0] or "Rip" in b[0] or b[0].count("Ferocious Bite") != 1:
+                p.append("level %d: the plans are not Rip and the Bite: %r / %r" % (lvl, a[0], b[0]))
+            if not b[0].endswith("Rake, Claw, Claw, Claw, Ferocious Bite") or "Faerie Fire" not in b[0].split(",")[0]:
+                p.append("level %d: the Bite plan is not Faerie Fire, Rake, Claws, the Bite: %r" % (lvl, b[0]))
+            if len(o.fightBite) > 255 or o.fightBite.replace(b[0], "") != o.fight.replace(a[0], ""):
+                p.append("level %d: the Bite plan differs from the Rip plan in more than the sequence, or is too long" % lvl)
+        if druid_macros(lua, nsl, 22, "cat").fightBite or druid_macros(lua, nsl, 30, "bear").fightBite:
+            p.append("a second plan without both finishers, or for the bear")
+        # in the client
+        lua = new_lua()
+        set_class(lua, "DRUID", 11, 28, druid_spells(28))
+        lua.execute('STUB.buffs = { ["Mark of the Wild"] = true, ["Thorns"] = true } STUB.form = 3 STUB.targetName = "Wolf" STUB.targetLevel = 27 STUB.targetClass = "normal"')
+        ns, errs = load_addon(lua)
+        p += errs
+        fire, tick = lua.eval("STUB.fire"), lua.eval("STUB.tick")
+        for e in ("ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD"):
+            p += lua_list(fire(e, "OneKeyDruid"))
+        lua.eval("STUB.slash")("log on")
+        p += lua_list(tick(6, 0.25))
+        main = lambda: macro_attrs(lua).get("OneKeyDruidButton:macrotext", "")
+        plan = lambda t: "B" if "Rip" not in t and "Ferocious Bite" in t else "A"
+
+        def fight():
+            p.extend(lua_list(tick(2, 0.25)))
+            before = main()
+            # as in the client: the event comes before the lockdown
+            p.extend(lua_list(fire("PLAYER_REGEN_DISABLED")))
+            lua.execute("STUB.combat = true")
+            during = main()
+            lua.execute("STUB.combat = false")
+            p.extend(lua_list(fire("PLAYER_REGEN_ENABLED")))
+            seq = lambda t: [l for l in t.split("\n") if l.startswith("/castsequence [form:3]")]
+            if seq(before) and seq(before) != seq(during):
+                p.append("the pull and the fight hold different sequences (the sequence would start twice): %r / %r" % (seq(before), seq(during)))
+            return plan(during)
+
+        got = [fight() for _ in range(4)]
+        if sorted(got[:2]) != ["A", "B"] or got[:2] != got[2:]:
+            p.append("the plans do not take turns: %r" % got)
+        notes = lambda: [l.split("|")[6] for l in lua_list(lua.eval("OneKeyDruidDB.lines")) if l.split("|")[1] == "C+"]
+        if notes() != got:
+            p.append("the log notes %r, the key held %r" % (notes(), got))
+        # no target as the fight starts (a mob came to you): still the turn's plan
+        lua.execute("STUB.targetName = nil")
+        if sorted([fight(), fight()]) != ["A", "B"]:
+            p.append("with no target the plans do not take turns")
+        lua.execute('STUB.targetName = "Wolf"')
+        lua.execute('STUB.targetClass = "elite"')
+        if [fight(), fight()] != ["A", "A"]:
+            p.append("an elite gets the Bite plan")
+        lua.execute('STUB.targetClass = "normal" STUB.targetLevel = 30')
+        if [fight(), fight()] != ["A", "A"]:
+            p.append("a mob two levels above gets the Bite plan")
+        lua.execute("STUB.targetLevel = 27")
+        lua.eval("STUB.slash")("finisher bite")
+        if [fight(), fight()] != ["B", "B"]:
+            p.append("/okd finisher bite does not hold the Bite")
+        lua.eval("STUB.slash")("finisher rip")
+        if [fight(), fight()] != ["A", "A"]:
+            p.append("/okd finisher rip does not hold Rip")
+        # forced plans are noted with a small letter and stay out of the comparison
+        if notes()[6:] != ["a", "a", "a", "a", "b", "b", "a", "a"]:
+            p.append("forced plans are not noted apart: %r" % notes()[6:])
+        # the analyser
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("analyze_log", os.path.join(ROOT, "tools", "analyze_log.py"))
+        al = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(al)
+
+        def session(n, dps_a, dps_b, kind="normal", form="cat"):
+            e, t = [["0.0", "S", "1", "28"]], 1.0
+            for i in range(n):
+                for plan_, dps in (("A", dps_a), ("B", dps_b)):
+                    e += [[str(t), "C+", "Wolf", str(25 + i % 2), kind, form, plan_], [str(t + 15), "C-", "15", "100", "5", "1"],
+                          [str(t + 16), "M", str(dps * 15), "100", "0", "1000"]]
+                    t += 20
+            return e
+
+        r = al.finisher_test([session(25, 60, 70)])
+        if r["A"]["fights"] != 25 or r["B"]["dps"] != 70 or "B (the Bite) is ahead" not in r["verdict"]:
+            p.append("the analyser does not see the Bite ahead: %r" % r)
+        forced = [[x if i != 6 else x.lower() for i, x in enumerate(l)] for l in session(40, 200, 10)]
+        mixed = al.finisher_test([session(25, 60, 70), forced])
+        if mixed["A"]["fights"] != 25 or "B (the Bite) is ahead" not in mixed["verdict"]:
+            p.append("forced fights (small letters) are counted: %r" % mixed)
+        if "not enough" not in al.finisher_test([session(5, 60, 90)])["verdict"]:
+            p.append("ten fights decide the comparison")
+        if "no clear difference" not in al.finisher_test([session(25, 60, 61)])["verdict"]:
+            p.append("a 2 % difference is called a winner")
+        if al.finisher_test([session(25, 60, 70, kind="elite")])["A"]["fights"] or al.finisher_test([session(25, 60, 70, form="none")])["B"]["fights"]:
+            p.append("elite fights or fights started out of the cat are counted")
+        return p
+
+    @S.test("druid: the warnings are shown big, in the middle of the screen")
+    def _():
+        p = []
+        lua = new_lua()
+        set_class(lua, "DRUID", 11, 28, druid_spells(28))
+        lua.execute('STUB.buffs = { ["Mark of the Wild"] = true, ["Thorns"] = true } STUB.form = 3 STUB.targetName = "Ogre" STUB.targetLevel = 27 STUB.targetClass = "elite"')
+        ns, errs = load_addon(lua)
+        p += errs
+        fire, tick = lua.eval("STUB.fire"), lua.eval("STUB.tick")
+        for e in ("ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD"):
+            p += lua_list(fire(e, "OneKeyDruid"))
+        for cmd in ("bind F", "sos G"):
+            lua.eval("STUB.slash")(cmd)
+        p += lua_list(tick(6, 0.25))
+        big = lambda: ns.DruidAlert() or ""
+        sizes = lua_list(lua.eval("STUB.fontSizes or {}"))
+        if not any(s >= 30 for s in sizes):
+            p.append("no text of 30 points or more is made: %r" % sizes)
+        lua.execute("STUB.combat = true")
+        p += lua_list(fire("PLAYER_REGEN_DISABLED"))
+        p += lua_list(tick(2, 0.25))
+        if "ELITE: Alt+G runs" not in big():
+            p.append("an elite in the fight, the big text says %r" % big())
+        lua.execute('STUB.targetClass = "normal"')
+        p += lua_list(tick(40, 0.25))
+        if big():
+            p.append("an ordinary fight and the big text says %r" % big())
+        lua.execute("STUB.combat = false")
+        p += lua_list(fire("PLAYER_REGEN_ENABLED"))
+        p += lua_list(tick(2, 0.25))
+        if big():
+            p.append("out of the fight the big text stays: %r" % big())
+        # in Prowl with an enemy picked: where the opener is
+        lua.execute('STUB.buffs["Prowl"] = true')
+        p += lua_list(tick(2, 0.25))
+        if "Ctrl+F = Shred" not in big():
+            p.append("in Prowl with an enemy picked the big text says %r (HUD %r)" % (big(), ns.DruidHud()))
+        # the HUD switched off takes the big text with it
+        lua.eval("STUB.slash")("hud off")
+        p += lua_list(tick(2, 0.25))
+        if big():
+            p.append("/okd hud off leaves the big text on: %r" % big())
+        lua.eval("STUB.slash")("hud on")
+        p += lua_list(tick(2, 0.25))
+        lua.eval("STUB.slash")("alert 0")
+        p += lua_list(tick(2, 0.25))
+        if big():
+            p.append("/okd alert 0 leaves the big text on: %r" % big())
+        lua.eval("STUB.slash")("alert 40")
+        p += lua_list(tick(2, 0.25))
+        if "Shred" not in big() or 40 not in lua_list(lua.eval("STUB.fontSizes")):
+            p.append("/okd alert 40 does not bring the big text back at that size")
         return p
 
     @S.test("druid: a potion still cooling when the fight starts is left out of G")
@@ -1532,7 +1694,7 @@ def main():
             nsl, _ = load_addon(lua, ["Logic.lua"])
             for mode in ("bear", "cat"):
                 o = druid_macros(lua, nsl, level, mode)
-                for k in ("fight", "sos", "cc", "heal", "catpull", "behind", "nuke"):
+                for k in ("fight", "fightBite", "sos", "cc", "heal", "catpull", "behind", "nuke", "free"):
                     p += ["druid %d %s %s: %s" % (level, mode, k, x) for x in may_fail_early(o[k] or "")]
                 if level >= 10 and "Rejuvenation" not in (o.sos or "") and mode == "cat":
                     p.append("druid %d: G has no heal: %r" % (level, o.sos))

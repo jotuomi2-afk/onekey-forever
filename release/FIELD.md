@@ -5,6 +5,15 @@ enough to publish it as a release instead of a beta. The rule is in
 docs/RELEASE.md ("From beta to release"). Totals only: the logs stay on
 the owner's computer.
 
+## 0.36.2: stays a beta
+
+Read on 24.11.2026. Two sessions carry the stamp: druid 125 minutes and
+52 fights, mage 18 minutes and 14 fights; no death, no fight with the key
+pressed and no cast. Missing: six mage fights (14 of 20). Seen working in
+play: the mage's two Fireballs before Frostbolt (8 of 13 pulls) and Frost
+Nova on G (10 of 14 fights), the druid's quest hints. Not used in play:
+the druid's Alt+G (no press).
+
 ## 0.35.1: stays a beta
 
 Read on 23.11.2026, five characters' logs.

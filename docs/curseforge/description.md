@@ -14,7 +14,7 @@
 | **Ctrl+F** | leave form; as a cat: Shred from behind | the class's extra spell |
 | **G** | emergency: heal, then the bear, potion; short of mana a mana potion and straight into the bear | one emergency spell, then the potion |
 | **Alt+G** | run: cat form, then Dash (Travel Form when Dash is not ready) | |
-| **Shift+G** | cat ↔ bear (also breaks roots) | get away (mage: Blink) |
+| **Shift+G** | in a fight: bear, then Swipe; out of a fight cat ↔ bear | get away (mage: Blink) |
 | **Ctrl+G** | hide before going away (Shadowmeld) | Stealth / Shadowmeld |
 
 Class rotations follow the usual leveling advice: the warlock and priest put their damage over time on once and then use the wand, the mage opens with Fireball and keeps the mob slowed with Frostbolt, the rogue chains its stuns, the hunter keeps its pet and Auto Shot going.

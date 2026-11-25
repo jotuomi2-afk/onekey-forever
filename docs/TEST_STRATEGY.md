@@ -148,6 +148,9 @@ point to several tests; names are matched on their beginning.
 | REQ-57 | The play behind a version: every class stamps the addon version on the session line; the analyser counts only sessions with that stamp and holds a release back for too little play, one class alone, fights with the key pressed and no cast, or many deaths | release: the log analyser; log: every class |
 | REQ-58 | Druid, Alt+G runs: cat form and then Dash when Dash is ready as the fight starts, else Travel Form outdoors or the cat; nothing that can fail stands before the form; a druid with no cat form has no run key; the HUD names Alt+G on an elite and with three or more enemies | druid: Alt+G runs |
 | REQ-59 | Druid, in the water: F goes into Aquatic Form only with no living enemy as the target; with one, the macro and the HUD are what they are on land | druid: in water F holds |
+| REQ-60 | Druid, the finisher test: on ordinary mobs the Rip plan and the Bite plan take turns fight by fight; the two macros differ in the cat sequence only; the pull and the fight hold the same sequence; an elite or a mob two levels above gets Rip; the fight line notes the plan; the analyser compares damage per second and calls no winner under 20 fights a side or 5 % | druid: Rip and the Bite take turns |
+| REQ-61 | Warnings are shown big in the middle of the screen (in a fight: the red, orange and yellow lines; out of a fight: do not pull, and in Prowl where the opener is); gone when there is none; `/okd alert` sets the size or turns them off | druid: the warnings are shown big |
+| REQ-62 | Druid, Shift+G: in a fight into the bear and never back, as a bear its hit; out of a fight the swap | druid: rooted, the HUD says |
 
 ## 6. Threat model (STRIDE)
 

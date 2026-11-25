@@ -3,10 +3,11 @@
 
     python3 tools/analyze_log.py path/to/SavedVariables/OneKeyDruid.lua [--since EPOCH] [--last N]
     python3 tools/analyze_log.py FILE [FILE ...] --field 0.35.2   # is there enough play behind a version?
+    python3 tools/analyze_log.py FILE --finisher                  # Rip against the Bite (the cat's two plans)
 
 Log line format, "t|code|fields...", t = seconds since the session started:
   S   session start: epoch, level, xp, xpMax, rested, zone, ..., addon version (last, from 0.35.2)
-  C+  fight start: target, level, classification, form
+  C+  fight start: target, level, classification, form, finisher plan (A Rip, B the Bite; a small letter = forced, not its turn; cat, from 0.37.0)
   C-  fight end: seconds, xp, hits taken, most attackers at once
   M   damage meter after a fight: done, taken, healed, max health
   X   xp gained: amount, kind (kill/quest/...), mob, mob level
@@ -68,6 +69,55 @@ def dead_fights(e):
         elif inside and x[1] == "A":
             casts += 1
     return dead
+
+
+def finisher_test(all_e):
+    """Rip (A) against the Bite (B): the fights of ordinary mobs with one
+    attacker, a cat from the start, with the plan noted on the fight line
+    (from 0.37.0). Damage per second from the game's meter, and seconds per
+    fight; also side by side per mob level, so a session of easy mobs on
+    one plan does not decide it."""
+    rows = []
+    for e in all_e:
+        cur = None
+        for x in e:
+            if x[1] == "C+":
+                cur = x if (len(x) > 6 and x[6] in ("A", "B") and x[4] == "normal" and x[5] == "cat") else None
+                end = None
+            elif x[1] == "C-" and cur:
+                end = x
+            elif x[1] == "M" and cur and end:
+                secs = num(end[2])
+                if secs >= 4 and num(end[5]) <= 1 and num(x[2]) > 0:
+                    rows.append((cur[6], cur[3], num(x[2]) / secs, secs))
+                cur = None
+    out = {}
+    for plan in ("A", "B"):
+        r = [w for w in rows if w[0] == plan]
+        out[plan] = {"fights": len(r),
+                     "dps": round(statistics.median(w[2] for w in r), 1) if r else None,
+                     "seconds": round(statistics.median(w[3] for w in r), 1) if r else None}
+    # per mob level: only levels both plans met at least three times
+    wins = {"A": 0, "B": 0}
+    for lvl in sorted({w[1] for w in rows}):
+        a = [w[2] for w in rows if w[1] == lvl and w[0] == "A"]
+        b = [w[2] for w in rows if w[1] == lvl and w[0] == "B"]
+        if len(a) >= 3 and len(b) >= 3:
+            ma, mb = statistics.median(a), statistics.median(b)
+            if ma != mb:
+                wins["A" if ma > mb else "B"] += 1
+    out["levels_won"] = wins
+    n = min(out["A"]["fights"], out["B"]["fights"])
+    if n < 20:
+        out["verdict"] = "not enough fights yet (%d of 20 on the smaller side)" % n
+    else:
+        a, b = out["A"]["dps"], out["B"]["dps"]
+        lead = "A" if a >= b else "B"
+        pct = abs(a - b) / max(min(a, b), 1) * 100
+        agrees = wins[lead] > wins["B" if lead == "A" else "A"]
+        out["verdict"] = ("%s (%s) is ahead by %.0f %%" % (lead, "Rip" if lead == "A" else "the Bite", pct)
+                          if pct >= 5 and agrees else "no clear difference (%.0f %%)" % pct)
+    return out
 
 
 def summary(e):
@@ -149,7 +199,13 @@ def main():
     ap.add_argument("--last", type=int, default=3, help="the last N sessions (default 3)")
     ap.add_argument("--field", metavar="VERSION",
                     help="totals of the sessions that ran this addon version, over all the files given")
+    ap.add_argument("--finisher", action="store_true", help="Rip against the Bite, from the fights that note their plan")
     a = ap.parse_args()
+    if a.finisher:
+        r = finisher_test([e for p in a.path for e in sessions(p)])
+        for k, v in r.items():
+            print("  %-12s %s" % (k, v))
+        return
     if a.field:
         r = field([summary(e) for p in a.path for e in sessions(p)], a.field)
         for k, v in r.items():

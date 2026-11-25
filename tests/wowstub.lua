@@ -82,6 +82,11 @@ function frameMeta.SetFormattedText(self, fmt, ...)
 	for i = 1, select("#", ...) do if issecretvalue(args[i]) then args[i] = 50 end end
 	self._text = string.format(fmt, unpack(args))
 end
+function frameMeta.SetFont(self, font, size, flags)
+	self._font = { font, size, flags }
+	STUB.fontSizes = STUB.fontSizes or {}
+	STUB.fontSizes[#STUB.fontSizes + 1] = size
+end
 function frameMeta.SetText(self, t)
 	self._text = t
 	-- the last texts shown, for the tests of the HUD's hints

@@ -384,6 +384,7 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 	-- the lines that do not fit. Priorities (higher goes first when the text
 	-- is over 255 characters) keep what matters.
 	local L = { { TARGET, 1 } }
+	local bitePrefix, biteLine
 	local F = (mode == "cat" and C) or (mode == "bear" and B) or nil
 	local formName = F and (mode == "cat" and N.cat or bearName)
 	if F then
@@ -465,13 +466,13 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 			-- per round the Claws before its finisher: { 2, 3 } is Rake and two
 			-- Claws (3 combo points) for Rip, then three Claws for the Bite.
 			-- The log of 22.11. showed the Bite with only two Claws behind it.
-			local function build(claws)
+			local function build(claws, first)
 				local t = {}
 				if known.ff then t[#t + 1] = N.ff end
 				if known.rake then t[#t + 1] = N.rake end
 				for r, n in ipairs(claws) do
 					for _ = 1, n do t[#t + 1] = N.claw end
-					if fin then t[#t + 1] = (r == 1) and fin1 or fin2 end
+					if fin then t[#t + 1] = (r == 1) and (first or fin1) or fin2 end
 				end
 				return t
 			end
@@ -482,6 +483,17 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 			local short = seq(inForm, "target", build(fin and { math.max(1, c - 1), c } or { math.max(1, c - 1) }))
 			if #short > 120 then short = seq(inForm, "target", build(fin and { math.max(1, c - 1), math.max(1, c - 1) } or { 1 })) end
 			L[#L + 1] = { long, 1, short, 3 }
+			-- The other finisher plan, for the comparison in the log: no Rip,
+			-- the Bite after Rake and three Claws, then round again. Half the
+			-- Rips of 24.11. had under 8 of their 12 seconds left when the mob
+			-- died. Core takes turns between the two on ordinary mobs and
+			-- notes which one ran. It is shorter than the Rip sequence, so it
+			-- takes that one's place in the fitted text and every other line
+			-- of F is the same in both.
+			if known.rip and known.fb and known.rake then
+				bitePrefix = "/castsequence " .. inForm
+				biteLine = seq(inForm, "target", build({ 3 }, N.fb))
+			end
 			if cfg.shiftpower and known.shiftpower then L[#L + 1] = { "/cast " .. nos .. M(N.shiftpower), 8 } end
 		end
 	else
@@ -494,8 +506,18 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 		if #nukes > 0 then L[#L + 1] = { seq("[noform] ", "target/combat", nukes), 1 } end
 	end
 	local fight = fit(L)
+	local fightBite
+	if biteLine then
+		local t, n = {}, 0
+		for line in fight:gmatch("[^\n]+") do
+			if line:sub(1, #bitePrefix) == bitePrefix then line, n = biteLine, n + 1 end
+			t[#t + 1] = line
+		end
+		local text = table.concat(t, "\n")
+		if n == 1 and #text <= Logic.MACRO_LIMIT then fightBite = text end
+	end
 
-	local out = { fight = fight }
+	local out = { fight = fight, fightBite = fightBite }
 
 	-- For a mob with little health: stay in caster form and cast. It dies
 	-- before it does much, and no time goes into shifting. The lines for the
@@ -690,9 +712,16 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 		-- in the fighting form the other one, anywhere else (caster, water,
 		-- travel) the fighting form: "/cast [form:3] Bear Form; Cat Form"
 		if C and B and known.cat then
+			-- In a fight it is one way, into the bear: pressed 69 times in one
+			-- fight on 24.11. the swap went bear, cat, bear. Out of a fight it
+			-- swaps as before. Back to the cat in a fight: Ctrl + emergency key.
 			local inFight = (formName == N.cat) and C or B
 			local other = (formName == N.cat) and bearName or N.cat
-			out.free = ("/cast [form:%d] %s; %s"):format(inFight, other, formName)
+			-- As a bear in a fight the key hits: Swipe (Maul before Swipe is
+			-- learned). F is built for the cat and only swings there.
+			local hit = (known.swipe and N.swipe) or (known.maul and ("!" .. N.maul)) or nil
+			out.free = "/startattack [combat]\n" .. ("/cast [combat,noform:%d] %s; %s[nocombat,form:%d] %s; [nocombat] %s"):format(
+				B, bearName, hit and ("[combat] " .. hit .. "; ") or "", inFight, other, formName)
 		else
 			out.free = "/cast " .. formName
 		end

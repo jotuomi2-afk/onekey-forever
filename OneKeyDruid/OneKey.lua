@@ -16,7 +16,7 @@ if CLASS == "DRUID" then return end
 local CL = ns.CLASSES and ns.CLASSES[CLASS]
 local Logic = ns.Logic
 
-local VERSION = "0.36.2"
+local VERSION = "0.37.0"
 local PREFIX = "|cff7fd4ffOneKey|r "
 local LIMIT = 255
 local NAMES = { fight = "OneKeyMain", heal = "OneKeyHeal", cc = "OneKeyAlt", behind = "OneKeyCtrl",
@@ -863,7 +863,9 @@ local function createHud()
 	hud.text = hud:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	hud.text:SetPoint("CENTER")
 	hud.alert = hud:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
-	hud.alert:SetPoint("BOTTOM", hud, "TOP", 0, 40)
+	-- much bigger (owner, 25.11.)
+	pcall(hud.alert.SetFont, hud.alert, STANDARD_TEXT_FONT, 34, "THICKOUTLINE")
+	hud.alert:SetPoint("BOTTOM", hud, "TOP", 0, 60)
 	hud.note = hud:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	hud.note:SetPoint("BOTTOM", hud, "TOP", 0, -2)
 	hud.vitals = hud:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")

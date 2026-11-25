@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.37.0
+
+From the logs of 24.11. (142 minutes on 0.36.2, no death, no key that did
+nothing) and the WoW: Forever feral guides.
+
+- Warnings are much bigger. The red, orange and yellow lines (three
+  enemies, an elite, two enemies, rooted, many hits taken, do not pull)
+  now also stand in the middle of the screen in large letters, under the
+  RUN AWAY text. The low health, heal and drink warnings and the other
+  classes' hint line are larger too. `/okd alert 16-72` sets the size
+  (34 to start with), `/okd alert 0` turns the big text off.
+- Druid, a test of the finisher: half the Rips had under 8 of their 12
+  seconds left when the mob died, and the Bite was reached 3 times in 52
+  fights. On ordinary mobs F now takes turns, fight by fight, between the
+  Rip plan (Faerie Fire, Rake, two Claws, Rip, three Claws, the Bite) and
+  a Bite plan (Faerie Fire, Rake, three Claws, the Bite, and round
+  again). The log notes which one ran, and the damage meter decides. An
+  elite, or a mob two levels above you, always gets Rip.
+  `/okd finisher rip`, `bite` or `test`.
+- Druid, Shift+G in a fight goes one way, into the bear, and as a bear it
+  hits: Swipe (Maul before Swipe is learned). Pressed many times in a row
+  it used to swap bear, cat, bear. Out of a fight it swaps as before.
+  Back to the cat in a fight: Ctrl+G. (F is built for the cat and only
+  swings as a bear; there is no room in its 255 characters for more.)
+- Druid, in Prowl with an enemy picked: the screen says in large letters
+  where the opener is, "BEHIND the mob: Ctrl+F = Shred". F opened 16 of
+  21 Prowl pulls with Faerie Fire. Shred stays off F: from the front it
+  fails and stops the key (0.28.1).
+
 ## 0.36.2
 
 (0.36.1 was never published: the release checks stopped it.)

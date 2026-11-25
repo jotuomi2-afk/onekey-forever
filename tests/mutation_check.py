@@ -94,6 +94,11 @@ MUTANTS = [
     ("druid: in the water the HUD sends a fighting cat into Aquatic Form", "Core.lua",
      '\t\treturn UnitCanAttack and UnitCanAttack("player", "target"), UnitIsDead and UnitIsDead("target")\n\tend)\n',
      "\tfoe = false\n", "druid: in water F holds", "an enemy as the target"),
+    ("druid: the finisher plans never take turns", "Core.lua",
+     '\tif event == "PLAYER_REGEN_ENABLED" and db then db.biteTurn = not db.biteTurn end\n',
+     "\tif db then db.biteTurn = false end\n", "druid: Rip and the Bite take turns", "do not take turns"),
+    ("druid: the big warnings are never shown", "Core.lua", "local function setAlert(text)\n",
+     "\tdo return end\n", "druid: the warnings are shown big", "the big text says"),
 ]
 
 
