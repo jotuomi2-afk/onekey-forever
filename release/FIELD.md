@@ -5,6 +5,29 @@ enough to publish it as a release instead of a beta. The rule is in
 docs/RELEASE.md ("From beta to release"). Totals only: the logs stay on
 the owner's computer.
 
+## 0.37.0: stays a beta (the numbers are there, the judgement is not)
+
+Read on 25.11.2026. Three sessions carry the stamp: druid 130 minutes
+and 39 fights, mage 35 minutes and 46 fights; one death; no fight with
+the key pressed and no cast. `--field` says enough.
+
+Held back by judgement:
+
+- The finisher test is still running (9 fights on Rip, 11 on the Bite,
+  20 a side needed). A release should hold one settled plan, not a test
+  that takes turns.
+- Two changed keys were never pressed in play: Shift+G in a fight (the
+  bear, then Swipe) and Alt+G (run, since 0.36.0).
+
+The death was read: a pack of eight around a rare level 31 mob, at level
+29, that came while the player was out of form casting a buff; G (potion,
+Rejuvenation, Nature's Grasp, the bear) was pressed 33 seconds in. No key
+did nothing; not the addon's doing.
+
+Seen working in play: the two finisher plans taking turns and noted in
+the log; more Shred openers from Prowl (8 of 23 Prowl pulls, 5 of 21
+before the big prompt); the mage's opener and G.
+
 ## 0.36.2: stays a beta
 
 Read on 24.11.2026. Two sessions carry the stamp: druid 125 minutes and
