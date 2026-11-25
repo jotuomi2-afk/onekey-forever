@@ -99,6 +99,8 @@ MUTANTS = [
      "\tif db then db.biteTurn = false end\n", "druid: Rip and the Bite take turns", "do not take turns"),
     ("druid: the big warnings are never shown", "Core.lua", "local function setAlert(text)\n",
      "\tdo return end\n", "druid: the warnings are shown big", "the big text says"),
+    ("druid: a cat gone bear has no hit on F", "Logic.lua", "\t\tlocal tookMoon = false\n",
+     "\t\tB = nil\n", "druid: Rip and the Bite take turns", "a bear has no Swipe on F"),
 ]
 
 

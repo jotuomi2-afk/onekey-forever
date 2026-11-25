@@ -151,6 +151,7 @@ point to several tests; names are matched on their beginning.
 | REQ-60 | Druid, the finisher test: on ordinary mobs the Rip plan and the Bite plan take turns fight by fight; the two macros differ in the cat sequence only; the pull and the fight hold the same sequence; an elite or a mob two levels above gets Rip; the fight line notes the plan; the analyser compares damage per second and calls no winner under 20 fights a side or 5 % | druid: Rip and the Bite take turns |
 | REQ-61 | Warnings are shown big in the middle of the screen (in a fight: the red, orange and yellow lines; out of a fight: do not pull, and in Prowl where the opener is); gone when there is none; `/okd alert` sets the size or turns them off | druid: the warnings are shown big |
 | REQ-62 | Druid, Shift+G: in a fight into the bear and never back, as a bear its hit; out of a fight the swap | druid: rooted, the HUD says |
+| REQ-63 | Druid, a cat gone bear in the fight: F hits as a bear (Swipe, Maul before Swipe) at every level and setting, the Wrath pull stays, 255 characters hold | druid: Rip and the Bite take turns |
 
 ## 6. Threat model (STRIDE)
 

@@ -397,8 +397,19 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 		-- coming: Rejuvenation on yourself, Moonfire, then the form.
 		local hotOk = cfg.prehot and known.rejuv and room((mc.wrath or 0) + (mc.rejuv or 0) + (known.moonfire and mc.moonfire or 0))
 		local moonOk = known.moonfire and room((mc.wrath or 0) + (mc.moonfire or 0))
+		-- A cat that went bear in the fight (the emergency key, or Shift +
+		-- it): F hits there too, Swipe (Maul before Swipe is learned). It
+		-- shares the Wrath line to save characters; the forms shut each
+		-- other out, so a Swipe with no rage stops nothing that could run.
+		local tookMoon = false
+		local bearHit = (mode == "cat" and B and known.bear and (known.swipe or known.maul))
+			and ("[form:%d] %s"):format(B, known.swipe and N.swipe or ("!" .. N.maul)) or nil
 		if cfg.pull and known.wrath and room(mc.wrath or 0) then
-			L[#L + 1] = { "/cast [noform,nocombat,harm] " .. N.wrath, 2 }
+			L[#L + 1] = { "/cast [noform,nocombat,harm] " .. N.wrath .. (bearHit and ("; " .. bearHit) or ""), 2 }
+			-- The bear's hit takes the place of Moonfire on the way back into
+			-- the form: ten characters, and the cat is there a second sooner.
+			if bearHit then moonOk, tookMoon = false, true end
+			bearHit = nil
 			-- In combat and out of form: Rejuvenation and Moonfire once per
 			-- target, then the form. The form is in the list twice, so
 			-- that after healing in a fight the next presses go straight
@@ -410,7 +421,9 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 				-- targeted lands on you, so one sequence does it all
 				-- when space runs out the form goes in once instead of twice,
 				-- which keeps the Wrath pull in the macro
-				local head = ("/castsequence [noform,combat] reset=target %s%s"):format(N.rejuv,
+				-- (with the bear's hit on F: "reset=5", five characters shorter;
+				-- as a cat this line is not in use, so it starts over anyway)
+				local head = ("/castsequence [noform,combat] reset=%s %s%s"):format(tookMoon and "5" or "target", N.rejuv,
 					moonOk and (", " .. N.moonfire) or "")
 				L[#L + 1] = { head .. back, 1, head .. ", " .. formName, 3 }
 			else
@@ -427,6 +440,7 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 		else
 			L[#L + 1] = { "/cast [noform,harm,nodead] " .. formName, 1 }
 		end
+		if bearHit then L[#L + 1] = { "/cast " .. bearHit, 2 } end
 		if mode == "bear" then
 			-- The client stops a macro at the first spell that fails: one on
 			-- cooldown (Enrage) or out of range (Feral Charge next to the
@@ -722,6 +736,11 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 			local hit = (known.swipe and N.swipe) or (known.maul and ("!" .. N.maul)) or nil
 			out.free = "/startattack [combat]\n" .. ("/cast [combat,noform:%d] %s; %s[nocombat,form:%d] %s; [nocombat] %s"):format(
 				B, bearName, hit and ("[combat] " .. hit .. "; ") or "", inFight, other, formName)
+			-- and Maul with the rage Swipe leaves: it goes with the next
+			-- swing and takes no global cooldown. Last, so no rage stops nothing.
+			if known.swipe and known.maul then
+				out.free = out.free .. ("\n/cast [combat,form:%d] !%s"):format(B, N.maul)
+			end
 		else
 			out.free = "/cast " .. formName
 		end

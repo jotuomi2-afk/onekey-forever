@@ -16,7 +16,7 @@ local Logic = ns.Logic
 local _, CLASS = UnitClass("player")
 if CLASS ~= "DRUID" then return end
 
-local VERSION = "0.37.0"
+local VERSION = "0.37.1"
 local BUTTON = "OneKeyDruidButton"
 -- The buttons of the modifier keys.
 local NAMES = { heal = "OneKeyDruidHeal", cc = "OneKeyDruidStop", behind = "OneKeyDruidBehind",
@@ -411,7 +411,7 @@ local TEXT = {
 		cMany = "%d enemies: press %s or run", cManyRun = "%d ENEMIES: Alt+%s runs (%s to stand)", cElite = "ELITE: Alt+%s runs (%s to stand)", mHeal = "Shift held: healing", mStop = "Alt held: stop the mob",
 		mRest = "Alt held: eat and drink", mLeave = "Ctrl held: leave the form", mBehind = "Ctrl held: leave form / attack from behind",
 		low = "LOW HEALTH   press %s", lowNoSos = "LOW HEALTH   Shift+%s", healHint = "Heal: Shift+%s", drinkHint = "Low mana: Alt+%s to drink",
-		enemies = "%d ENEMIES", run = "RUN AWAY!  %s", catProwl = "%s: Prowl", swim = "%s: %s", swimming = "in the water", toBear = "BEAR: Shift+%s (press again: Swipe)", catOpen = "%s: Pounce/Claw · behind the mob: Ctrl+%s Ravage/Shred", prowlBehind = "BEHIND the mob: Ctrl+%s = %s", hold = "DO NOT PULL: too strong (%s). /okd brave on", camp = "DO NOT PULL: %d more mobs close. /okd brave on", crowd = "%s: careful, %d more mobs close",
+		enemies = "%d ENEMIES", run = "RUN AWAY!  %s", catProwl = "%s: Prowl", swim = "%s: %s", swimming = "in the water", toBear = "BEAR: Shift+%s (then the fight key or Shift+%s: Swipe)", catOpen = "%s: Pounce/Claw · behind the mob: Ctrl+%s Ravage/Shred", prowlBehind = "BEHIND the mob: Ctrl+%s = %s", hold = "DO NOT PULL: too strong (%s). /okd brave on", camp = "DO NOT PULL: %d more mobs close. /okd brave on", crowd = "%s: careful, %d more mobs close",
 		afk = "Going AFK? Ctrl+%s: Shadowmeld", mHide = "Ctrl held: hide (Shadowmeld)",
 	},
 	fi = {
@@ -425,7 +425,7 @@ local TEXT = {
 		cMany = "%d vihollista: paina %s tai pakene", cManyRun = "%d VIHOLLISTA: Alt+%s pakenee (%s kestää)", cElite = "ELIITTI: Alt+%s pakenee (%s kestää)", mHeal = "Shift pohjassa: parannat", mStop = "Alt pohjassa: pysäytä kohde",
 		mRest = "Alt pohjassa: syö ja juo", mLeave = "Ctrl pohjassa: muodosta pois", mBehind = "Ctrl pohjassa: muodosta pois / lyö takaa",
 		low = "VÄHÄN HP:TA   paina %s", lowNoSos = "VÄHÄN HP:TA   Shift+%s", healHint = "Paranna: Shift+%s", drinkHint = "Mana vähissä: Alt+%s juo",
-		enemies = "%d VIHOLLISTA", run = "PAKENE!  %s", catProwl = "%s: hiivi (Prowl)", swim = "%s: %s", swimming = "vedessä", toBear = "KARHUKSI: Shift+%s (uudestaan: Swipe)", catOpen = "%s: Pounce/Claw · mobin takana: Ctrl+%s Ravage/Shred", prowlBehind = "Mobin TAKANA: Ctrl+%s = %s", hold = "ÄLÄ VEDÄ: liian vahva (%s). /okd brave on", camp = "ÄLÄ VEDÄ: %d muuta mobia lähellä. /okd brave on", crowd = "%s: varo, %d muuta mobia lähellä",
+		enemies = "%d VIHOLLISTA", run = "PAKENE!  %s", catProwl = "%s: hiivi (Prowl)", swim = "%s: %s", swimming = "vedessä", toBear = "KARHUKSI: Shift+%s (sitten taistelunäppäin tai Shift+%s: Swipe)", catOpen = "%s: Pounce/Claw · mobin takana: Ctrl+%s Ravage/Shred", prowlBehind = "Mobin TAKANA: Ctrl+%s = %s", hold = "ÄLÄ VEDÄ: liian vahva (%s). /okd brave on", camp = "ÄLÄ VEDÄ: %d muuta mobia lähellä. /okd brave on", crowd = "%s: varo, %d muuta mobia lähellä",
 		afk = "Menossa AFK? Ctrl+%s: Shadowmeld", mHide = "Ctrl pohjassa: piiloon (Shadowmeld)",
 	},
 }
@@ -1111,7 +1111,7 @@ local function setNote(s)
 	if locked() and adds.n >= 2 then
 		text = "|cffff4040" .. tr("enemies", adds.n) .. "|r" .. (text and ("  " .. text) or "")
 		if formNow() == "cat" and known.bear then
-			text = text .. "  |cffffd060" .. tr("toBear", db.sos or "G") .. "|r"
+			text = text .. "  |cffffd060" .. tr("toBear", db.sos or "G", db.sos or "G") .. "|r"
 		end
 	end
 	text = trNote(text)

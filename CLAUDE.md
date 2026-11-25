@@ -28,6 +28,11 @@ a beta after every check; `release/STABLE` turns a played beta into a
 release. Do not change `release/STABLE` without the evidence in
 `release/FIELD.md`.
 
+After each piece of work, update the hand-over note in the owner's
+claude.ai Project "wow forever" (`claude/jatka-tasta.md`): what was done,
+what is open, what to do next. A new chat starts from that note and from
+this repository (owner, 25.11.2026).
+
 Use the skills: `run-tests`, `security-audit`, `release`,
 `analyze-session-log`. For a review that is not grading its own work, hand
 the diff to the `security-reviewer` agent.

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.37.1
+
+- Druid, a cat that went bear in the fight (G, or Shift+G): F now hits
+  there too, with Swipe (Maul before Swipe is learned). Until now F only
+  swung as a bear.
+  - To make room in F's 255 characters, Moonfire is no longer cast on the
+    way back into the form in a fight (Rejuvenation, then the form).
+- Druid, Shift+G as a bear: Swipe, and Maul with the rage that is left.
+
 ## 0.37.0
 
 From the logs of 24.11. (142 minutes on 0.36.2, no death, no key that did

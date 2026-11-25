@@ -47,7 +47,7 @@ DRUID_SPELLS = {
     768: ("Cat Form", 20), 1082: ("Claw", 20), 1079: ("Rip", 20), 5215: ("Prowl", 20),
     5221: ("Shred", 20), 1822: ("Rake", 24), 5217: ("Tiger's Fury", 24), 783: ("Travel Form", 30),
     22568: ("Ferocious Bite", 24), 6785: ("Ravage", 32), 9005: ("Pounce", 36), 20580: ("Shadowmeld", 1),
-    2383: ("Find Herbs", 1), 1850: ("Dash", 26),
+    2383: ("Find Herbs", 1), 1850: ("Dash", 26), 779: ("Swipe", 16),
 }
 
 
@@ -184,7 +184,7 @@ def druid_macros(lua, ns, level, mode, selfcast=True, mana=None, extra="", forms
      enrage="Enrage",roar="Demoralizing Roar",claw="Claw",rip="Rip",rake="Rake",shred="Shred",prowl="Prowl",
      ff="Faerie Fire (Feral)",fb="Ferocious Bite",ravage="Ravage",pounce="Pounce",tf="Tiger's Fury",
      hibernate="Hibernate",thorns="Thorns",motw="Mark of the Wild",direbear="Dire Bear Form",
-     charge="Feral Charge - Cat",chargeBear="Feral Charge",travel="Travel Form",shadowmeld="Shadowmeld",dash="Dash"}""")
+     charge="Feral Charge - Cat",chargeBear="Feral Charge",travel="Travel Form",shadowmeld="Shadowmeld",dash="Dash",swipe="Swipe"}""")
     kb = {v: k for k, v in N.items()}
     kb["Faerie Fire"] = "ff"
     kn = lua.eval("{}")
@@ -473,7 +473,8 @@ def main():
         # Forever has no powershifting: the key swaps forms. In a fight it is one
         # way, into the bear, and as a bear it hits (pressed 69 times on 24.11.)
         if free.strip().split("\n") != ["/startattack [combat]",
-                "/cast [combat,noform:1] Bear Form; [combat] !Maul; [nocombat,form:3] Bear Form; [nocombat] Cat Form"]:
+                "/cast [combat,noform:1] Bear Form; [combat] Swipe; [nocombat,form:3] Bear Form; [nocombat] Cat Form",
+                "/cast [combat,form:1] !Maul"]:
             p.append("break-free key: in a fight the bear and then its hit, out of a fight the swap: %r" % free)
         if "/cancelform" not in hide:
             p.append("Ctrl+G does not bring you back to caster form: %r" % hide)
@@ -870,6 +871,18 @@ def main():
                 p.append("level %d: the Bite plan is not Faerie Fire, Rake, Claws, the Bite: %r" % (lvl, b[0]))
             if len(o.fightBite) > 255 or o.fightBite.replace(b[0], "") != o.fight.replace(a[0], ""):
                 p.append("level %d: the Bite plan differs from the Rip plan in more than the sequence, or is too long" % lvl)
+        # a cat that went bear in the fight: F hits there too (Swipe; Maul before
+        # Swipe is learned), on the Wrath line, and the Wrath pull stays
+        for lvl in (20, 24, 28, 32, 36, 40):
+            for sc in (True, False):
+                o = druid_macros(lua, nsl, lvl, "cat", selfcast=sc)
+                hit = [l for l in o.fight.split("\n") if "[form:1] Swipe" in l]
+                if len(hit) != 1 or "Wrath" not in o.fight or len(o.fight) > 255:
+                    p.append("level %d selfcast %s: a bear has no Swipe on F, or the Wrath pull fell out: %r" % (lvl, sc, o.fight))
+                if o.fightBite and "[form:1] Swipe" not in o.fightBite:
+                    p.append("level %d: the Bite plan has no Swipe for the bear" % lvl)
+        if "[form:1] !Maul" not in druid_macros(lua, nsl, 12, "cat").fight and druid_macros(lua, nsl, 12, "cat").fight.count("Maul"):
+            p.append("level 12: Maul for the bear is not bound to the bear form")
         if druid_macros(lua, nsl, 22, "cat").fightBite or druid_macros(lua, nsl, 30, "bear").fightBite:
             p.append("a second plan without both finishers, or for the bear")
         # in the client
