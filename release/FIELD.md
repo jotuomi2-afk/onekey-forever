@@ -25,7 +25,7 @@ Rejuvenation, Nature's Grasp, the bear) was pressed 33 seconds in. No key
 did nothing; not the addon's doing.
 
 Seen working in play: the two finisher plans taking turns and noted in
-the log; more Shred openers from Prowl (8 of 23 Prowl pulls, 5 of 21
+the log; more Shred openers from Prowl (8 of 26 Prowl pulls, 5 of 21
 before the big prompt); the mage's opener and G.
 
 ## 0.36.2: stays a beta
