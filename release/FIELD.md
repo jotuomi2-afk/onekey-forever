@@ -5,6 +5,23 @@ enough to publish it as a release instead of a beta. The rule is in
 docs/RELEASE.md ("From beta to release"). Totals only: the logs stay on
 the owner's computer.
 
+## 0.38.1: enough for a release
+
+Read on 26.11.2026. Three sessions carry the stamp: 161 minutes and 113
+fights, the druid 92 and the mage 21; one death; no fight with the key
+pressed and no cast. `--field` says enough.
+
+Seen working in play: the interrupt key of 0.38.1. Alt+F was pressed in
+twelve fights, every one of them against a caster, so the cast warning
+shows; Bash landed in eleven, one global cooldown after the bear in most.
+The mage's opener and G as before.
+
+The death was read: the player stood still for five minutes in cat form
+and Prowl, a level 27 mob attacked, and no key was pressed in the 80
+seconds before the death. Away from the keyboard; not the addon's doing.
+
+Nothing the owner reported about 0.38.x is open.
+
 ## 0.37.1: stays a beta (0.38.0 follows it)
 
 Read on 26.11.2026. Three druid sessions carry the stamp: 84 minutes and
