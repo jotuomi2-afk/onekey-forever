@@ -16,7 +16,7 @@ local Logic = ns.Logic
 local _, CLASS = UnitClass("player")
 if CLASS ~= "DRUID" then return end
 
-local VERSION = "0.37.1"
+local VERSION = "0.38.0"
 local BUTTON = "OneKeyDruidButton"
 -- The buttons of the modifier keys.
 local NAMES = { heal = "OneKeyDruidHeal", cc = "OneKeyDruidStop", behind = "OneKeyDruidBehind",
@@ -406,7 +406,7 @@ local TEXT = {
 		nuke = "%s: attack with spells (weak target)",
 		heal = "%s: heal first (%s)", cure = "%s: cure (%s)", buff = "%s: buff (%s)",
 		cFight = "%s: hit", cFinish = "%s: finish it", cForm = "%s: back to your form",
-		cRoot = "ROOTED: Shift+%s breaks free", cBack = "Back to caster form: Ctrl+%s",
+		cCast = "CASTING! Alt+%s: %s", cCastCat = "Casting: Shift+%s bear, then Alt+%s %s", cRoot = "ROOTED: Shift+%s breaks free", cBack = "Back to caster form: Ctrl+%s",
 		cHits = "Many hits taken: Shift+%s to heal", cTwo = "2 enemies: Alt+%s stops one, %s if it gets bad",
 		cMany = "%d enemies: press %s or run", cManyRun = "%d ENEMIES: Alt+%s runs (%s to stand)", cElite = "ELITE: Alt+%s runs (%s to stand)", mHeal = "Shift held: healing", mStop = "Alt held: stop the mob",
 		mRest = "Alt held: eat and drink", mLeave = "Ctrl held: leave the form", mBehind = "Ctrl held: leave form / attack from behind",
@@ -420,7 +420,7 @@ local TEXT = {
 		nuke = "%s: hyökkää loitsuilla (heikko kohde)",
 		heal = "%s: paranna ensin (%s)", cure = "%s: poista (%s)", buff = "%s: buffaa (%s)",
 		cFight = "%s: lyö", cFinish = "%s: viimeistele", cForm = "%s: takaisin muotoon",
-		cRoot = "JUURISSA: Shift+%s vapauttaa", cBack = "Takaisin caster-muotoon: Ctrl+%s",
+		cCast = "LOITSII! Alt+%s: %s", cCastCat = "Loitsii: Shift+%s karhuksi, sitten Alt+%s %s", cRoot = "JUURISSA: Shift+%s vapauttaa", cBack = "Takaisin caster-muotoon: Ctrl+%s",
 		cHits = "Paljon osumia: Shift+%s parantaa", cTwo = "2 vihollista: Alt+%s pysäyttää yhden, %s jos pahenee",
 		cMany = "%d vihollista: paina %s tai pakene", cManyRun = "%d VIHOLLISTA: Alt+%s pakenee (%s kestää)", cElite = "ELIITTI: Alt+%s pakenee (%s kestää)", mHeal = "Shift pohjassa: parannat", mStop = "Alt pohjassa: pysäytä kohde",
 		mRest = "Alt pohjassa: syö ja juo", mLeave = "Ctrl pohjassa: muodosta pois", mBehind = "Ctrl pohjassa: muodosta pois / lyö takaa",
@@ -456,6 +456,21 @@ local live = { hits = 0, at = 0, times = {}, start = 0, lastKill = nil }
 
 ns.DruidHud = function() return currentLabel end -- read by the tests
 
+-- The target is casting and Bash (Alt, the bear's stun) would stop it: say
+-- so. As a bear, big; as a cat or in caster form one line, because getting
+-- there takes a shift first. Bash's minute is counted from the player's own
+-- cast (cooldowns are secret in a fight). Text only. /okd interrupt off.
+local bashAt = -999
+local function interruptText(now, form, key, sos, target)
+	if target ~= "hostile" then return nil end
+	if db.interrupt == false or not (ns.TargetCast and ns.TargetCast.Active(now)) then return nil end
+	if not known.bash or not known.bear or not (macros.cc or ""):find(N.bash, 1, true) then return nil end
+	if now - bashAt < 60 then return nil end
+	if form == "bear" then return "|cffff8040" .. tr("cCast", key, N.bash) .. "|r" end
+	if not macros.free then return nil end
+	return "|cff80d0ff" .. tr("cCastCat", sos, key, N.bash) .. "|r"
+end
+
 -- The warnings, big and in the middle of the screen (owner, 25.11.: "much
 -- bigger"). The HUD line keeps saying what the key does.
 local bigAlert
@@ -478,7 +493,10 @@ ns.DruidAlert = function() return bigAlert and bigAlert.shown end -- read by the
 -- A small letter in the log means the plan was not this fight's turn but
 -- forced (a hard mob, or /okd finisher rip|bite): not part of the comparison.
 local function fightText()
-	local mode = db and db.finisher or "test"
+	-- The comparison ended on 26.11.: 21 fights on Rip (70.9 DPS, 15.0 s) and
+	-- 27 on the Bite (69.6 DPS, 15.4 s), no clear difference. Rip is the
+	-- plan; /okd finisher test takes the turns up again.
+	local mode = db and db.finisher or "rip"
 	if not macros.fightBite then return macros.fight, "" end
 	if mode == "rip" then return macros.fight, "a" end
 	if mode == "bite" then return macros.fightBite, "b" end
@@ -1203,8 +1221,11 @@ local function combatHud()
 	fromCaster.lastForm = form
 	local isRooted = rooted()
 	fromCaster.wasRooted = isRooted and form == "none"
+	local casting = interruptText(now, form, key, sos, state.target)
 	if mod and macros[mod] then
 		text = modLabel(mod)
+	elseif casting then
+		text = casting
 	elseif isRooted and macros.free and form ~= "bear" then
 		-- (a bear in a fight: the key hits there and does not shift)
 		text = "|cffff8040" .. tr("cRoot", sos) .. "|r"
@@ -1929,7 +1950,7 @@ local function status()
 		tostring(food), tostring(water), tostring(db.key)))
 	say(("fight (%d of 255 characters):\n%s"):format(#macros.fight, macros.fight))
 	if macros.fightBite then
-		say(("fight, the Bite plan (%d of 255; /okd finisher %s):\n%s"):format(#macros.fightBite, tostring(db.finisher or "test"), macros.fightBite))
+		say(("fight, the Bite plan (%d of 255; /okd finisher %s):\n%s"):format(#macros.fightBite, tostring(db.finisher or "rip"), macros.fightBite))
 	end
 	if macros.nuke then say("weak targets:\n" .. macros.nuke) end
 	say("on the key now:\n" .. tostring(button:GetAttribute("macrotext")))
@@ -2260,6 +2281,7 @@ logger:SetScript("OnEvent", function(_, event, a1, a2, a3)
 				logEvent("A", name)
 				if name == N.roar and lg.inFight then lg.roared = true end
 				if name == N.grasp then graspAt = GetTime() end
+				if name == N.bash then bashAt = GetTime() end
 				if name == N.dash then dashAt = GetTime() end
 				if name == N.ht or name == N.regrowth then lg.paying = false end
 				if (name == N.ht or name == N.regrowth or name == N.rejuv) and not locked() and hpEst.frac then
@@ -2571,6 +2593,9 @@ SlashCmdList.ONEKEYDRUID = function(msg)
 		if bigAlert and db.alert > 0 then pcall(bigAlert.text.SetFont, bigAlert.text, STANDARD_TEXT_FONT, db.alert, "THICKOUTLINE") end
 		setAlert(nil)
 		say(db.alert == 0 and "big warnings off." or ("big warnings: size " .. db.alert .. "."))
+	elseif cmd == "interrupt" and (rest == "on" or rest == "off") then
+		db.interrupt = rest == "on"
+		say("the hint when your target casts: " .. rest .. ".")
 	elseif cmd == "finisher" and (rest == "rip" or rest == "bite" or rest == "test") then
 		db.finisher = rest
 		say("finisher plan: " .. rest .. (rest == "test" and " (Rip and the Bite take turns on ordinary mobs; the log compares them)." or "."))

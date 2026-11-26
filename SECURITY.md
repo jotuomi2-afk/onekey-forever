@@ -55,6 +55,14 @@ target's or the player's auras, which are secret in combat, and they
 change no macro. The owner decides whether such a count stays; it is
 listed here so that the policy says what the addon does.
 
+One hint reads the target (0.38.0): while a hostile target is casting, the
+HUD names the key that holds the class's interrupt or stun
+(`/okd interrupt off`). It uses the client's own cast events for the unit
+"target" and, where the client gives plain values, the cast's end and its
+"not interruptible" mark; a secret answer is never compared. The key is
+named only when its cooldown is known to be over. Nothing is cast or
+pressed: the player decides. The owner asked for this hint on 26.11.2026.
+
 The quest list (`/okd solo`) is made of plain frames. A click on a row
 sets the game's own map pin and arrow and prints the task; it never
 casts, targets, interacts or moves. No addon button is clicked from Lua

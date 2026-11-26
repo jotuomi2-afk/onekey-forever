@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.38.0
+
+From the logs of 26.11. (84 minutes and 40 fights on 0.37.1, one death in
+Stormwind with no key pressed) and the owner's ask: interrupts and stuns.
+
+- New: the HUD says when your target is casting and which key stops it.
+  It reads the client's own cast events for the target; it shows text
+  only, you press the key. `/okd interrupt off` turns it off.
+  - Mage: Counterspell, Shift+G.
+  - Rogue: Kick, Shift+F; with Kick on cooldown Gouge, Alt+F.
+  - Paladin: Hammer of Justice, Alt+F.
+  - Druid: Bash, Alt+F. As a bear in large letters; as a cat one line
+    (Shift+G into the bear, then Alt+F), since the cat has no interrupt.
+    Not for a minute after Bash was used.
+  - A cast the client marks as not interruptible is not named. To be
+    seen in play: whether the client sends these events for enemies.
+- Druid: the Rip against Ferocious Bite comparison is over. 21 fights on
+  Rip (70.9 DPS, 15.0 s a fight) and 27 on the Bite (69.6 DPS, 15.4 s):
+  no clear difference. Rip is the plan now and the turns are off;
+  `/okd finisher test` or `bite` still work.
+
 ## 0.37.1
 
 - Druid, a cat that went bear in the fight (G, or Shift+G): F now hits

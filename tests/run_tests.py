@@ -898,6 +898,11 @@ def main():
         p += lua_list(tick(6, 0.25))
         main = lambda: macro_attrs(lua).get("OneKeyDruidButton:macrotext", "")
         plan = lambda t: "B" if "Rip" not in t and "Ferocious Bite" in t else "A"
+        # the comparison is over (26.11.): Rip unless the test is asked for
+        if plan(main()) != "A":
+            p.append("with nothing set the key does not hold the Rip plan")
+        lua.eval("STUB.slash")("finisher test")
+        p += lua_list(tick(6, 0.25))
 
         def fight():
             p.extend(lua_list(tick(2, 0.25)))
@@ -1337,6 +1342,148 @@ def main():
             errs += lua_list(fire(e, "OneKeyDruid"))
         errs += lua_list(tick(2, 0.25))
         return lua, ns, errs, fire, tick
+
+    @S.test("interrupt: the target casts, the mage's HUD names Counterspell's key until the cast ends or it is cast")
+    def _():
+        lua, ns, p, fire, tick = mage_session(30, ("cs",))
+        lua.execute('STUB.targetName = "Defias Wizard" STUB.targetLevel = 30')
+        p += lua_list(fire("PLAYER_TARGET_CHANGED"))
+        p += lua_list(fire("PLAYER_REGEN_DISABLED"))
+        lua.execute("STUB.combat = true")
+        p += lua_list(tick(2, 0.25))
+        if "Counterspell" in (ns.OneKeyAlert() or ""):
+            p.append("no cast yet, the HUD says %r" % ns.OneKeyAlert())
+        p += lua_list(fire("UNIT_SPELLCAST_START", "player", "x", 116))
+        p += lua_list(tick(1, 0.25))
+        if "Counterspell" in (ns.OneKeyAlert() or ""):
+            p.append("the player's own cast counts as the target's: %r" % ns.OneKeyAlert())
+        p += lua_list(fire("UNIT_SPELLCAST_START", "target", "x", 133))
+        p += lua_list(tick(1, 0.25))
+        t = ns.OneKeyAlert() or ""
+        if "Counterspell" not in t or "Shift+G" not in t:
+            p.append("the target casts, the HUD says %r" % t)
+        p += lua_list(fire("UNIT_SPELLCAST_STOP", "target", "x", 133))
+        p += lua_list(tick(1, 0.25))
+        if "Counterspell" in (ns.OneKeyAlert() or ""):
+            p.append("the cast ended, the hint stays: %r" % ns.OneKeyAlert())
+        # a cast nobody stops ends by itself (no stop event seen)
+        p += lua_list(fire("UNIT_SPELLCAST_START", "target", "x", 133))
+        p += lua_list(tick(60, 0.25))
+        if "Counterspell" in (ns.OneKeyAlert() or ""):
+            p.append("15 s after a cast began the hint stays: %r" % ns.OneKeyAlert())
+        # Counterspell cast: 30 s without the hint
+        p += lua_list(lua.eval("STUB.castDone")(2139))
+        p += lua_list(fire("UNIT_SPELLCAST_START", "target", "x", 133))
+        p += lua_list(tick(1, 0.25))
+        if "Counterspell" in (ns.OneKeyAlert() or ""):
+            p.append("Counterspell on cooldown is named: %r" % ns.OneKeyAlert())
+        p += lua_list(fire("UNIT_SPELLCAST_STOP", "target", "x", 133))
+        p += lua_list(tick(140, 0.25))
+        A = lambda: "Counterspell" in (ns.OneKeyAlert() or "")
+        # what the client says about the cast, in plain values: its end ...
+        lua.execute('STUB.targetCast = { "Fireball", (STUB.now + 2) * 1000, false }')
+        p += lua_list(fire("UNIT_SPELLCAST_START", "target", "x", 133))
+        p += lua_list(tick(4, 0.25))
+        if not A():
+            p.append("one second into a two second cast the hint is gone")
+        p += lua_list(tick(8, 0.25))
+        if A():
+            p.append("the cast's own end has passed and the hint stays")
+        # ... and that it cannot be interrupted: no key
+        lua.execute('STUB.targetCast = { "Shielded Bolt", (STUB.now + 3) * 1000, true }')
+        p += lua_list(fire("UNIT_SPELLCAST_START", "target", "x", 133))
+        p += lua_list(tick(1, 0.25))
+        if A():
+            p.append("a cast that cannot be interrupted is named")
+        lua.execute('STUB.targetCast = nil STUB.targetChannel = { "Shielded Drain", (STUB.now + 3) * 1000, true }')
+        p += lua_list(fire("UNIT_SPELLCAST_CHANNEL_START", "target", "x", 133))
+        p += lua_list(tick(1, 0.25))
+        if A():
+            p.append("a channel that cannot be interrupted is named")
+        # secret answers: nothing is compared, the guess stands
+        lua.execute('STUB.targetChannel = nil STUB.targetCast = { STUB_secret(), STUB_secret(), STUB_secret() }')
+        p += lua_list(fire("UNIT_SPELLCAST_START", "target", "x", 133))
+        p += lua_list(tick(1, 0.25))
+        if not A():
+            p.append("a cast with secret details is not named")
+        p += lua_list(fire("UNIT_SPELLCAST_STOP", "target", "x", 133))
+        # a channel says "succeeded" as it begins and goes on
+        lua.execute('STUB.targetCast = nil STUB.targetChannel = { "Drain Life", (STUB.now + 5) * 1000, false }')
+        p += lua_list(fire("UNIT_SPELLCAST_CHANNEL_START", "target", "x", 689))
+        p += lua_list(fire("UNIT_SPELLCAST_SUCCEEDED", "target", "x", 689))
+        p += lua_list(tick(1, 0.25))
+        if not A():
+            p.append("a channel loses its hint at its own start")
+        p += lua_list(fire("UNIT_SPELLCAST_CHANNEL_STOP", "target", "x", 689))
+        # a new target in the middle of a cast
+        lua.execute('STUB.targetChannel = nil STUB.targetCast = { "Fireball", (STUB.now + 2) * 1000, false }')
+        p += lua_list(fire("PLAYER_TARGET_CHANGED"))
+        p += lua_list(tick(1, 0.25))
+        if not A():
+            p.append("a target picked in the middle of its cast is not named")
+        lua.execute('STUB.targetCast = nil')
+        p += lua_list(fire("PLAYER_TARGET_CHANGED"))
+        p += lua_list(tick(1, 0.25))
+        if A():
+            p.append("a new target that is not casting is named")
+        e = lua.eval("STUB.slash")("interrupt off")
+        if e:
+            p.append("/okd interrupt off: %s" % e)
+        p += lua_list(tick(140, 0.25))
+        p += lua_list(fire("UNIT_SPELLCAST_START", "target", "x", 133))
+        p += lua_list(tick(1, 0.25))
+        if "Counterspell" in (ns.OneKeyAlert() or ""):
+            p.append("/okd interrupt off, the hint shows: %r" % ns.OneKeyAlert())
+        return p
+
+    @S.test("interrupt: the target casts, the bear is told Alt+F Bash (big), the cat in one line; not for a minute after Bash")
+    def _():
+        p = []
+        lua = new_lua()
+        set_class(lua, "DRUID", 11, 30, druid_spells(30))
+        lua.execute("STUB.buffs = {} STUB.form = 1")
+        ns, errs = load_addon(lua)
+        p += errs
+        fire, tick = lua.eval("STUB.fire"), lua.eval("STUB.tick")
+        for e in ("ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD"):
+            p += lua_list(fire(e, "OneKeyDruid"))
+        p += lua_list(tick(4, 0.25))
+        lua.execute('STUB.targetName = "Nightbane Shadow Weaver" STUB.targetLevel = 28')
+        p += lua_list(fire("PLAYER_TARGET_CHANGED"))
+        p += lua_list(fire("PLAYER_REGEN_DISABLED"))
+        lua.execute("STUB.combat = true")
+        p += lua_list(tick(2, 0.25))
+        if "Bash" in (ns.DruidAlert() or ""):
+            p.append("no cast yet, the big text says %r" % ns.DruidAlert())
+        p += lua_list(fire("UNIT_SPELLCAST_START", "target", "x", 695))
+        p += lua_list(tick(1, 0.25))
+        t = ns.DruidAlert() or ""
+        if "Bash" not in t or "Alt+" not in t:
+            p.append("a bear, the target casts, the big text says %r" % t)
+        p += lua_list(fire("UNIT_SPELLCAST_INTERRUPTED", "target", "x", 695))
+        p += lua_list(tick(1, 0.25))
+        if "Bash" in (ns.DruidAlert() or ""):
+            p.append("the cast was stopped, the text stays: %r" % ns.DruidAlert())
+        # as a cat: one line in the HUD, nothing big
+        lua.execute("STUB.form = 3")
+        p += lua_list(fire("UPDATE_SHAPESHIFT_FORM"))
+        p += lua_list(fire("UNIT_SPELLCAST_CHANNEL_START", "target", "x", 695))
+        p += lua_list(tick(1, 0.25))
+        h = ns.DruidHud() or ""
+        if "Bash" not in h or "Shift+G" not in h:
+            p.append("a cat, the target casts, the HUD says %r" % h)
+        if "Bash" in (ns.DruidAlert() or ""):
+            p.append("a cat is told in big text: %r" % ns.DruidAlert())
+        p += lua_list(fire("UNIT_SPELLCAST_CHANNEL_STOP", "target", "x", 695))
+        # Bash used: silent for its minute
+        lua.execute("STUB.form = 1")
+        p += lua_list(fire("UPDATE_SHAPESHIFT_FORM"))
+        p += lua_list(lua.eval("STUB.castDone")(5211))
+        p += lua_list(fire("UNIT_SPELLCAST_START", "target", "x", 695))
+        p += lua_list(tick(1, 0.25))
+        if "Bash" in (ns.DruidAlert() or ""):
+            p.append("Bash on cooldown is named: %r" % ns.DruidAlert())
+        return p
 
     @S.test("macro: mage F is Frostbolt with up to two Fireballs before it, one macro per count; no cooldown on F")
     def _():

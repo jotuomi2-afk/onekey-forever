@@ -5,6 +5,22 @@ enough to publish it as a release instead of a beta. The rule is in
 docs/RELEASE.md ("From beta to release"). Totals only: the logs stay on
 the owner's computer.
 
+## 0.37.1: stays a beta (0.38.0 follows it)
+
+Read on 26.11.2026. Three druid sessions carry the stamp: 84 minutes and
+40 fights; no fight with the key pressed and no cast. Missing: six
+minutes, 20 fights, and every fight of a second class (the mage was not
+played).
+
+One death, read: Stormwind City, the target not named in the log, cat
+form, 3.8 seconds, neither F nor G pressed in the session's only fight.
+Not the addon's doing.
+
+The finisher comparison is complete: 21 fights on Rip (70.9 DPS, 15.0 s)
+and 27 on the Bite (69.6 DPS, 15.4 s), one level won each. No clear
+difference; 0.38.0 makes Rip the plan. Still never pressed in play:
+Alt+G (run) and Alt+F as a bear (Bash, no cast in the whole log).
+
 ## 0.37.0: stays a beta (the numbers are there, the judgement is not)
 
 Read on 25.11.2026. Three sessions carry the stamp: druid 130 minutes

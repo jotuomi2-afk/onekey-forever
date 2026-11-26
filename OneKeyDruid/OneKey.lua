@@ -16,7 +16,7 @@ if CLASS == "DRUID" then return end
 local CL = ns.CLASSES and ns.CLASSES[CLASS]
 local Logic = ns.Logic
 
-local VERSION = "0.37.1"
+local VERSION = "0.38.0"
 local PREFIX = "|cff7fd4ffOneKey|r "
 local LIMIT = 255
 local NAMES = { fight = "OneKeyMain", heal = "OneKeyHeal", cc = "OneKeyAlt", behind = "OneKeyCtrl",
@@ -324,7 +324,7 @@ local TEXT = {
 		afk = "Going AFK? Ctrl+%s: hide", noClass = "no list for this class yet",
 		aMelee = "IN MELEE: Ctrl+%s  %s, then step back and %s", aNova = "IN MELEE: Shift+%s  %s", aLance = "FROZEN: step back, Shift+%s x2  %s + %s",
 		aBack = "FROZEN: step back, %s", aCone = "WINTER'S CHILL x%d: close in, Ctrl+%s until %s",
-		aShield = "%s: Ctrl+%s", aKey = "%s: %s%s", aNovaKey = "IN MELEE: %s  %s, then %s" },
+		aShield = "%s: Ctrl+%s", aKey = "%s: %s%s", aNovaKey = "IN MELEE: %s  %s, then %s", aCast = "CASTING! %s: %s" },
 	fi = { target = "%s: etsi kohde", fight = "%s: hyökkää", buff = "%s: buffaa (%s)", conjure = "%s: loihdi (%s)",
 		hold = "ÄLÄ VEDÄ: liian vahva (%s). /okd brave on", dead = "Olet kuollut", mounted = "Ratsailla",
 		cFight = "%s: taistele", cMany = "%d vihollista: paina %s tai pakene", run = "PAKENE!  %s",
@@ -332,7 +332,7 @@ local TEXT = {
 		afk = "Menossa AFK? Ctrl+%s: piiloon", noClass = "tälle luokalle ei vielä ole listaa",
 		aMelee = "LÄHITAISTELU: Ctrl+%s  %s, sitten taakse ja %s", aNova = "LÄHITAISTELU: Shift+%s  %s", aLance = "JÄÄSSÄ: peräänny, Shift+%s x2  %s + %s",
 		aBack = "JÄÄSSÄ: peräänny, %s", aCone = "WINTER'S CHILL x%d: lähelle, Ctrl+%s kunnes %s",
-		aShield = "%s: Ctrl+%s", aKey = "%s: %s%s", aNovaKey = "LÄHITAISTELU: %s  %s, sitten %s" },
+		aShield = "%s: Ctrl+%s", aKey = "%s: %s%s", aNovaKey = "LÄHITAISTELU: %s  %s, sitten %s", aCast = "LOITSII! %s: %s" },
 }
 local function tr(key, ...)
 	local t = TEXT[db and db.lang] or TEXT.en
@@ -778,7 +778,30 @@ local function stuckHint(now)
 	return tr("aKey", (S.label or "NO COMBO POINT") .. ": " .. N[S.spell], COMBO[S.key] or "", db.key or "F")
 end
 
+-- The target is casting: name the key that holds the class's interrupt
+-- (or a stun, which stops a cast as well), the first on the list that is
+-- on a key and not known to be on cooldown. Text only: the player presses.
+-- /okd interrupt off.
+local KEYS = { heal = { "Shift+", "key" }, cc = { "Alt+", "key" }, behind = { "Ctrl+", "key" },
+	free = { "Shift+", "sos" }, hide = { "Ctrl+", "sos" } }
+local function interruptHint(now)
+	if db.interrupt == false or not (ns.TargetCast and ns.TargetCast.Active(now)) then return nil end
+	if targetKind() ~= "hostile" then return nil end
+	for _, r in ipairs(CL and CL.interrupt or {}) do
+		local name, K = known[r.spell] and N[r.spell], KEYS[r.key]
+		local held = K and db[K[2]]
+		if name and held and (macros[r.key] or ""):find(name, 1, true) then
+			-- a key is named only when the cooldown is known to be over
+			local left, sure = cooldownLeft(r.spell, now)
+			if left == 0 and sure then return tr("aCast", K[1] .. held, name) end
+		end
+	end
+	return nil
+end
+
 local function alertText(now)
+	local casting = interruptHint(now)
+	if casting then return casting end
 	local stuck = stuckHint(now)
 	if stuck then return stuck end
 	local key = db.key or "F"
@@ -1322,6 +1345,9 @@ SlashCmdList.ONEKEYDRUID = function(msg)
 		else say("opener 0-3 — how many times the opening spell is cast before the filler; auto — by the distance to the target.") return end
 		dirty = true
 		say("opener: " .. (db.opener and tostring(db.opener) or "auto") .. ".")
+	elseif cmd == "interrupt" and (rest == "on" or rest == "off") then
+		db.interrupt = rest == "on"
+		say("the hint when your target casts: " .. rest .. ".")
 	elseif cmd == "cone" then
 		db.cone = rest:lower() ~= "off"
 		say("Cone of Cold hint " .. (db.cone and "on" or "off") .. ".")

@@ -80,7 +80,7 @@ C.MAGE = {
 	-- With five stacks of Winter's Chill the HUD asks for the Cone.
 	behind = { { "seq", { "fireblast", "cone" }, H, "combat" } },
 	alert = { freeze = "nova", freezeKey = "sos", lance = "icelance", bolt = "frostbolt",
-		cd = { nova = 25, icelance = 8, cone = 10, barrier = 30, blink = 15 },
+		cd = { nova = 25, icelance = 8, cone = 10, barrier = 30, blink = 15, cs = 30 },
 		-- Winter's Chill (talent, level 35): Frostbolt and Ice Lance casts
 		-- build it, Cone of Cold spends it at five
 		chill = { level = 35, build = { "frostbolt", "icelance" }, spend = "cone", stacks = 5 },
@@ -99,6 +99,8 @@ C.MAGE = {
 	sos = { { "seq", { "nova", "blink", "manashield" }, "", "25", stop = true }, { "potion" } },
 	-- Shift+G: Counterspell
 	free = { { "cast", "cs", H } },
+	-- the target casts: the HUD names the key
+	interrupt = { { spell = "cs", key = "free" } },
 	-- Ctrl+G: Ice Barrier again in a long fight (the HUD says when)
 	hide = { { "cast", "barrier", "" } }, hideIsSpell = true,
 }
@@ -197,7 +199,9 @@ C.ROGUE = {
 	-- Two strikes that both miss leave Slice and Dice without a combo
 	-- point, and the sequence waits on it. Gouge (Alt+F) gives a point.
 	stuck = { spell = "gouge", key = "cc" },
-	cd = { riposte = 6, gouge = 10 },
+	cd = { riposte = 6, gouge = 10, kick = 10 },
+	-- the target casts: Kick, and with Kick on cooldown Gouge stops it too
+	interrupt = { { spell = "kick", key = "heal" }, { spell = "gouge", key = "cc" } },
 	sos = { { "cast", "evasion", "" }, { "potion" } },
 	free = { { "cast", "sprint", "" } },
 	hide = { { "cast", "stealth", "[nocombat,nostealth]" } },
@@ -350,6 +354,9 @@ C.PALADIN = {
 	},
 	heal = { { "cast", "fol", "[@player]" }, { "cast", "hl", "[@player]" } },
 	cc = { { "cast", "hoj", H } },
+	-- the target casts: the stun stops it
+	interrupt = { { spell = "hoj", key = "cc" } },
+	cd = { hoj = 60 },
 	behind = { { "cast", "purify", "[@player]" } },
 	sos = { { "cast", "ds", "" }, { "potion" } },
 }

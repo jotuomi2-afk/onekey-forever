@@ -156,6 +156,18 @@ function UnitName(u) if u == "target" then return STUB.targetName end return "Te
 function UnitIsPlayer(u) return u == "target" and STUB.targetIsPlayer == true end
 function UnitExists(u) if u == "target" then return STUB.targetName ~= nil end return u == "player" end
 function UnitIsDead() return false end
+-- the target's cast, as the tests set it: STUB.targetCast = { name, endMs,
+-- shielded } (any of them may be a secret value), STUB.targetChannel alike
+function UnitCastingInfo(u)
+	local c = u == "target" and STUB.targetCast
+	if not c then return nil end
+	return c[1], c[1], 1, 0, c[2], false, "castid", c[3], 133
+end
+function UnitChannelInfo(u)
+	local c = u == "target" and STUB.targetChannel
+	if not c then return nil end
+	return c[1], c[1], 1, 0, c[2], false, c[3], 133
+end
 function UnitIsUnit(a, b) return a == b end
 function UnitIsDeadOrGhost() return false end
 function UnitCanAttack(a, b) return b == "target" and STUB.targetName ~= nil end
@@ -386,7 +398,7 @@ end
 STUB.timers = {}
 STUB.cds = {}
 STUB.cooldown = { ["Nature's Grasp"] = 60, ["Frost Nova"] = 25, ["Ice Lance"] = 8, ["Kidney Shot"] = 20, ["Gouge"] = 10,
-	["Mind Blast"] = 8 }
+	["Mind Blast"] = 8, ["Counterspell"] = 30 }
 -- the client fires UNIT_SPELLCAST_SUCCEEDED and starts the spell's cooldown
 function STUB.castDone(spellID)
 	local name = STUB.names and STUB.names[spellID]

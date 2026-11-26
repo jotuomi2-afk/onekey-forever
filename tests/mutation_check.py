@@ -101,6 +101,12 @@ MUTANTS = [
      "\tdo return end\n", "druid: the warnings are shown big", "the big text says"),
     ("druid: a cat gone bear has no hit on F", "Logic.lua", "\t\tlocal tookMoon = false\n",
      "\t\tB = nil\n", "druid: Rip and the Bite take turns", "a bear has no Swipe on F"),
+    ("interrupt: the player's own cast counts as the target's", "Casting.lua", "f:SetScript(\"OnEvent\", function(_, event, unit)\n",
+     "\tunit = \"target\"\n", "interrupt: the target casts, the mage", "own cast counts"),
+    ("interrupt: a secret cast end is compared", "Casting.lua", "\t\tif ok then\n",
+     "\t\t\tif endMs and endMs < 0 then return 0 end\n", "interrupt: the target casts, the mage", "compare"),
+    ("interrupt: a key is named while its spell is on cooldown", "OneKey.lua", "\t\t\tlocal left, sure = cooldownLeft(r.spell, now)\n",
+     "\t\t\tsure = true left = 0\n", "interrupt: the target casts, the mage", "on cooldown is named"),
 ]
 
 
