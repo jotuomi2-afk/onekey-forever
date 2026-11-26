@@ -107,6 +107,21 @@ MUTANTS = [
      "\t\t\tif endMs and endMs < 0 then return 0 end\n", "interrupt: the target casts, the mage", "compare"),
     ("interrupt: a key is named while its spell is on cooldown", "OneKey.lua", "\t\t\tlocal left, sure = cooldownLeft(r.spell, now)\n",
      "\t\t\tsure = true left = 0\n", "interrupt: the target casts, the mage", "on cooldown is named"),
+    ("log: a finisher loses its combo points", "Core.lua", "\t\t\t\tif (name == N.rip or name == N.fb) and lg.cp then\n",
+     "\t\t\t\t\tlg.cp = nil\n", "log: warnings", "five combo points"),
+    ("log: a warning keeps its colour codes", "Core.lua", "\twarnLog[plainWarn] = now\n",
+     "\tplainWarn = text\n", "log: warnings", "colour codes"),
+    ("log: damage by spell, weakest first", "Core.lua", "\ttable.sort(rows, function(a, b) return a[2] > b[2] end)\n",
+     "\ttable.sort(rows, function(a, b) return a[2] < b[2] end)\n", "log: warnings", "damage by spell is"),
+    # (the three below from the review of 0.39.0: guards never run on secret data)
+    ("log: a secret meter number is compared", "Core.lua", "\t\tlocal id, amount = sp.spellID, sp.totalAmount\n",
+     "\t\tif amount and amount < 0 then amount = 0 end\n", "log: warnings", "spells are secret"),
+    ("log: secret combo points are compared", "Core.lua",
+     "\t\tlocal ok, cp = pcall(GetComboPoints or function() return nil end, \"player\", \"target\")\n",
+     "\t\tif cp and cp > 0 then lg.cp = cp end\n", "log: warnings", "compare"),
+    ("log: the meter's source is used when secret", "Core.lua", "\tguid = guid or (UnitGUID and UnitGUID(\"player\"))\n",
+     "\tif session and session.combatSources and session.combatSources[1] then guid = session.combatSources[1].sourceGUID end\n",
+     "log: warnings", "secret source GUID"),
 ]
 
 

@@ -1489,6 +1489,112 @@ def main():
             p.append("Bash on cooldown is named: %r" % ns.DruidAlert())
         return p
 
+    @S.test("log: warnings and the AFK alarm are written (W), the meter's damage by spell after a fight (Y), a finisher's combo points")
+    def _():
+        p = []
+        lua = new_lua()
+        set_class(lua, "DRUID", 11, 30, druid_spells(30))
+        lua.execute("STUB.buffs = {} STUB.form = 3")
+        ns, errs = load_addon(lua)
+        p += errs
+        fire, tick = lua.eval("STUB.fire"), lua.eval("STUB.tick")
+        for e in ("ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD"):
+            p += lua_list(fire(e, "OneKeyDruid"))
+        lines = lambda: [str(l) for l in lua_list(lua.eval("OneKeyDruidDB.lines"))]
+        code = lambda c: [l.split("|") for l in lines() if l.split("|")[1] == c]
+        # away from the keys for a minute, then something attacks: the alarm, in the log
+        p += lua_list(tick(240, 0.25))
+        lua.execute('STUB.targetName = "Nightbane Shadow Weaver" STUB.targetLevel = 30')
+        p += lua_list(fire("PLAYER_TARGET_CHANGED"))
+        p += lua_list(fire("PLAYER_REGEN_DISABLED"))
+        lua.execute("STUB.combat = true")
+        p += lua_list(tick(2, 0.25))
+        if not [w for w in code("W") if w[2] == "afk alarm"]:
+            p.append("no AFK alarm in the log: %r" % code("W"))
+        # the target casts: the warning is in the log once, as plain text
+        p += lua_list(fire("UNIT_SPELLCAST_START", "target", "x", 695))
+        p += lua_list(tick(3, 0.25))
+        cast = [w for w in code("W") if "Bash" in "|".join(w[2:])]
+        if len(cast) != 1:
+            p.append("the cast warning is in the log %d times: %r" % (len(cast), code("W")))
+        elif "|c" in "|".join(cast[0]) or len(cast[0]) != 3:
+            p.append("the warning keeps its colour codes or has a '|' in it: %r" % cast[0])
+        p += lua_list(fire("UNIT_SPELLCAST_STOP", "target", "x", 695))
+        # five combo points, then Rip: the cast line carries the 5
+        lua.execute("STUB.combo = 5")
+        p += lua_list(fire("UNIT_POWER_UPDATE", "player", "COMBO_POINTS"))
+        lua.execute("STUB.combo = 0")
+        p += lua_list(fire("UNIT_POWER_UPDATE", "player", "COMBO_POINTS"))
+        p += lua_list(lua.eval("STUB.castDone")(1079))
+        rip = [a for a in code("A") if a[2] == "Rip"]
+        if not rip or rip[-1][3:] != ["5"]:
+            p.append("Rip is not logged with its five combo points: %r" % rip)
+        p += lua_list(lua.eval("STUB.castDone")(1082))
+        claw = [a for a in code("A") if a[2] == "Claw"]
+        if not claw or len(claw[-1]) != 3:
+            p.append("Claw (no finisher) carries a combo point field: %r" % claw)
+        if code("Y"):
+            p.append("damage by spell is written in the fight, when it is secret: %r" % code("Y"))
+        # the fight ends: the meter's spells, strongest first
+        lua.execute("STUB.combat = false")
+        p += lua_list(fire("PLAYER_REGEN_ENABLED"))
+        p += lua_list(tick(10, 0.25))
+        y = code("Y")
+        names = lambda r: [f.split("=")[0] for f in r[2:]]
+        if len(y) != 1 or names(y[0])[:2] != ["Claw", "Rip"] or "Claw=812" not in y[0]:
+            p.append("after the fight the damage by spell is %r" % y)
+        # a client with no such call: nothing written, no error
+        lua.execute("STUB.noMeterSpells = true")
+        p += lua_list(fire("PLAYER_REGEN_DISABLED"))
+        lua.execute("STUB.combat = true")
+        p += lua_list(tick(1, 0.25))
+        lua.execute("STUB.combat = false")
+        p += lua_list(fire("PLAYER_REGEN_ENABLED"))
+        p += lua_list(tick(10, 0.25))
+        if len(code("Y")) != 1:
+            p.append("with no meter spells a Y line is written: %r" % code("Y"))
+        lua.execute("STUB.noMeterSpells = false")
+        # secret combo points in a fight: no error, and no count on the finisher
+        p += lua_list(fire("PLAYER_REGEN_DISABLED"))
+        lua.execute("STUB.combat = true STUB.combo = STUB_secret()")
+        p += lua_list(fire("UNIT_POWER_UPDATE", "player", "COMBO_POINTS"))
+        p += lua_list(lua.eval("STUB.castDone")(1079))
+        rip = [a for a in code("A") if a[2] == "Rip"]
+        if len(rip[-1]) != 3:
+            p.append("secret combo points gave the finisher a count: %r" % rip[-1])
+        # the probe in a fight: the meter's spells are unreadable, and it says so
+        e = lua.eval("STUB.slash")("probe")
+        if e:
+            p.append("/okd probe in a fight: %s" % e)
+        probe = [str(l) for l in lua_list(lua.eval("OneKeyDruidDB.probes[#OneKeyDruidDB.probes]"))]
+        spells = [l for l in probe if l.startswith("meter by spell:")]
+        if not spells or "SECRET" not in spells[0]:
+            p.append("the probe in a fight does not say the meter's spells are secret: %r" % spells)
+        # the fight ends but the lock is still on when the timer comes: nothing read
+        lua.execute("STUB.combo = 0")
+        p += lua_list(fire("PLAYER_REGEN_ENABLED"))
+        p += lua_list(tick(10, 0.25))
+        if len(code("Y")) != 1:
+            p.append("the meter was read while still locked: %r" % code("Y"))
+        lua.execute("STUB.combat = false")
+        # the meter's copy of your GUID is secret: your own GUID is used instead
+        lua.execute("STUB.secretGuid = true")
+        p += lua_list(fire("PLAYER_REGEN_DISABLED"))
+        lua.execute("STUB.combat = true")
+        p += lua_list(tick(1, 0.25))
+        lua.execute("STUB.combat = false")
+        p += lua_list(fire("PLAYER_REGEN_ENABLED"))
+        p += lua_list(tick(10, 0.25))
+        if len(code("Y")) != 2:
+            p.append("with a secret source GUID no damage by spell: %r" % code("Y"))
+        e = lua.eval("STUB.slash")("probe")
+        if e:
+            p.append("/okd probe: %s" % e)
+        probe = [str(l) for l in lua_list(lua.eval("OneKeyDruidDB.probes[#OneKeyDruidDB.probes]"))]
+        if not any(l.startswith("percent: health") for l in probe) or not any(l.startswith("meter by spell: Claw=812") for l in probe):
+            p.append("the probe has no percent or meter-by-spell line: %r" % probe)
+        return p
+
     @S.test("macro: mage F is Frostbolt with up to two Fireballs before it, one macro per count; no cooldown on F")
     def _():
         p = []
@@ -2500,6 +2606,31 @@ def main():
         stable = open(os.path.join(ROOT, "release", "STABLE"), encoding="utf-8").read().strip()
         if not re.match(r"^\d+\.\d+\.\d+$", stable):
             p.append("release/STABLE is not one version number: %r" % stable)
+        return p
+
+    @S.test("log analyser: damage by spell (Y), combo points per finisher, warnings (W)")
+    def _():
+        import importlib.util
+        p = []
+        spec = importlib.util.spec_from_file_location("analyze_log", os.path.join(ROOT, "tools", "analyze_log.py"))
+        al = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(al)
+        e = [l.split("|") for l in (
+            "0.0|S|1|30|0|100|0|Duskwood|1|2|0.39.0", "1.0|C+|Wolf|30|normal|cat|A", "2.0|A|Rip|5",
+            "3.0|A|Rip|4", "3.5|A|Ferocious Bite|5", "4.0|A|Claw", "5.0|W|afk alarm", "5.5|W|afk alarm",
+            "6.0|C-|5|10|1|1", "7.5|M|900|100|0|1000", "7.5|Y|Claw=600|Rip=300", "20.0|Y|Claw=100|Melee=0",
+        )]
+        d = al.spell_damage(e)
+        if not d or list(d)[0] != "Claw" or not d["Claw"].startswith("700 (70 %)") or not d["Rip"].startswith("300 (30 %)"):
+            p.append("damage by spell: %r" % d)
+        cp = al.finisher_cp(e)
+        if cp != {"Rip": {4: 1, 5: 1}, "Ferocious Bite": {5: 1}}:
+            p.append("combo points per finisher: %r" % cp)
+        s = al.summary(e)
+        if s["warnings"] != [("afk alarm", 2)]:
+            p.append("warnings: %r" % s["warnings"])
+        if al.spell_damage(e[:3]) is not None or al.finisher_cp(e[:2]) is not None:
+            p.append("a session with no Y or finisher lines is not None")
         return p
 
     @S.test("release: the log analyser counts the play behind a version (stamped sessions only)")

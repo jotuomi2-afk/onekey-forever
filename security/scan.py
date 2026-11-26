@@ -57,6 +57,8 @@ ALLOWED_FINDINGS = {
     ("Core.lua", "R3", "_G used as a value"): (1, "/okd probe walks a dotted API path to show what the client lets an addon read; it only prints"),
     ("Core.lua", "R4", "string names UnitPower"): (1, "/okd probe prints whether the value is secret; it is never compared"),
     ("Core.lua", "R4", "string names UnitHealth"): (1, "/okd probe, as above"),
+    ("Core.lua", "R4", "string names UnitHealthPercent"): (1, "/okd probe prints whether the percentage is secret (0.39.0); never compared"),
+    ("Core.lua", "R4", "string names UnitPowerPercent"): (1, "/okd probe, as above"),
 }
 SECRET_APIS = ["UnitHealth", "UnitPower", "UnitHealthPercent", "UnitPowerPercent", "UnitHealthMissing"]
 TOKEN_PATTERNS = [r"ghp_[A-Za-z0-9]{20,}", r"github_pat_[A-Za-z0-9_]{20,}", r"sk-[A-Za-z0-9]{20,}",

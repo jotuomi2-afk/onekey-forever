@@ -423,6 +423,8 @@ C_LossOfControl = {
 	end,
 }
 STUB.meter = true
+-- the player's GUID; STUB.secretGuid makes the meter's copy of it secret
+function UnitGUID(unit) if unit == "player" then return "Player-1-0000001" end return nil end
 C_DamageMeter = {
 	IsDamageMeterAvailable = function() return STUB.meter, nil end,
 	GetCombatSessionFromType = function(sessionType, kind)
@@ -430,7 +432,17 @@ C_DamageMeter = {
 		local function v(n) if STUB.combat then return secretValue() end return n end
 		return { combatSources = {
 			{ name = v("Player"), isLocalPlayer = v(true), classFilename = v("DRUID"),
-			  totalAmount = v(1234), amountPerSecond = v(56) },
+			  sourceGUID = STUB.secretGuid and secretValue() or v("Player-1-0000001"), totalAmount = v(1234), amountPerSecond = v(56) },
+		} }
+	end,
+	-- one source's spells; out of combat plain, in combat secret
+	GetCombatSessionSourceFromType = function(sessionType, kind, guid)
+		if not STUB.meter or STUB.noMeterSpells then return nil end
+		local function v(n) if STUB.combat then return secretValue() end return n end
+		return { combatSpells = STUB.meterSpells or {
+			{ spellID = v(1082), totalAmount = v(812) },   -- Claw
+			{ spellID = v(1079), totalAmount = v(640) },   -- Rip
+			{ spellID = v(0), totalAmount = v(301) },      -- melee swings
 		} }
 	end,
 }

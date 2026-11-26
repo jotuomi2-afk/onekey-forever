@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.39.0
+
+From the logs of 26.11. (0.38.1: 161 minutes, 113 fights, made a release)
+and a look at what WoW: Forever lets an addon read. The log now holds what
+the next analyses need; nothing a key does has changed.
+
+- The log writes every warning shown on screen ("W"), once per 20 seconds
+  for the same text, and the AFK alarm when it starts. Before, the logs
+  could not say whether a hint had come up (a death while away on 26.11.:
+  was the alarm heard?).
+- After each fight the game's damage meter is read spell by spell ("Y",
+  the strongest six). Out of combat its numbers are plain, so Rip against
+  the Bite, or Fireball against Frostbolt, is judged by the damage done.
+- A druid finisher (Rip, Ferocious Bite) is logged with the combo points it
+  was spent on. Combo points can be read in a fight on Forever.
+- `/okd probe` also says whether the health and mana percentages are
+  secret (guides disagree) and what the meter gives spell by spell.
+- `tools/analyze_log.py`: damage by spell with each spell's share,
+  combo points per finisher, the warnings shown; `--last` now covers every
+  file given, not only the first.
+
 ## 0.38.1
 
 - Druid: Alt+F is the interrupt key in a fight (owner's ask). In any form

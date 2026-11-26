@@ -15,6 +15,9 @@ Log line format, "t|code|fields...", t = seconds since the session started:
   B   time buckets: fight, rest, move, idle, ...   (cumulative seconds)
   T   target: name, level   Q quest hint shown   Z zone   L level up
   D+/D- death / alive      V+/V- vendor or trainer window
+  W   a warning shown on screen, or "afk alarm" (from 0.39.0)
+  Y   damage by spell after a fight, from the game's meter: name=amount ... (from 0.39.0)
+  A   a finisher (Rip, Ferocious Bite) carries the combo points it was spent on (from 0.39.0)
 """
 import argparse, collections, re, statistics, sys
 
@@ -120,6 +123,31 @@ def finisher_test(all_e):
     return out
 
 
+def spell_damage(e):
+    """Damage by spell over the session, from the meter's lines after each
+    fight (Y), with each spell's share of the whole."""
+    tot = collections.Counter()
+    for x in e:
+        if x[1] == "Y":
+            for f in x[2:]:
+                name, _, amount = f.rpartition("=")
+                if name:
+                    tot[name] += num(amount)
+    whole = sum(tot.values())
+    if not whole:
+        return None
+    return {k: "%d (%.0f %%)" % (v, 100 * v / whole) for k, v in tot.most_common(8)}
+
+
+def finisher_cp(e):
+    """How many combo points each finisher was spent on: {spell: {cp: casts}}."""
+    out = collections.defaultdict(collections.Counter)
+    for x in e:
+        if x[1] == "A" and len(x) > 3 and x[3].isdigit():
+            out[x[2]][int(x[3])] += 1
+    return {k: dict(sorted(v.items())) for k, v in out.items()} or None
+
+
 def summary(e):
     s = e[0]
     t = max(num(x[0]) for x in e) or 1
@@ -144,6 +172,9 @@ def summary(e):
         "casts": dict(collections.Counter(x[2] for x in e if x[1] == "A").most_common(16)),
         "target_levels": dict(collections.Counter(x[3] for x in e if x[1] == "T" and len(x) > 3).most_common(6)),
         "quest_hints": collections.Counter("|".join(x[2:])[:70] for x in e if x[1] == "Q").most_common(5),
+        "warnings": collections.Counter("|".join(x[2:])[:60] for x in e if x[1] == "W").most_common(8),
+        "spell_damage": spell_damage(e),
+        "finisher_cp": finisher_cp(e),
         "death_context": [],
     }
     for k, x in enumerate(e):
@@ -212,10 +243,19 @@ def main():
             print("  %-18s %s" % (k, v))
         print("ENOUGH FOR A RELEASE" if not r["missing"] else "STAYS A BETA")
         sys.exit(0 if not r["missing"] else 1)
-    all_s = [summary(e) for e in sessions(a.path[0])]
-    if not all_s:
-        sys.exit("no session log in this file")
-    chosen = [s for s in all_s if s["start"] >= a.since][-a.last:]
+    shown = 0
+    for path in a.path:
+        all_s = [summary(e) for e in sessions(path)]
+        chosen = [s for s in all_s if s["start"] >= a.since][-a.last:]
+        if len(a.path) > 1 and chosen:
+            print("##### %s" % path)
+        shown += len(chosen)
+        show(chosen)
+    if not shown:
+        sys.exit("no session log in these files")
+
+
+def show(chosen):
     for s in chosen:
         print("== session from %d, %s %s, level %s, %.1f min" % (s["start"], s["class"].lower(), s["version"], s["level"], s["minutes"]))
         for k, v in s.items():

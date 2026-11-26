@@ -152,6 +152,7 @@ point to several tests; names are matched on their beginning.
 | REQ-61 | Warnings are shown big in the middle of the screen (in a fight: the red, orange and yellow lines; out of a fight: do not pull, and in Prowl where the opener is); gone when there is none; `/okd alert` sets the size or turns them off | druid: the warnings are shown big |
 | REQ-62 | Druid, Shift+G: in a fight into the bear and never back, as a bear its hit; out of a fight the swap | druid: rooted, the HUD says |
 | REQ-63 | Druid, a cat gone bear in the fight: F hits as a bear (Swipe, Maul before Swipe) at every level and setting, the Wrath pull stays, 255 characters hold | druid: Rip and the Bite take turns |
+| REQ-64 | The log writes each warning shown once (W, plain text, not again within 20 s) and the AFK alarm; after a fight the meter's damage by spell (Y, strongest first, never in a fight, nothing when the client lacks the call); a druid finisher with the combo points it was spent on; `/okd probe` says whether the health and mana percentages are secret; the analyser sums damage by spell, combo points per finisher and warnings | log: warnings; log analyser: damage by spell |
 
 ## 6. Threat model (STRIDE)
 

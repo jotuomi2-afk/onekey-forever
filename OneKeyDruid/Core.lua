@@ -16,7 +16,7 @@ local Logic = ns.Logic
 local _, CLASS = UnitClass("player")
 if CLASS ~= "DRUID" then return end
 
-local VERSION = "0.38.1"
+local VERSION = "0.39.0"
 local BUTTON = "OneKeyDruidButton"
 -- The buttons of the modifier keys.
 local NAMES = { heal = "OneKeyDruidHeal", cc = "OneKeyDruidStop", behind = "OneKeyDruidBehind",
@@ -472,12 +472,26 @@ end
 -- The warnings, big and in the middle of the screen (owner, 25.11.: "much
 -- bigger"). The HUD line keeps saying what the key does.
 local bigAlert
+-- Every warning shown goes into the log once ("W|text"), so the logs can
+-- say which hints the player saw (26.11.: a death while away, and no way
+-- to tell whether the alarm and the warnings had come up). The same text
+-- again within 20 seconds is not written twice.
+local warnLog = {}
+local function logWarning(text)
+	if not (logEvent and type(text) == "string" and text ~= "") then return end
+	local plainWarn = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|", "/"):gsub("\n", " ")
+	local now = GetTime()
+	if warnLog[plainWarn] and now - warnLog[plainWarn] < 20 then return end
+	warnLog[plainWarn] = now
+	logEvent("W", plainWarn)
+end
 local function setAlert(text)
 	if not bigAlert then return end
 	if db and (db.alert == 0 or db.hud == false) then text = nil end
 	if text ~= bigAlert.shown then
 		bigAlert.shown = text
 		bigAlert.text:SetText(text or "")
+		if text then logWarning(text) end
 	end
 end
 ns.DruidAlert = function() return bigAlert and bigAlert.shown end -- read by the tests
@@ -1435,6 +1449,7 @@ local function startAlarm()
 	if db.alarm == false or alarm.on then return end
 	if GetTime() - lastPress() < 30 then return end
 	alarm.on, alarm.n, alarm.since = true, 0, GetTime()
+	if logEvent then logEvent("W", "afk alarm") end
 	alarmTick()
 end
 
@@ -1815,6 +1830,48 @@ local function meterTotals(overall)
 	return out[1], out[2], out[3]
 end
 
+-- Your damage of the last fight, spell by spell, from the same meter: out of
+-- combat every number in it can be read. For the log ("Y|Claw=812|Rip=640"),
+-- so a finisher or an opener is judged by the damage it did, not by how long
+-- the fights took. The strongest six; nil when the client has no such call.
+local function meterSpells()
+	local M, E = C_DamageMeter, Enum
+	if not (M and M.GetCombatSessionSourceFromType and E and E.DamageMeterSessionType and E.DamageMeterType) then
+		return nil, "missing"
+	end
+	local guid
+	local session = dpsSession(E.DamageMeterType.DamageDone, false)
+	if session and type(session.combatSources) == "table" then
+		for _, src in ipairs(session.combatSources) do
+			if not secret(src.isLocalPlayer) and src.isLocalPlayer and not secret(src.sourceGUID) then guid = src.sourceGUID end
+		end
+	end
+	guid = guid or (UnitGUID and UnitGUID("player"))
+	if not guid or secret(guid) then return nil, "no source" end
+	local ok, source = pcall(M.GetCombatSessionSourceFromType, E.DamageMeterSessionType.Current,
+		E.DamageMeterType.DamageDone, guid)
+	if not ok or type(source) ~= "table" or type(source.combatSpells) ~= "table" then return nil, "no spells" end
+	local rows, hidden = {}, 0
+	for _, sp in ipairs(source.combatSpells) do
+		local id, amount = sp.spellID, sp.totalAmount
+		if secret(id) or secret(amount) then
+			hidden = hidden + 1
+		elseif type(amount) == "number" and amount > 0 then
+			local name = (type(id) == "number" and spellName(id)) or (id == 0 and "Melee") or nil
+			if name and not secret(name) then
+				name = tostring(name):gsub("[|=]", "")
+				rows[#rows + 1] = { name, math.floor(amount + 0.5) }
+			end
+		end
+	end
+	-- in a fight the numbers are secret: say so, not "nothing"
+	if #rows == 0 and hidden > 0 then return nil, "SECRET" end
+	table.sort(rows, function(a, b) return a[2] > b[2] end)
+	local parts = {}
+	for i = 1, math.min(6, #rows) do parts[i] = rows[i][1] .. "=" .. rows[i][2] end
+	return parts
+end
+
 local function createDps()
 	local f = CreateFrame("Frame", "OneKeyDruidDps", UIParent)
 	dps.frame = f
@@ -1895,6 +1952,8 @@ local function probe()
 	end
 	out("GetComboPoints %s | health %s | health max %s", call("GetComboPoints", "player", "target"),
 		call("UnitHealth", "player"), call("UnitHealthMax", "player"))
+	-- guides disagree whether the percentages are secret on Forever (26.11.)
+	out("percent: health %s | mana %s", call("UnitHealthPercent", "player"), call("UnitPowerPercent", "player", 0))
 	out("secrets: auras %s | cooldowns %s | stats %s", call("C_Secrets.ShouldAurasBeSecret"),
 		call("C_Secrets.ShouldCooldownsBeSecret"), call("C_Secrets.ShouldUnitStatsBeSecret"))
 	out("assisted combat: available %s | next spell %s", call("C_AssistedCombat.IsAvailable"),
@@ -1930,6 +1989,9 @@ local function probe()
 	end
 	out("damage meter: setting %s | window %s | dps: %s | damage taken: %s | healing: %s", tostring(cvar), dps.state,
 		meter("Dps"), meter("DamageTaken"), meter("HealingDone"))
+	local okS, parts, why = pcall(meterSpells)
+	out("meter by spell: %s", not okS and "ERROR" or (parts and (#parts > 0 and table.concat(parts, ", ") or "none yet"))
+		or tostring(why))
 	say("probe (also saved; /reload writes it to disk):")
 	for _, l in ipairs(lines) do print("  " .. l) end
 	db.probes = db.probes or {}
@@ -2022,6 +2084,9 @@ end
 --   B  time so far in seconds: fight, rest, move, idle, dead, town, afk
 --   M  the game's meter after a fight: damage done, damage taken, healing; max health
 --   H  after a heal out of combat: spell, overall damage taken, overall healing
+--   W  a warning shown on screen, or the AFK alarm: the text
+--   Y  your damage of the last fight by spell (meter): name=amount, the strongest six
+--   (A: a finisher carries a second field, the combo points it was spent on)
 
 local LOG_MAX = 8000
 local lg = { t0 = 0, buckets = { fight = 0, rest = 0, move = 0, idle = 0, dead = 0, town = 0, afk = 0 } }
@@ -2191,11 +2256,21 @@ logger:SetScript("OnEvent", function(_, event, a1, a2, a3)
 		live.times[#live.times + 1] = GetTime()
 	end
 	if event == "PLAYER_XP_UPDATE" and locked() then live.lastKill = GetTime() end
+	-- Combo points can be read in a fight on Forever (probe of 0.4.0). The
+	-- last count above nought is kept, so the log can say how many a
+	-- finisher was spent on (the count may drop to nought before the cast
+	-- event comes).
+	if event == "UNIT_POWER_UPDATE" and a1 == "player" and a2 == "COMBO_POINTS" then
+		local ok, cp = pcall(GetComboPoints or function() return nil end, "player", "target")
+		if ok and not secret(cp) and type(cp) == "number" and cp > 0 then lg.cp = cp end
+		return
+	end
 	-- the other finisher plan for the next fight (log or no log)
 	if event == "PLAYER_REGEN_ENABLED" and db then db.biteTurn = not db.biteTurn end
 	if not db or not db.log or not db.lines then return end
 	if event == "PLAYER_REGEN_DISABLED" then
 		lg.inFight, lg.fightAt, lg.fightXp, lg.hits, lg.most, lg.kills = true, GetTime(), 0, 0, 0, 0
+		lg.cp = nil
 		local name, lvl, class = targetInfo()
 		if name then lg.lastName, lg.lastLevel = name, lvl end
 		logEvent("C+", name, lvl, class, formNow(), (select(2, fightText())))
@@ -2220,6 +2295,8 @@ logger:SetScript("OnEvent", function(_, event, a1, a2, a3)
 				if locked() then return end
 				local ok, done, taken, healed = pcall(meterTotals, false)
 				if ok then logEvent("M", done, taken, healed, UnitHealthMax("player")) end
+				local okS, parts = pcall(meterSpells)
+				if okS and type(parts) == "table" and #parts > 0 then logEvent("Y", unpack(parts)) end
 				local t, h = ok and tonumber(taken), ok and tonumber(healed)
 				if t and h then
 					-- the fight's net loss goes onto the estimate, and into
@@ -2276,7 +2353,13 @@ logger:SetScript("OnEvent", function(_, event, a1, a2, a3)
 		if a1 == "player" and not secret(a3) and a3 then
 			local name = spellName(a3)
 			if name and not secret(name) then
-				logEvent("A", name)
+				if (name == N.rip or name == N.fb) and lg.cp then
+					-- a finisher: with the combo points it was spent on
+					logEvent("A", name, lg.cp)
+					lg.cp = nil
+				else
+					logEvent("A", name)
+				end
 				if name == N.roar and lg.inFight then lg.roared = true end
 				if name == N.grasp then graspAt = GetTime() end
 				if name == N.bash then bashAt = GetTime() end
@@ -2400,6 +2483,7 @@ local function startLog()
 	pcall(logger.RegisterUnitEvent, logger, "UNIT_COMBAT", "player")
 	pcall(logger.RegisterUnitEvent, logger, "UNIT_SPELLCAST_START", "player")
 	pcall(logger.RegisterUnitEvent, logger, "UNIT_SPELLCAST_INTERRUPTED", "player")
+	pcall(logger.RegisterUnitEvent, logger, "UNIT_POWER_UPDATE", "player")
 	backfill()
 	if db.log then logStart() end
 end
