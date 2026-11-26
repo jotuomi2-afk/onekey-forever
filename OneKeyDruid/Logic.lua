@@ -581,21 +581,25 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 		out.heal = fit(e)
 	end
 
-	-- Alt: stop the mob (Bash in bear, Entangling Roots otherwise). With no
-	-- live enemy and out of combat: eat and drink.
+	-- Alt: stop the mob. With no live enemy and out of combat: eat and drink.
 	-- Out of combat the form is always left: rooting and eating both need
-	-- the caster form. In combat the bear stays a bear, for Bash.
+	-- the caster form. In a fight, with Bash known, it is the interrupt key
+	-- (owner, 26.11.: "the key changes the shape when needed and casts the
+	-- skill"): the first press makes the bear, the next one is Bash, which
+	-- stuns and so stops a cast. One action a press: the player presses,
+	-- nothing is cast from Lua. Entangling Roots in a fight is on Shift
+	-- (cfg.escape) and Nature's Grasp on the emergency key.
 	local REST = "[nocombat,noharm][nocombat,dead]"
 	local c = {}
 	local bash = B and known.bash
 	local rest = items.food or items.water
 	if known.roots then
 		if bash then
-			c[#c + 1] = { ("/cancelform [nocombat][noform:%d]"):format(B), 1 }
+			c[#c + 1] = { "/cancelform [nocombat]", 1 }
 			-- Roots hold any mob. Hibernate works only on beasts and
 			-- dragonkin; on anything else it fails and would stop the macro
 			-- before the roots, so it is not here.
-			c[#c + 1] = { ("/cast [noform:%d,harm,nodead] %s"):format(B, N.roots), 1 }
+			c[#c + 1] = { "/cast [nocombat,harm,nodead] " .. N.roots, 1 }
 		else
 			c[#c + 1] = { "/cancelform", 1 }
 			c[#c + 1] = { "/cast [harm,nodead] " .. N.roots, 1 }
@@ -606,7 +610,9 @@ function Logic.BuildMacros(known, N, forms, mode, cfg, items)
 	if items.food then c[#c + 1] = { ("/use %s item:%d"):format(REST, items.food), 2 } end
 	if items.water then c[#c + 1] = { ("/use %s item:%d"):format(REST, items.water), 2 } end
 	-- Bash last: on cooldown it fails, and a failed cast stops the macro
-	if bash then c[#c + 1] = { ("/cast [form:%d,combat,harm,nodead] %s"):format(B, N.bash), 1 } end
+	if bash then
+		c[#c + 1] = { ("/cast [combat,noform:%d] %s; [combat,harm,nodead] %s"):format(B, bearName, N.bash), 1 }
+	end
 	if #c > 0 then out.cc = fit(c) end
 
 	-- The emergency key, to be pressed again and again. The client stops a

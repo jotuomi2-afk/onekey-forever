@@ -1436,7 +1436,7 @@ def main():
             p.append("/okd interrupt off, the hint shows: %r" % ns.OneKeyAlert())
         return p
 
-    @S.test("interrupt: the target casts, the bear is told Alt+F Bash (big), the cat in one line; not for a minute after Bash")
+    @S.test("interrupt: the target casts, the druid is told Alt+F (as a cat twice: the bear, then Bash); not for a minute after Bash")
     def _():
         p = []
         lua = new_lua()
@@ -1464,16 +1464,20 @@ def main():
         p += lua_list(tick(1, 0.25))
         if "Bash" in (ns.DruidAlert() or ""):
             p.append("the cast was stopped, the text stays: %r" % ns.DruidAlert())
-        # as a cat: one line in the HUD, nothing big
+        # as a cat: the same key, twice (the bear, then Bash), big as well
         lua.execute("STUB.form = 3")
         p += lua_list(fire("UPDATE_SHAPESHIFT_FORM"))
         p += lua_list(fire("UNIT_SPELLCAST_CHANNEL_START", "target", "x", 695))
         p += lua_list(tick(1, 0.25))
-        h = ns.DruidHud() or ""
-        if "Bash" not in h or "Shift+G" not in h:
-            p.append("a cat, the target casts, the HUD says %r" % h)
-        if "Bash" in (ns.DruidAlert() or ""):
-            p.append("a cat is told in big text: %r" % ns.DruidAlert())
+        h = ns.DruidAlert() or ""
+        if "Bash" not in h or "Alt+" not in h or "twice" not in h:
+            p.append("a cat, the target casts, the big text says %r" % h)
+        # the key itself: in a fight the bear first, then Bash; Roots only out of a fight
+        cc = next((v for k, v in macro_attrs(lua).items() if "Bash" in str(v) and "Entangling Roots" in str(v)), "")
+        if "/cast [combat,noform:1] Bear Form; [combat,harm,nodead] Bash" not in cc:
+            p.append("Alt+F in a fight is not the bear and then Bash: %r" % cc)
+        if "[nocombat,harm,nodead] Entangling Roots" not in cc or len(cc) > 255:
+            p.append("Alt+F out of a fight has no Roots, or is too long: %r" % cc)
         p += lua_list(fire("UNIT_SPELLCAST_CHANNEL_STOP", "target", "x", 695))
         # Bash used: silent for its minute
         lua.execute("STUB.form = 1")

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.38.1
+
+- Druid: Alt+F is the interrupt key in a fight (owner's ask). In any form
+  the first press makes the bear, the next one is Bash, which stuns and so
+  stops the cast. Before, a cat's Alt+F in a fight left the form and cast
+  Entangling Roots, which stops no cast. Out of a fight Alt+F still roots
+  the mob or eats and drinks.
+  - The warning when the target casts now names this one key for every
+    form ("Alt+F twice: bear, then Bash"), in large letters.
+  - The addon cannot press it for you: the client lets no addon cast or
+    change form, and a macro cannot test whether the target is casting.
+  - Bash costs rage: a fresh bear has none until it is hit (or has Furor).
+
 ## 0.38.0
 
 From the logs of 26.11. (84 minutes and 40 fights on 0.37.1, one death in
